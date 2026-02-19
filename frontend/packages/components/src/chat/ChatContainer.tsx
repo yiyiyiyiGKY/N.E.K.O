@@ -326,7 +326,7 @@ export default function ChatContainer({
         flexDirection: "column",
         width: "100%",
         maxWidth: 400,
-        height: 520,
+        height: 450,
         margin: "0 auto",
         background: "rgba(255, 255, 255, 0.65)",
         backdropFilter: "saturate(180%) blur(20px)",
