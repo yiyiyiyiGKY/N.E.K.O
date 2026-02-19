@@ -1,0 +1,45 @@
+/**
+ * Subtitle Styles
+ */
+
+.subtitle-page {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  font-family: 'Microsoft YaHei', Arial, sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+.subtitle-container {
+  position: fixed;
+  top: 20px;
+  left: 15%;
+  width: 70%;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 10px;
+  padding: 15px 20px;
+  box-sizing: border-box;
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.subtitle-text {
+  color: white;
+  font-size: 24px;
+  line-height: 1.4;
+  text-align: center;
+  word-wrap: break-word;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.subtitle-text.show {
+  opacity: 1;
+}

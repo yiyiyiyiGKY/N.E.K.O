@@ -17,6 +17,9 @@ import SteamWorkshop from "./pages/SteamWorkshop";
 import ModelManager from "./pages/ModelManager";
 import Live2DParameterEditor from "./pages/Live2DParameterEditor";
 import Live2DEmotionManager from "./pages/Live2DEmotionManager";
+import VRMEmotionManager from "./pages/VRMEmotionManager";
+import Subtitle from "./pages/Subtitle";
+import Viewer from "./pages/Viewer";
 
 /**
  * Wrapper component for App with default props
@@ -82,6 +85,18 @@ export const router = createBrowserRouter([
       {
         path: "live2d_parameter_editor",
         element: <Live2DParameterEditor />,
+      },
+      {
+        path: "vrm_emotion_manager",
+        element: <VRMEmotionManager />,
+      },
+      {
+        path: "subtitle",
+        element: <Subtitle />,
+      },
+      {
+        path: "viewer",
+        element: <Viewer />,
       },
     ],
   },
