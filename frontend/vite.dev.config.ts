@@ -5,7 +5,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [react()],
   root: path.resolve(__dirname, "src/web"),
-  publicDir: path.resolve(__dirname, "../static"),
+  publicDir: path.resolve(__dirname, ".."),
 
   resolve: {
     alias: [

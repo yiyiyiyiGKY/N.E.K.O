@@ -1,83 +1,43 @@
 /**
- * Model Manager Page Styles
+ * Model Manager Page Styles - Neko Theme
+ *
+ * Sidebar (model list/controls) + main content (preview canvas) layout.
+ * Uses neko cyan theme system CSS variables throughout.
  */
 
-.model-manager-page {
-  min-height: 100vh;
-  background: #1a1a2e;
-  padding: 0;
-}
+/* ========== Content Layout ========== */
 
-.page-container {
-  max-width: 100%;
-  margin: 0 auto;
-  background: #16213e;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Header */
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 2px solid #0f3460;
-  background: #1a1a2e;
-}
-
-.page-header h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #e94560;
-}
-
-.close-button {
-  background: #e94560;
-  border: none;
-  color: #fff;
-  font-size: 20px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.close-button:hover {
-  background: #d63384;
-}
-
-/* Content Layout */
-.page-content {
+.model-layout {
   display: grid;
   grid-template-columns: 280px 1fr;
   gap: 0;
   flex: 1;
+  padding: 0 !important;
 }
 
-/* Sidebar */
-.sidebar {
-  background: #1a1a2e;
-  border-right: 2px solid #0f3460;
+/* ========== Sidebar ========== */
+
+.model-sidebar {
+  background: var(--neko-white);
+  border-right: 2px solid var(--neko-border);
+  border-radius: 0 0 0 var(--neko-radius-card);
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+  overflow-y: auto;
 }
 
 .control-group {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-.control-group label {
-  color: #a0a0a0;
-  font-size: 12px;
-  font-weight: 600;
+.control-label {
+  color: var(--neko-primary);
+  font-size: 0.85rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -87,65 +47,23 @@
   gap: 8px;
 }
 
-.btn {
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
-}
-
-.btn-primary {
-  background: #e94560;
-  color: #fff;
+.button-row .neko-btn {
   flex: 1;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: #d63384;
-  transform: translateY(-2px);
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-danger {
-  background: #dc3545;
-  color: #fff;
-  padding: 10px 14px;
-}
-
-.btn-danger:hover {
-  background: #c82333;
-}
+/* ========== Upload Status ========== */
 
 .upload-status {
-  font-size: 12px;
-  color: #4ade80;
-  padding: 8px;
-  background: rgba(74, 222, 128, 0.1);
-  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--neko-success-text);
+  padding: 8px 12px;
+  background: var(--neko-success-bg);
+  border: 1px solid var(--neko-success-border);
+  border-radius: var(--neko-radius-capsule);
   text-align: center;
 }
 
-.control-group select {
-  padding: 10px 14px;
-  background: #0f3460;
-  border: 2px solid #1a1a2e;
-  border-radius: 8px;
-  color: #fff;
-  font-size: 13px;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-
-.control-group select:hover {
-  border-color: #e94560;
-}
+/* ========== Model List ========== */
 
 .model-list {
   display: flex;
@@ -160,25 +78,41 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: #0f3460;
-  border: 2px solid transparent;
-  border-radius: 8px;
+  background: var(--neko-white);
+  border: 2px solid var(--neko-border);
+  border-radius: var(--neko-radius-card);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .model-item:hover {
-  border-color: #e94560;
+  border-color: var(--neko-primary);
+  background: var(--neko-light-bg);
 }
 
 .model-item.active {
-  border-color: #e94560;
-  background: rgba(233, 69, 96, 0.1);
+  border-color: var(--neko-primary);
+  background: var(--neko-primary);
+  color: var(--neko-white);
+}
+
+.model-item.active .model-name {
+  color: var(--neko-white);
+}
+
+.model-item.active .delete-btn {
+  color: var(--neko-white);
+  opacity: 0.8;
+}
+
+.model-item.active .delete-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .model-name {
-  color: #fff;
-  font-size: 13px;
+  color: var(--neko-text-dark);
+  font-size: 0.9rem;
   font-weight: 500;
   flex: 1;
 }
@@ -186,28 +120,29 @@
 .delete-btn {
   background: transparent;
   border: none;
-  color: #dc3545;
-  font-size: 16px;
+  color: var(--neko-danger);
+  font-size: 18px;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 2px 8px;
+  border-radius: var(--neko-radius-capsule);
   transition: background 0.2s;
+  line-height: 1;
 }
 
 .delete-btn:hover {
-  background: rgba(220, 53, 69, 0.2);
+  background: var(--neko-error-bg);
 }
 
+/* ========== Model Info Card ========== */
+
 .model-info {
-  padding: 16px;
-  background: #0f3460;
-  border-radius: 8px;
+  margin-top: 4px;
 }
 
 .info-title {
-  color: #e94560;
-  font-size: 14px;
-  font-weight: 600;
+  color: var(--neko-primary);
+  font-size: 0.95rem;
+  font-weight: 700;
   margin-bottom: 12px;
 }
 
@@ -215,38 +150,39 @@
   display: flex;
   justify-content: space-between;
   margin-bottom: 8px;
-  font-size: 12px;
+  font-size: 0.85rem;
 }
 
 .info-row:last-child {
   margin-bottom: 0;
 }
 
-.info-row .label {
-  color: #a0a0a0;
+.info-label {
+  color: var(--neko-text-muted);
 }
 
-.info-row .value {
-  color: #fff;
-  font-weight: 500;
+.info-value {
+  color: var(--neko-text-dark);
+  font-weight: 600;
 }
 
-/* Main Content */
-.main-content {
-  background: #16213e;
+/* ========== Main Content / Preview ========== */
+
+.model-main {
+  background: var(--neko-card-bg);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
+  padding: 32px;
 }
 
 .preview-area {
   width: 100%;
   height: 100%;
   min-height: 500px;
-  background: #1a1a2e;
-  border-radius: 16px;
-  border: 2px solid #0f3460;
+  background: var(--neko-white);
+  border-radius: var(--neko-radius-card);
+  border: 2px solid var(--neko-border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -255,58 +191,59 @@
 .preview-placeholder,
 .no-model-selected {
   text-align: center;
-  color: #a0a0a0;
-}
-
-.preview-icon,
-.placeholder-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
-  opacity: 0.5;
+  color: var(--neko-text-muted);
 }
 
 .preview-text {
-  font-size: 18px;
+  font-size: 1.1rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--neko-text-dark);
   margin: 0 0 8px 0;
 }
 
 .preview-model-name {
-  font-size: 24px;
-  font-weight: 600;
-  color: #e94560;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--neko-primary);
   margin: 0 0 16px 0;
 }
 
 .preview-hint {
-  font-size: 13px;
-  color: #666;
+  font-size: 0.85rem;
+  color: var(--neko-text-muted);
   margin: 0;
 }
 
 .no-model-selected p {
-  font-size: 14px;
+  font-size: 0.95rem;
+  color: var(--neko-text-muted);
   margin: 0;
 }
+
+/* ========== Loading / Empty States ========== */
 
 .loading-text,
 .empty-text {
   text-align: center;
-  color: #a0a0a0;
-  font-size: 13px;
+  color: var(--neko-text-muted);
+  font-size: 0.85rem;
   padding: 20px;
+  background: var(--neko-card-bg);
+  border-radius: var(--neko-radius-card);
+  border: 2px dashed var(--neko-border);
 }
 
-/* Responsive */
+/* ========== Responsive ========== */
+
 @media (max-width: 968px) {
-  .page-content {
+  .model-layout {
     grid-template-columns: 1fr;
   }
 
-  .sidebar {
+  .model-sidebar {
     border-right: none;
-    border-bottom: 2px solid #0f3460;
+    border-bottom: 2px solid var(--neko-border);
+    border-radius: 0;
   }
 
   .model-list {
@@ -315,15 +252,11 @@
 }
 
 @media (max-width: 768px) {
-  .page-content {
-    padding: 0;
-  }
-
-  .sidebar {
+  .model-sidebar {
     padding: 16px;
   }
 
-  .main-content {
-    padding: 20px;
+  .model-main {
+    padding: 16px;
   }
 }

@@ -123,126 +123,122 @@ export default function VoiceClone() {
   };
 
   return (
-    <div className="voice-clone-page">
-      <div className="page-container">
-        {/* Header */}
-        <div className="page-header">
-          <h2>音色注册</h2>
-          <button className="close-button" onClick={handleClose} title="关闭">
-            ✕
-          </button>
+    <div className="neko-container">
+      {/* Header */}
+      <div className="neko-header">
+        <h2 data-text="语音克隆">语音克隆</h2>
+        <button className="neko-close-btn" onClick={handleClose} title="关闭">
+          <img src="/static/icons/close_button.png" alt="关闭" />
+        </button>
+      </div>
+
+      <div className="neko-content">
+        {/* Notice */}
+        <div className="neko-info-box" style={{ marginBottom: 24 }}>
+          此功能需要使用阿里云API
         </div>
 
-        <div className="page-content">
-          {/* Notice */}
-          <div className="api-notice">
-            ⚠️ 此功能需要使用阿里云API
-          </div>
+        {/* File Upload */}
+        <div className="neko-field-row">
+          <label className="neko-label">
+            选择本地音频文件 <em>（15秒最佳，请勿超过30秒，wav/mp3格式）</em>
+          </label>
 
-          {/* File Upload */}
-          <div className="form-section">
-            <label className="label-with-icon">
-              <span className="icon">⚠️</span>
-              <span>选择本地音频文件（15秒最佳，请勿超过30秒，wav/mp3格式）</span>
+          <div className="file-upload-area">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="audio/*"
+              onChange={handleFileChange}
+              id="audioFile"
+              className="file-input"
+            />
+            <label htmlFor="audioFile" className="file-label">
+              {audioFile ? audioFile.name : "选择文件"}
             </label>
+          </div>
+        </div>
 
-            <div className="file-upload-area">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="audio/*"
-                onChange={handleFileChange}
-                id="audioFile"
-                className="file-input"
-              />
-              <label htmlFor="audioFile" className="file-label">
-                📁 {audioFile ? audioFile.name : "选择文件"}
-              </label>
-            </div>
+        {/* Form */}
+        <form onSubmit={handleRegister}>
+          <div className="neko-field-row">
+            <label className="neko-label">参考音频语言</label>
+            <p className="neko-tips">选择您上传的参考音频的语言，中文以外的语言需要指定</p>
+            <select
+              className="neko-select"
+              value={refLanguage}
+              onChange={(e: ChangeEvent<HTMLSelectElement>) => setRefLanguage(e.target.value)}
+            >
+              <option value="ch">中文</option>
+              <option value="en">英语</option>
+              <option value="fr">法语</option>
+              <option value="de">德语</option>
+              <option value="ja">日语</option>
+              <option value="ko">韩语</option>
+              <option value="ru">俄语</option>
+            </select>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleRegister}>
-            <div className="form-group">
-              <label>参考音频语言</label>
-              <p className="hint">选择您上传的参考音频的语言，中文以外的语言需要指定</p>
-              <select
-                value={refLanguage}
-                onChange={(e: ChangeEvent<HTMLSelectElement>) => setRefLanguage(e.target.value)}
-              >
-                <option value="ch">中文</option>
-                <option value="en">英语</option>
-                <option value="fr">法语</option>
-                <option value="de">德语</option>
-                <option value="ja">日语</option>
-                <option value="ko">韩语</option>
-                <option value="ru">俄语</option>
-              </select>
-            </div>
+          <div className="neko-field-row">
+            <label className="neko-label">自定义前缀 <em>（阿里云需要）</em></label>
+            <input
+              className="neko-input"
+              type="text"
+              value={prefix}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setPrefix(e.target.value)}
+              placeholder="Maximum 10 characters, numbers and English letters only"
+              maxLength={10}
+              pattern="[a-zA-Z0-9]+"
+            />
+          </div>
 
-            <div className="form-group">
-              <label>自定义前缀（阿里云需要）</label>
-              <input
-                type="text"
-                value={prefix}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setPrefix(e.target.value)}
-                placeholder="Maximum 10 characters, numbers and English letters only"
-                maxLength={10}
-                pattern="[a-zA-Z0-9]+"
-              />
-            </div>
+          <button type="submit" className="neko-btn neko-btn-primary" disabled={registering}>
+            {registering ? "注册中..." : "注册音色"}
+          </button>
+        </form>
 
-            <button type="submit" className="register-button" disabled={registering}>
-              {registering ? "注册中..." : "🎵 注册音色"}
+        {/* Result Message */}
+        {result && (
+          <div className={`result-message result-${result.type}`}>
+            {result.message}
+          </div>
+        )}
+
+        {/* Registered Voices List */}
+        <div className="voice-list-section">
+          <div className="voice-list-header">
+            <label className="neko-label">已注册音色</label>
+            <button className="neko-btn neko-btn-secondary neko-btn-sm" onClick={loadVoices}>
+              刷新
             </button>
-          </form>
+          </div>
 
-          {/* Result Message */}
-          {result && (
-            <div className={`result-message ${result.type}`}>
-              {result.message}
-            </div>
-          )}
-
-          {/* Registered Voices List */}
-          <div className="voice-list-section">
-            <div className="section-header">
-              <label className="label-with-icon">
-                <span className="icon">🔑</span>
-                <span className="title">已注册音色</span>
-              </label>
-              <button className="refresh-button" onClick={loadVoices}>
-                🔄 刷新
-              </button>
-            </div>
-
-            <div className="voice-list-container">
-              {loadingVoices ? (
-                <div className="loading-text">加载中...</div>
-              ) : voices.length === 0 ? (
-                <div className="empty-text">暂无已注册的音色</div>
-              ) : (
-                <div className="voice-list">
-                  {voices.map((voice) => (
-                    <div key={voice.voiceId} className="voice-item">
-                      <div className="voice-info">
-                        <div className="voice-id">Voice ID: {voice.voiceId}</div>
-                        <div className="voice-prefix">前缀: {voice.prefix}</div>
-                        {voice.createdAt && (
-                          <div className="voice-date">创建时间: {voice.createdAt}</div>
-                        )}
-                      </div>
-                      <button
-                        className="delete-button"
-                        onClick={() => handleDeleteVoice(voice.voiceId)}
-                      >
-                        🗑️ 删除
-                      </button>
+          <div className="voice-list-container">
+            {loadingVoices ? (
+              <div className="voice-list-placeholder">加载中...</div>
+            ) : voices.length === 0 ? (
+              <div className="voice-list-placeholder">暂无已注册的音色</div>
+            ) : (
+              <div className="voice-list">
+                {voices.map((voice) => (
+                  <div key={voice.voiceId} className="voice-item">
+                    <div className="voice-info">
+                      <div className="voice-id">Voice ID: {voice.voiceId}</div>
+                      <div className="voice-meta">前缀: {voice.prefix}</div>
+                      {voice.createdAt && (
+                        <div className="voice-meta">创建时间: {voice.createdAt}</div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    <button
+                      className="neko-btn neko-btn-danger neko-btn-sm"
+                      onClick={() => handleDeleteVoice(voice.voiceId)}
+                    >
+                      删除
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -1,12 +1,12 @@
 /**
  * React Router Configuration
  *
- * Defines all routes for the N.E.K.O web application
+ * Defines all routes for the N.E.K.O web application.
+ * Each management page is a standalone route (no sidebar layout).
  */
 
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import App from "./App";
-import Layout from "./Layout";
 
 // Pages
 import ApiKeySettings from "./pages/ApiKeySettings";
@@ -25,7 +25,6 @@ import Viewer from "./pages/Viewer";
  * Wrapper component for App with default props
  */
 function AppWrapper() {
-  // Default language and handler (will be managed by context in future)
   const handleLanguageChange = async (lng: "zh-CN" | "en") => {
     console.log("[AppWrapper] Language change requested:", lng);
     // TODO: Implement language change with i18n context
@@ -36,6 +35,7 @@ function AppWrapper() {
 
 /**
  * Router configuration
+ * Each page is standalone with its own header bar and close button.
  */
 export const router = createBrowserRouter([
   {
@@ -47,58 +47,52 @@ export const router = createBrowserRouter([
     element: <AppWrapper />,
   },
   {
-    path: "/",
-    element: <Layout />,
-    children: [
-      {
-        path: "api_key",
-        element: <ApiKeySettings />,
-      },
-      {
-        path: "chara_manager",
-        element: <CharacterManager />,
-      },
-      {
-        path: "voice_clone",
-        element: <VoiceClone />,
-      },
-      {
-        path: "memory_browser",
-        element: <MemoryBrowser />,
-      },
-      {
-        path: "steam_workshop_manager",
-        element: <SteamWorkshop />,
-      },
-      {
-        path: "model_manager",
-        element: <ModelManager />,
-      },
-      {
-        path: "l2d",
-        element: <Live2DEmotionManager />,
-      },
-      {
-        path: "live2d_emotion_manager",
-        element: <Live2DEmotionManager />,
-      },
-      {
-        path: "live2d_parameter_editor",
-        element: <Live2DParameterEditor />,
-      },
-      {
-        path: "vrm_emotion_manager",
-        element: <VRMEmotionManager />,
-      },
-      {
-        path: "subtitle",
-        element: <Subtitle />,
-      },
-      {
-        path: "viewer",
-        element: <Viewer />,
-      },
-    ],
+    path: "/api_key",
+    element: <ApiKeySettings />,
+  },
+  {
+    path: "/chara_manager",
+    element: <CharacterManager />,
+  },
+  {
+    path: "/voice_clone",
+    element: <VoiceClone />,
+  },
+  {
+    path: "/memory_browser",
+    element: <MemoryBrowser />,
+  },
+  {
+    path: "/steam_workshop_manager",
+    element: <SteamWorkshop />,
+  },
+  {
+    path: "/model_manager",
+    element: <ModelManager />,
+  },
+  {
+    path: "/l2d",
+    element: <Live2DEmotionManager />,
+  },
+  {
+    path: "/live2d_emotion_manager",
+    element: <Live2DEmotionManager />,
+  },
+  {
+    path: "/live2d_parameter_editor",
+    element: <Live2DParameterEditor />,
+  },
+  {
+    path: "/vrm_emotion_manager",
+    element: <VRMEmotionManager />,
+  },
+  {
+    path: "/subtitle",
+    element: <Subtitle />,
+  },
+  {
+    path: "/viewer",
+    element: <Viewer />,
   },
   {
     path: "*",

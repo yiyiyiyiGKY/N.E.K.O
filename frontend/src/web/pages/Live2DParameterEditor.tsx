@@ -183,9 +183,9 @@ export default function Live2DParameterEditor() {
   return (
     <div className="live2d-parameter-editor">
       {/* Sidebar */}
-      <div className="sidebar">
+      <div className="editor-sidebar">
         <div className="control-group">
-          <button className="btn btn-primary back-button" onClick={handleBack}>
+          <button className="neko-btn neko-btn-primary back-button" onClick={handleBack}>
             <img src="/static/icons/back_to_main_button.png" alt="" className="btn-icon" />
             <span className="btn-text">返回模型管理</span>
             <img src="/static/icons/paw_ui.png" alt="" className="btn-icon-right" />
@@ -195,7 +195,7 @@ export default function Live2DParameterEditor() {
         <div className="control-group">
           <div className="model-select-wrapper">
             <button
-              className="btn btn-primary model-select-button"
+              className="neko-btn neko-btn-primary model-select-button"
               onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
             >
               <img src="/static/icons/live2d_model_select_icon.png" alt="" className="btn-icon" />
@@ -225,14 +225,14 @@ export default function Live2DParameterEditor() {
         <div className="control-group">
           <div className="button-row">
             <button
-              className="btn btn-secondary"
+              className="neko-btn neko-btn-secondary"
               disabled={parameters.length === 0}
               onClick={handleResetAll}
             >
               重置全部
             </button>
             <button
-              className="btn btn-success"
+              className="neko-btn neko-btn-primary"
               disabled={parameters.length === 0 || saving}
               onClick={handleSave}
             >
@@ -253,7 +253,7 @@ export default function Live2DParameterEditor() {
                     <div className="parameter-group-title">{group}</div>
                     {params.map((param) => (
                       <div key={param.id} className="parameter-item">
-                        <label className="parameter-label">{param.name}</label>
+                        <label className="neko-label parameter-label">{param.name}</label>
                         <div className="parameter-control">
                           <input
                             type="range"

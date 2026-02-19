@@ -142,121 +142,121 @@ export default function MemoryBrowser() {
   );
 
   return (
-    <div className="memory-browser-page">
-      <div className="page-container">
-        {/* Header */}
-        <div className="page-header">
-          <h2>记忆浏览</h2>
-          <button className="close-button" onClick={handleClose} title="关闭">
-            ✕
-          </button>
+    <div className="neko-container">
+      {/* Header */}
+      <div className="neko-header">
+        <h2 data-text="记忆浏览器">记忆浏览器</h2>
+        <button className="neko-close-btn" onClick={handleClose} title="关闭">
+          <img src="/static/icons/close_button.png" alt="关闭" />
+        </button>
+      </div>
+
+      <div className="neko-content">
+        {/* Tips */}
+        <div className="neko-info-box tips-container">
+          <span className="tip-text">刚刚结束的对话内容要稍等片刻才会载入，可以重新点击猫娘名称刷新。</span>
         </div>
 
-        <div className="page-content">
-          {/* Tips */}
-          <div className="tips-container">
-            <span className="icon">⚠️</span>
-            <span className="tip-text">刚刚结束的对话内容要稍等片刻才会载入，可以重新点击猫娘名称刷新。</span>
-          </div>
+        <div className="main-layout">
+          {/* Left Column - Character List */}
+          <div className="left-column">
+            <div className="neko-card character-list-panel">
+              <div className="panel-title">猫娘记忆库</div>
 
-          <div className="main-layout">
-            {/* Left Column - Character List */}
-            <div className="left-column">
-              <div className="panel character-list-panel">
-                <div className="panel-title">猫娘记忆库</div>
+              {/* Search */}
+              <div className="search-box">
+                <input
+                  className="neko-input"
+                  type="text"
+                  placeholder="搜索角色..."
+                  value={searchTerm}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                />
+              </div>
 
-                {/* Search */}
-                <div className="search-box">
-                  <input
-                    type="text"
-                    placeholder="搜索角色..."
-                    value={searchTerm}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-
-                {/* Character List */}
-                <div className="character-list">
-                  {loading ? (
-                    <div className="loading-text">加载中...</div>
-                  ) : filteredMemories.length === 0 ? (
-                    <div className="empty-text">暂无记忆</div>
-                  ) : (
-                    filteredMemories.map((memory) => (
-                      <div
-                        key={memory.characterId}
-                        className={`character-item ${
-                          selectedMemory?.id.startsWith(memory.characterId) ? "active" : ""
-                        }`}
-                        onClick={() => loadMemoryContent(memory.characterId)}
-                      >
-                        <div className="character-name">{memory.characterName}</div>
-                        <div className="character-meta">
-                          <span className="memory-count">{memory.memoryCount} 条记忆</span>
-                          <span className="last-updated">{memory.lastUpdated}</span>
-                        </div>
+              {/* Character List */}
+              <div className="character-list">
+                {loading ? (
+                  <div className="loading-text">加载中...</div>
+                ) : filteredMemories.length === 0 ? (
+                  <div className="empty-text">暂无记忆</div>
+                ) : (
+                  filteredMemories.map((memory) => (
+                    <div
+                      key={memory.characterId}
+                      className={`character-item ${
+                        selectedMemory?.id.startsWith(memory.characterId) ? "active" : ""
+                      }`}
+                      onClick={() => loadMemoryContent(memory.characterId)}
+                    >
+                      <div className="character-name">{memory.characterName}</div>
+                      <div className="character-meta">
+                        <span className="memory-count">{memory.memoryCount} 条记忆</span>
+                        <span className="last-updated">{memory.lastUpdated}</span>
                       </div>
-                    ))
-                  )}
-                </div>
+                    </div>
+                  ))
+                )}
+              </div>
 
-                {/* Auto Review Toggle */}
-                <div className="auto-review-section">
-                  <div className="section-title">自动记忆整理</div>
-                  <label className="toggle-label">
+              {/* Auto Review Toggle */}
+              <div className="auto-review-section">
+                <div className="section-title">自动记忆整理</div>
+                <label className="toggle-label">
+                  <label className="neko-switch">
                     <input
                       type="checkbox"
                       checked={autoReview}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => handleAutoReviewToggle(e.target.checked)}
                     />
-                    <span className="toggle-slider"></span>
-                    <span className="toggle-text">{autoReview ? "已开启" : "已关闭"}</span>
+                    <span className="neko-switch-slider"></span>
                   </label>
-                  <p className="toggle-note">
-                    开启后系统将自动整理和优化记忆内容，提高对话质量
-                  </p>
-                </div>
+                  <span className="toggle-text">{autoReview ? "已开启" : "已关闭"}</span>
+                </label>
+                <p className="toggle-note">
+                  开启后系统将自动整理和优化记忆内容，提高对话质量
+                </p>
               </div>
             </div>
+          </div>
 
-            {/* Right Column - Memory Editor */}
-            <div className="right-column">
-              <div className="panel editor-panel">
-                <div className="panel-title">聊天记录</div>
+          {/* Right Column - Memory Editor */}
+          <div className="right-column">
+            <div className="neko-card editor-panel">
+              <div className="panel-title">聊天记录</div>
 
-                {selectedMemory ? (
-                  <>
-                    <div className="editor-meta">
-                      <span className="character-name">角色: {selectedMemory.characterName}</span>
-                      <span className="timestamp">时间: {selectedMemory.timestamp}</span>
-                    </div>
-
-                    <textarea
-                      className="memory-editor"
-                      value={memoryContent}
-                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMemoryContent(e.target.value)}
-                      placeholder="记忆内容..."
-                    />
-
-                    <div className="editor-actions">
-                      <button
-                        className="save-button"
-                        onClick={handleSave}
-                        disabled={saving}
-                      >
-                        {saving ? "保存中..." : "💾 保存"}
-                      </button>
-                      <button className="clear-button" onClick={handleClear}>
-                        🗑️ 清空
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="empty-editor">
-                    <p>请从左侧选择一个角色查看记忆</p>
+              {selectedMemory ? (
+                <>
+                  <div className="editor-meta">
+                    <span className="character-label">角色: {selectedMemory.characterName}</span>
+                    <span className="timestamp">时间: {selectedMemory.timestamp}</span>
                   </div>
-                )}
-              </div>
+
+                  <textarea
+                    className="neko-textarea memory-editor"
+                    value={memoryContent}
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMemoryContent(e.target.value)}
+                    placeholder="记忆内容..."
+                  />
+
+                  <div className="editor-actions">
+                    <button
+                      className="neko-btn neko-btn-primary"
+                      onClick={handleSave}
+                      disabled={saving}
+                    >
+                      {saving ? "保存中..." : "保存"}
+                    </button>
+                    <button className="neko-btn neko-btn-danger" onClick={handleClear}>
+                      清空
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="empty-editor">
+                  <p>请从左侧选择一个角色查看记忆</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

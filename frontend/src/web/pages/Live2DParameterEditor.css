@@ -1,18 +1,22 @@
 /**
- * Live2D Parameter Editor Styles
+ * Live2D Parameter Editor - Page-specific Styles
+ * Shared styles (buttons, inputs, labels) are in theme.css
  */
+
+/* ========== Page Layout ========== */
 
 .live2d-parameter-editor {
   min-height: 100vh;
   background: url('/static/icons/model_manager_background.png') center center / cover no-repeat fixed,
-              #eee;
-  color: #222;
+              var(--neko-light-bg);
+  color: var(--neko-text-dark);
   overflow: hidden;
   position: relative;
 }
 
-/* Sidebar */
-.sidebar {
+/* ========== Sidebar ========== */
+
+.editor-sidebar {
   position: fixed;
   left: 20px;
   top: 20px;
@@ -24,9 +28,10 @@
   max-width: calc(100vw - 40px);
   max-height: calc(100vh - 40px);
   padding: 20px;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  background: var(--neko-white);
+  border: 2px solid var(--neko-border);
+  border-radius: var(--neko-radius-card);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
@@ -39,55 +44,16 @@
   width: 100%;
 }
 
-/* Buttons */
-.btn {
-  display: flex;
-  align-items: center;
+/* ========== Sidebar Button Overrides ========== */
+
+.editor-sidebar .back-button,
+.editor-sidebar .model-select-button {
+  width: 100%;
   padding: 12px 20px;
-  border-radius: 24px;
-  font-size: 18px;
+  border-radius: var(--neko-radius-capsule);
+  font-size: 16px;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 3px solid transparent;
-  font-family: 'Comic Neue', 'Microsoft YaHei', sans-serif;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  border-color: #764ba2;
-}
-
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.btn-secondary {
-  background: #f0f0f0;
-  color: #666;
-  border-color: #ddd;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #e0e0e0;
-}
-
-.btn-success {
-  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
-  color: #fff;
-  border-color: #27ae60;
-}
-
-.btn-success:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(46, 204, 113, 0.4);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  font-family: var(--neko-font-display);
 }
 
 .btn-icon,
@@ -113,34 +79,36 @@
   font-size: 16px;
 }
 
+/* ========== Button Row ========== */
+
 .button-row {
   display: flex;
   gap: 0;
 }
 
-.button-row .btn {
+.button-row .neko-btn {
   flex: 1;
-  border-radius: 24px;
+  border-radius: var(--neko-radius-capsule);
 }
 
-.button-row .btn:first-child {
+.button-row .neko-btn:first-child {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
 
-.button-row .btn:last-child {
+.button-row .neko-btn:last-child {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
 
-/* Model Select Dropdown */
+/* ========== Model Select Dropdown ========== */
+
 .model-select-wrapper {
   position: relative;
   width: 100%;
 }
 
 .model-select-button {
-  width: 100%;
   justify-content: flex-start;
 }
 
@@ -150,10 +118,10 @@
   left: 0;
   right: 0;
   margin-top: 8px;
-  background: #fff;
-  border: 2px solid #764ba2;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  background: var(--neko-white);
+  border: 2px solid var(--neko-primary);
+  border-radius: var(--neko-radius-card);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   overflow: hidden;
   z-index: 30;
 }
@@ -162,7 +130,8 @@
   padding: 12px 20px;
   cursor: pointer;
   transition: background 0.2s;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--neko-light-bg);
+  color: var(--neko-text-dark);
 }
 
 .dropdown-item:last-child {
@@ -170,16 +139,17 @@
 }
 
 .dropdown-item:hover {
-  background: rgba(102, 126, 234, 0.1);
+  background: var(--neko-light-bg);
 }
 
 .dropdown-item.active {
-  background: rgba(102, 126, 234, 0.2);
-  color: #764ba2;
+  background: rgba(64, 197, 241, 0.15);
+  color: var(--neko-primary);
   font-weight: 600;
 }
 
-/* Parameters List */
+/* ========== Parameters List ========== */
+
 .parameters-list-container {
   flex: 1;
   min-height: 0;
@@ -188,9 +158,9 @@
 }
 
 .parameters-list-wrapper {
-  background: #fff;
-  border: 2px solid #e0e0e0;
-  border-radius: 12px;
+  background: var(--neko-white);
+  border: 2px solid var(--neko-border);
+  border-radius: var(--neko-radius-card);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -199,8 +169,8 @@
 
 .parameters-list-header {
   padding: 12px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
+  background: linear-gradient(135deg, var(--neko-primary) 0%, var(--neko-deep) 100%);
+  color: var(--neko-white);
   font-weight: 600;
   font-size: 16px;
 }
@@ -214,13 +184,14 @@
 .parameters-list-empty {
   padding: 40px 20px;
   text-align: center;
-  color: #999;
+  color: var(--neko-text-muted);
   font-size: 14px;
 }
 
-/* Parameter Groups */
+/* ========== Parameter Groups ========== */
+
 .parameter-group {
-  border-bottom: 2px solid #f0f0f0;
+  border-bottom: 2px solid var(--neko-light-bg);
 }
 
 .parameter-group:last-child {
@@ -229,16 +200,18 @@
 
 .parameter-group-title {
   padding: 10px 16px;
-  background: #f8f9fa;
+  background: var(--neko-light-bg);
   font-weight: 600;
   font-size: 14px;
-  color: #764ba2;
-  border-bottom: 1px solid #e0e0e0;
+  color: var(--neko-primary);
+  border-bottom: 1px solid var(--neko-border);
 }
+
+/* ========== Parameter Items ========== */
 
 .parameter-item {
   padding: 12px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--neko-light-bg);
 }
 
 .parameter-item:last-child {
@@ -246,10 +219,9 @@
 }
 
 .parameter-label {
-  display: block;
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--neko-text-dark);
   margin-bottom: 8px;
 }
 
@@ -259,12 +231,14 @@
   gap: 12px;
 }
 
+/* ========== Range Slider ========== */
+
 .parameter-control input[type="range"] {
   flex: 1;
   height: 6px;
   -webkit-appearance: none;
   appearance: none;
-  background: #e0e0e0;
+  background: var(--neko-border);
   border-radius: 3px;
   outline: none;
 }
@@ -274,7 +248,7 @@
   appearance: none;
   width: 18px;
   height: 18px;
-  background: #764ba2;
+  background: var(--neko-primary);
   border-radius: 50%;
   cursor: pointer;
   transition: transform 0.2s;
@@ -282,37 +256,43 @@
 
 .parameter-control input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.2);
+  background: var(--neko-deep);
 }
 
 .parameter-control input[type="range"]::-moz-range-thumb {
   width: 18px;
   height: 18px;
-  background: #764ba2;
+  background: var(--neko-primary);
   border-radius: 50%;
   cursor: pointer;
   border: none;
+}
+
+.parameter-control input[type="range"]::-moz-range-thumb:hover {
+  background: var(--neko-deep);
 }
 
 .parameter-value {
   min-width: 50px;
   font-size: 12px;
   font-weight: 600;
-  color: #666;
+  color: var(--neko-text-muted);
   text-align: right;
-  font-family: 'Courier New', monospace;
+  font-family: var(--neko-font-mono);
 }
 
-/* Status Bar */
+/* ========== Status Bar ========== */
+
 .status-bar {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 2px solid #e0e0e0;
+  background: var(--neko-light-bg);
+  border-radius: var(--neko-radius-card);
+  border: 2px solid var(--neko-border);
   font-size: 13px;
-  color: #666;
+  color: var(--neko-text-muted);
 }
 
 .status-icon {
@@ -321,7 +301,8 @@
   image-rendering: crisp-edges;
 }
 
-/* Live2D Container */
+/* ========== Live2D Canvas ========== */
+
 .live2d-container {
   position: fixed;
   right: 0;
@@ -351,7 +332,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  color: #999;
+  color: var(--neko-text-muted);
   z-index: 5;
 }
 
@@ -363,12 +344,13 @@
 .canvas-placeholder .hint {
   margin-top: 8px;
   font-size: 14px;
-  color: #bbb;
+  color: var(--neko-text-placeholder);
 }
 
-/* Responsive */
+/* ========== Responsive ========== */
+
 @media (max-width: 968px) {
-  .sidebar {
+  .editor-sidebar {
     width: 320px;
   }
 
@@ -382,13 +364,16 @@
     background-size: cover;
   }
 
-  .sidebar {
+  .editor-sidebar {
     width: 100%;
     max-width: 100%;
     left: 0;
     top: 0;
     max-height: 50vh;
-    border-radius: 0 0 12px 12px;
+    border-radius: 0 0 var(--neko-radius-card) var(--neko-radius-card);
+    border-left: none;
+    border-right: none;
+    border-top: none;
   }
 
   .live2d-container {

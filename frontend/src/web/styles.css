@@ -1,9 +1,11 @@
+@import './theme.css';
+
 :root {
   color-scheme: light;
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: var(--neko-font-body);
   line-height: 1.5;
-  color: #0f172a;
-  background: #f8fafc;
+  color: var(--neko-text-dark);
+  background: transparent;
 }
 
 * {
@@ -12,6 +14,7 @@
 
 body {
   margin: 0;
+  font-family: var(--neko-font-body);
 }
 
 html,
@@ -19,6 +22,8 @@ body,
 #root {
   height: 100%;
 }
+
+/* App-specific styles (main page / demo) */
 
 .app {
   max-width: 960px;
@@ -72,29 +77,7 @@ body,
   margin-top: 32px;
 }
 
-.card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
-}
-
-ol {
-  margin: 0;
-  padding-left: 20px;
-  color: #334155;
-}
-
-.card__actions {
-  margin-top: 16px;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 .chatDemo {
-  /* 全屏覆盖：让 ChatContainer 贴底显示 */
   position: fixed;
   inset: 0;
   z-index: 10;
@@ -102,18 +85,13 @@ ol {
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-
-  /* 安全区 + 轻微边距（避免贴边/被手势条遮挡） */
   padding-top: calc(12px + env(safe-area-inset-top));
   padding-right: calc(12px + env(safe-area-inset-right));
   padding-bottom: calc(12px + env(safe-area-inset-bottom));
   padding-left: calc(12px + env(safe-area-inset-left));
-
-  /* 默认不拦截底层点击；仅 ChatContainer 自身可交互 */
   pointer-events: none;
 }
 
 .chatDemo > * {
   pointer-events: auto;
 }
-

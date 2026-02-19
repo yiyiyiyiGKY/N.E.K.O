@@ -190,126 +190,130 @@ export default function VRMEmotionManager() {
   };
 
   return (
-    <div className="vrm-emotion-manager">
-      <div className="container">
-        {/* Header */}
-        <div className="header">
-          <div className="header-content">
-            <h1>VRM 情感映射管理器</h1>
-            <p>配置不同情绪对应的表情映射</p>
-          </div>
-          <button className="close-btn" onClick={handleClose} title="关闭">
-            <img src="/static/icons/close_button.png" alt="关闭" />
-          </button>
+    <div className="neko-container">
+      {/* Header */}
+      <div className="neko-header">
+        <h2 data-text="VRM 情感映射管理器">VRM 情感映射管理器</h2>
+        <button className="neko-close-btn" onClick={handleClose} title="关闭">
+          <img src="/static/icons/close_button.png" alt="关闭" />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="neko-content">
+        {/* Info Box */}
+        <div className="info-box">
+          <strong>提示：</strong>
+          <span>
+            VRM模型的表情名称可能因版本不同而异（VRM 0.x使用joy，VRM 1.0使用happy）。
+            请为每种情绪选择多个候选表情，系统会自动匹配模型支持的表情。
+          </span>
         </div>
 
-        {/* Content */}
-        <div className="container-content">
-          {/* Info Box */}
-          <div className="info-box">
-            <strong>提示：</strong>
-            <span>
-              VRM模型的表情名称可能因版本不同而异（VRM 0.x使用joy，VRM 1.0使用happy）。
-              请为每种情绪选择多个候选表情，系统会自动匹配模型支持的表情。
-            </span>
-          </div>
+        {/* Model Select */}
+        <div className="neko-field-row">
+          <label className="neko-label">选择 VRM 模型</label>
+          <select
+            className="neko-select"
+            value={selectedModel?.name || ""}
+            onChange={handleModelSelect}
+            disabled={loading}
+          >
+            <option value="">{loading ? "加载中..." : "请选择模型"}</option>
+            {models.map((model) => (
+              <option key={model.name} value={model.name}>
+                {model.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-          {/* Model Select */}
-          <div className="field-row">
-            <label>选择 VRM 模型</label>
-            <select value={selectedModel?.name || ""} onChange={handleModelSelect} disabled={loading}>
-              <option value="">{loading ? "加载中..." : "请选择模型"}</option>
-              {models.map((model) => (
-                <option key={model.name} value={model.name}>
-                  {model.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Emotion Config */}
-          {selectedModel && (
-            <>
-              {/* Preview Section */}
-              <div className="preview-section">
-                <div className="preview-header">表情预览</div>
-                <div className="preview-buttons">
-                  {loading ? (
-                    <span className="loading-text">加载表情列表...</span>
-                  ) : (
-                    availableExpressions.map((expression) => (
-                      <button
-                        key={expression}
-                        className="preview-btn"
-                        onClick={() => handlePreviewExpression(expression)}
-                      >
-                        {expression}
-                      </button>
-                    ))
-                  )}
-                </div>
+        {/* Emotion Config */}
+        {selectedModel && (
+          <>
+            {/* Preview Section */}
+            <div className="preview-section">
+              <div className="preview-header">表情预览</div>
+              <div className="preview-buttons">
+                {loading ? (
+                  <span className="loading-text">加载表情列表...</span>
+                ) : (
+                  availableExpressions.map((expression) => (
+                    <button
+                      key={expression}
+                      className="preview-btn"
+                      onClick={() => handlePreviewExpression(expression)}
+                    >
+                      {expression}
+                    </button>
+                  ))
+                )}
               </div>
+            </div>
 
-              {/* Emotion Sections */}
-              {EMOTIONS.map((emotion) => (
-                <div key={emotion.key} className="emotion-section">
-                  <div className="emotion-header">{emotion.label}</div>
+            {/* Emotion Sections */}
+            {EMOTIONS.map((emotion) => (
+              <div key={emotion.key} className="emotion-section">
+                <div className="emotion-header">{emotion.label}</div>
 
-                  <div className="select-group">
-                    <label>表情候选</label>
-                    <div className="multiselect-box">
-                      <div className="multiselect-tags">
-                        {(emotionConfig[emotion.key] || []).map((expression) => (
-                          <span key={expression} className="tag">
-                            {expression}
-                            <button
-                              className="tag-remove"
-                              onClick={() => handleExpressionToggle(emotion.key, expression)}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                        {(emotionConfig[emotion.key] || []).length === 0 && (
-                          <span className="placeholder">选择表情</span>
-                        )}
-                      </div>
-                      <div className="multiselect-options">
-                        {availableExpressions.map((expression) => (
-                          <label key={expression} className="option-item">
-                            <input
-                              type="checkbox"
-                              checked={(emotionConfig[emotion.key] || []).includes(expression)}
-                              onChange={() => handleExpressionToggle(emotion.key, expression)}
-                            />
-                            <span>{expression}</span>
-                          </label>
-                        ))}
-                      </div>
+                <div className="select-group">
+                  <label>表情候选</label>
+                  <div className="multiselect-box">
+                    <div className="multiselect-tags">
+                      {(emotionConfig[emotion.key] || []).map((expression) => (
+                        <span key={expression} className="tag">
+                          {expression}
+                          <button
+                            className="tag-remove"
+                            onClick={() => handleExpressionToggle(emotion.key, expression)}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      {(emotionConfig[emotion.key] || []).length === 0 && (
+                        <span className="placeholder">选择表情</span>
+                      )}
+                    </div>
+                    <div className="multiselect-options">
+                      {availableExpressions.map((expression) => (
+                        <label key={expression} className="option-item">
+                          <input
+                            type="checkbox"
+                            checked={(emotionConfig[emotion.key] || []).includes(expression)}
+                            onChange={() => handleExpressionToggle(emotion.key, expression)}
+                          />
+                          <span>{expression}</span>
+                        </label>
+                      ))}
                     </div>
                   </div>
                 </div>
-              ))}
-
-              {/* Buttons */}
-              <div className="button-group">
-                <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                  {saving ? "保存中..." : "保存配置"}
-                </button>
-                <button className="btn btn-secondary" onClick={handleReset}>
-                  重置
-                </button>
               </div>
+            ))}
 
-              {/* Status Message */}
-              {statusMessage && (
-                <div className={`status-message status-${statusMessage.type}`}>
-                  {statusMessage.message}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+            {/* Buttons */}
+            <div className="button-group">
+              <button
+                className="neko-btn neko-btn-primary"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? "保存中..." : "保存配置"}
+              </button>
+              <button className="neko-btn neko-btn-secondary" onClick={handleReset}>
+                重置
+              </button>
+            </div>
+
+            {/* Status Message */}
+            {statusMessage && (
+              <div className={`status-message status-${statusMessage.type}`}>
+                {statusMessage.message}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

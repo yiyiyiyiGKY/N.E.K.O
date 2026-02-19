@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent } from "react";
 import "./ModelManager.css";
 
 interface Model {
@@ -133,142 +133,145 @@ export default function ModelManager() {
   };
 
   return (
-    <div className="model-manager-page">
-      <div className="page-container">
-        {/* Header */}
-        <div className="page-header">
-          <h2>模型管理器</h2>
-          <button className="close-button" onClick={handleClose} title="关闭">
-            ✕
-          </button>
-        </div>
+    <div className="neko-container">
+      {/* Header */}
+      <div className="neko-header">
+        <h2 data-text="模型管理">模型管理</h2>
+        <button className="neko-close-btn" onClick={handleClose} title="关闭">
+          <img src="/static/icons/close_button.png" alt="关闭" />
+        </button>
+      </div>
 
-        <div className="page-content">
-          <div className="sidebar">
-            {/* Back Button */}
-            <div className="control-group">
-              <button className="btn btn-primary" onClick={handleClose}>
-                🏠 返回主页
+      <div className="neko-content model-layout">
+        <div className="model-sidebar">
+          {/* Back Button */}
+          <div className="control-group">
+            <button className="neko-btn neko-btn-primary" onClick={handleClose}>
+              返回主页
+            </button>
+          </div>
+
+          {/* Upload Section */}
+          <div className="control-group">
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="neko-input"
+              id="model-upload"
+              accept={modelType === "live2d" ? ".zip,.json" : ".vrm"}
+              multiple
+              style={{ display: "none" }}
+              onChange={handleFileUpload}
+            />
+            <div className="button-row">
+              <button
+                className="neko-btn neko-btn-primary"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                导入模型
+              </button>
+              <button
+                className="neko-btn neko-btn-danger"
+                onClick={handleDeleteAllModels}
+              >
+                全部删除
               </button>
             </div>
+            {uploadStatus && (
+              <div className="upload-status">{uploadStatus}</div>
+            )}
+          </div>
 
-            {/* Upload Section */}
-            <div className="control-group">
-              <input
-                ref={fileInputRef}
-                type="file"
-                id="model-upload"
-                accept={modelType === "live2d" ? ".zip,.json" : ".vrm"}
-                multiple
-                style={{ display: "none" }}
-                onChange={handleFileUpload}
-              />
-              <div className="button-row">
-                <button
-                  className="btn btn-primary"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                >
-                  📦 导入模型
-                </button>
-                <button className="btn btn-danger" onClick={handleDeleteAllModels}>
-                  🗑️
-                </button>
-              </div>
-              {uploadStatus && (
-                <div className="upload-status">{uploadStatus}</div>
-              )}
-            </div>
+          {/* Model Type Select */}
+          <div className="control-group">
+            <label className="control-label">模型类型</label>
+            <select
+              className="neko-select"
+              value={modelType}
+              onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                setModelType(e.target.value as ModelType)
+              }
+            >
+              <option value="live2d">Live2D</option>
+              <option value="vrm">VRM</option>
+            </select>
+          </div>
 
-            {/* Model Type Select */}
-            <div className="control-group">
-              <label>模型类型</label>
-              <select
-                value={modelType}
-                onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                  setModelType(e.target.value as ModelType)
-                }
-              >
-                <option value="live2d">Live2D</option>
-                <option value="vrm">VRM</option>
-              </select>
-            </div>
-
-            {/* Model Select */}
-            <div className="control-group">
-              <label>选择模型</label>
-              {loading ? (
-                <div className="loading-text">加载中...</div>
-              ) : models.length === 0 ? (
-                <div className="empty-text">暂无模型</div>
-              ) : (
-                <div className="model-list">
-                  {models.map((model) => (
-                    <div
-                      key={model.id}
-                      className={`model-item ${selectedModel?.id === model.id ? "active" : ""}`}
-                      onClick={() => setSelectedModel(model)}
+          {/* Model Select */}
+          <div className="control-group">
+            <label className="control-label">选择模型</label>
+            {loading ? (
+              <div className="loading-text">加载中...</div>
+            ) : models.length === 0 ? (
+              <div className="empty-text">暂无模型</div>
+            ) : (
+              <div className="model-list">
+                {models.map((model) => (
+                  <div
+                    key={model.id}
+                    className={`model-item ${selectedModel?.id === model.id ? "active" : ""}`}
+                    onClick={() => setSelectedModel(model)}
+                  >
+                    <div className="model-name">{model.name}</div>
+                    <button
+                      className="delete-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteModel(model.id);
+                      }}
+                      title="删除"
                     >
-                      <div className="model-name">{model.name}</div>
-                      <button
-                        className="delete-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteModel(model.id);
-                        }}
-                        title="删除"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Selected Model Info */}
-            {selectedModel && (
-              <div className="control-group model-info">
-                <div className="info-title">模型信息</div>
-                <div className="info-row">
-                  <span className="label">名称:</span>
-                  <span className="value">{selectedModel.name}</span>
-                </div>
-                <div className="info-row">
-                  <span className="label">类型:</span>
-                  <span className="value">{selectedModel.type.toUpperCase()}</span>
-                </div>
-                <div className="info-row">
-                  <span className="label">大小:</span>
-                  <span className="value">{selectedModel.size}</span>
-                </div>
-                <div className="info-row">
-                  <span className="label">上传:</span>
-                  <span className="value">{selectedModel.uploadDate}</span>
-                </div>
+                      &times;
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Main Content - Preview Area */}
-          <div className="main-content">
-            <div className="preview-area">
-              {selectedModel ? (
-                <div className="preview-placeholder">
-                  <div className="preview-icon">🎭</div>
-                  <p className="preview-text">模型预览</p>
-                  <p className="preview-model-name">{selectedModel.name}</p>
-                  <p className="preview-hint">
-                    Live2D/VRM 模型渲染需要集成相应的渲染库
-                  </p>
-                </div>
-              ) : (
-                <div className="no-model-selected">
-                  <div className="placeholder-icon">📦</div>
-                  <p>请从左侧选择一个模型</p>
-                </div>
-              )}
+          {/* Selected Model Info */}
+          {selectedModel && (
+            <div className="neko-card model-info">
+              <div className="info-title">模型信息</div>
+              <div className="info-row">
+                <span className="info-label">名称:</span>
+                <span className="info-value">{selectedModel.name}</span>
+              </div>
+              <div className="info-row">
+                <span className="info-label">类型:</span>
+                <span className="info-value">
+                  {selectedModel.type.toUpperCase()}
+                </span>
+              </div>
+              <div className="info-row">
+                <span className="info-label">大小:</span>
+                <span className="info-value">{selectedModel.size}</span>
+              </div>
+              <div className="info-row">
+                <span className="info-label">上传:</span>
+                <span className="info-value">{selectedModel.uploadDate}</span>
+              </div>
             </div>
+          )}
+        </div>
+
+        {/* Main Content - Preview Area */}
+        <div className="model-main">
+          <div className="preview-area">
+            {selectedModel ? (
+              <div className="preview-placeholder">
+                <p className="preview-text">模型预览</p>
+                <p className="preview-model-name">{selectedModel.name}</p>
+                <p className="preview-hint">
+                  Live2D/VRM 模型渲染需要集成相应的渲染库
+                </p>
+              </div>
+            ) : (
+              <div className="no-model-selected">
+                <p>请从左侧选择一个模型</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
