@@ -914,7 +914,7 @@ if __name__ == "__main__":
     # 1) 配置 UVicorn
     config = uvicorn.Config(
         app=app,
-        host="127.0.0.1",
+        host="0.0.0.0",  # 监听所有接口，允许局域网访问
         port=MAIN_SERVER_PORT,
         log_level="info",
         loop="asyncio",
