@@ -10,6 +10,7 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "vite dev --config vite.dev.config.ts",
     "dev:common": "vite dev --config packages/common/vite.config.ts",
     "dev:web": "vite dev --config vite.web.config.ts",
     "build": "npm run build:prod",
