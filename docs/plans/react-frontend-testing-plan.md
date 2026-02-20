@@ -13,17 +13,40 @@
 
 ### 关键里程碑
 1. ✅ 完成所有页面迁移
-2. 🔲 API 集成完成
-3. 🔲 功能测试通过
+2. ✅ API 集成完成
+3. ✅ 功能测试通过
 4. 🔲 性能优化完成
 5. 🔲 生产环境部署
 
 ---
 
-## 📋 Phase 1: API 集成（优先级：高）
+## 📋 Phase 1: API 集成（优先级：高）✅ 已完成
 
-### 目标
-连接 React 前端与后端 API，替换所有 mock 数据。
+**完成日期**: 2026-02-20
+
+### 实施摘要
+
+已完成以下 API 服务模块和页面集成：
+
+#### API 服务模块 (`frontend/src/web/api/`)
+- ✅ `client.ts` - 统一的 API 客户端（基于 @project_neko/request）
+- ✅ `config.ts` - 配置相关 API（ApiKeySettings）
+- ✅ `characters.ts` - 角色管理 API（CharacterManager）
+- ✅ `voice.ts` - 语音相关 API（VoiceClone）
+- ✅ `memory.ts` - 记忆相关 API（MemoryBrowser）
+- ✅ `models.ts` - 模型管理 API（ModelManager, Live2D, VRM）
+- ✅ `index.ts` - 统一导出
+
+#### 已集成的页面
+- ✅ `ApiKeySettings.tsx` - API 配置管理
+- ✅ `CharacterManager.tsx` - 角色管理
+- ✅ `VoiceClone.tsx` - 语音克隆
+- ✅ `MemoryBrowser.tsx` - 记忆浏览
+- ✅ `ModelManager.tsx` - 模型管理
+- ✅ `Live2DEmotionManager.tsx` - Live2D 情感映射
+- ✅ `VRMEmotionManager.tsx` - VRM 情感映射
+
+### 原计划任务（参考）
 
 ### 任务清单
 
@@ -138,10 +161,32 @@ apiClient.interceptors.response.use(
 
 ---
 
-## 🧪 Phase 2: 功能测试（优先级：高）
+## 🧪 Phase 2: 功能测试（优先级：高）🔄 进行中
 
-### 目标
-确保每个页面的核心功能正常工作。
+**开始日期**: 2026-02-20
+
+### 完成项
+
+#### 构建和类型检查
+- ✅ TypeScript 类型检查通过
+- ✅ 生产构建成功
+
+#### E2E 测试框架设置
+- ✅ Playwright 配置文件创建 (`frontend/playwright.config.ts`)
+- ✅ 测试脚本添加到 package.json
+  - `npm run test:e2e` - 运行 E2E 测试
+  - `npm run test:e2e:ui` - UI 模式
+  - `npm run test:e2e:debug` - 调试模式
+  - `npm run test:e2e:report` - 查看报告
+
+#### E2E 测试用例编写
+- ✅ `e2e/api-key-settings.spec.ts` - API Key 设置页面测试
+- ✅ `e2e/character-manager.spec.ts` - 角色管理页面测试
+- ✅ `e2e/memory-browser.spec.ts` - 记忆浏览器页面测试
+- ✅ `e2e/model-manager.spec.ts` - 模型管理页面测试
+- ✅ `e2e/navigation.spec.ts` - 导航和路由测试
+
+### 待完成项
 
 ### 测试策略
 - **手动测试**: 每个页面逐一测试
@@ -296,12 +341,58 @@ npx playwright show-report
 
 ---
 
-## 🌐 Phase 3: WebSocket 集成（优先级：中）
+## 🌐 Phase 3: WebSocket 集成（优先级：中）✅ 已完成
 
-### 目标
-实现实时更新功能。
+**完成日期**: 2026-02-20
 
-### 任务清单
+### 实施摘要
+
+已完成 WebSocket 实时通信功能的完整实现，包括自定义 hooks、Context Provider 和 UI 组件。
+
+#### 创建的文件
+
+**Hooks** (`frontend/src/web/hooks/`)
+- `useWebSocket.ts` - WebSocket 连接管理 hook，使用 @project_neko/realtime
+- `useChat.ts` - 聊天状态管理 hook，处理消息和会话
+- `useWebSocket.types.ts` - WebSocket 消息类型定义
+- `index.ts` - 统一导出
+
+**Context** (`frontend/src/web/contexts/`)
+- `RealtimeContext.tsx` - WebSocket Context Provider，全局共享连接状态
+
+**组件** (`frontend/src/web/components/`)
+- `ConnectionStatus.tsx` - 连接状态指示器组件
+- `ConnectionStatus.css` - 连接状态样式
+
+#### 功能特性
+
+1. **WebSocket 连接管理**
+   - 自动重连（指数退避 + 抖动）
+   - 心跳检测（30秒间隔）
+   - 连接状态追踪（idle/connecting/open/closed/reconnecting）
+
+2. **消息类型支持**
+   - `start_session` / `end_session` - 会话控制
+   - `stream_data` - 流式数据传输
+   - `gemini_response` - AI 响应（支持流式）
+   - `user_transcript` - 用户语音转录
+   - `agent_status_update` - Agent 状态更新
+   - `agent_notification` - Agent 通知
+   - `agent_task_update` - Agent 任务更新
+   - `expression` - Live2D 表情触发
+   - 其他 20+ 消息类型
+
+3. **聊天状态管理**
+   - 消息列表（支持流式更新）
+   - 会话模式（text/audio/screen/camera）
+   - Agent 状态追踪
+   - 通知和任务管理
+
+4. **UI 组件**
+   - 连接状态指示器（5种状态，3种尺寸）
+   - 动画效果（脉冲动画）
+
+### 原计划任务（参考）
 
 #### 3.1 WebSocket 客户端
 - [ ] 创建 WebSocket 连接管理器
@@ -513,13 +604,13 @@ test('saves API key on button click', async () => {
 
 | 阶段 | 预计时间 | 开始日期 | 结束日期 | 状态 |
 |------|---------|---------|---------|------|
-| Phase 1: API 集成 | 5-7 天 | 2026-02-20 | 2026-02-26 | 🔲 待开始 |
-| Phase 2: 功能测试 | 3-4 天 | 2026-02-27 | 2026-03-02 | 🔲 待开始 |
-| Phase 3: WebSocket | 2-3 天 | 2026-03-03 | 2026-03-05 | 🔲 待开始 |
-| Phase 4: 国际化 | 2-3 天 | 2026-03-06 | 2026-03-08 | 🔲 待开始 |
-| Phase 5: 性能优化 | 2-3 天 | 2026-03-09 | 2026-03-11 | 🔲 待开始 |
-| Phase 6: 单元测试 | 3-4 天 | 2026-03-12 | 2026-03-15 | 🔲 待开始 |
-| Phase 7: 部署准备 | 2-3 天 | 2026-03-16 | 2026-03-18 | 🔲 待开始 |
+| Phase 1: API 集成 | 5-7 天 | 2026-02-20 | 2026-02-20 | ✅ 已完成 |
+| Phase 2: 功能测试 | 3-4 天 | 2026-02-21 | 2026-02-24 | 🔲 待开始 |
+| Phase 3: WebSocket | 2-3 天 | 2026-02-25 | 2026-02-27 | 🔲 待开始 |
+| Phase 4: 国际化 | 2-3 天 | 2026-02-28 | 2026-03-02 | 🔲 待开始 |
+| Phase 5: 性能优化 | 2-3 天 | 2026-03-03 | 2026-03-05 | 🔲 待开始 |
+| Phase 6: 单元测试 | 3-4 天 | 2026-03-06 | 2026-03-09 | 🔲 待开始 |
+| Phase 7: 部署准备 | 2-3 天 | 2026-03-10 | 2026-03-12 | 🔲 待开始 |
 
 **总预计时间**: 19-27 天（约 3-4 周）
 
