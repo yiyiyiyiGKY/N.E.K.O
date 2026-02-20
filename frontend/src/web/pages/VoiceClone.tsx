@@ -2,17 +2,20 @@
  * Voice Clone Page
  *
  * Migrated from templates/voice_clone.html
+ * Now connected to real backend API
  */
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ChangeEvent, FormEvent } from "react";
 import "./VoiceClone.css";
+import { getVoices, cloneVoice, deleteVoice, type VoiceInfo } from "../api/voice";
 
 interface Voice {
   voiceId: string;
   prefix: string;
   createdAt?: string;
+  isLocal?: boolean;
 }
 
 export default function VoiceClone() {
@@ -26,6 +29,7 @@ export default function VoiceClone() {
   const [result, setResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(true);
+  const [deletingVoiceId, setDeletingVoiceId] = useState<string | null>(null);
 
   useEffect(() => {
     loadVoices();
@@ -34,6 +38,12 @@ export default function VoiceClone() {
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file type
+      const validTypes = ["audio/wav", "audio/mpeg", "audio/mp3", "audio/m4a", "audio/x-m4a"];
+      if (!validTypes.includes(file.type) && !file.name.match(/\.(wav|mp3|m4a)$/i)) {
+        setResult({ type: "error", message: "请上传 WAV、MP3 或 M4A 格式的音频文件" });
+        return;
+      }
       setAudioFile(file);
       setResult(null);
     }
@@ -52,33 +62,37 @@ export default function VoiceClone() {
       return;
     }
 
+    // Validate prefix format
+    if (!/^[a-zA-Z0-9]+$/.test(prefix)) {
+      setResult({ type: "error", message: "前缀只能包含英文字母和数字" });
+      return;
+    }
+
     setRegistering(true);
     setResult(null);
 
     try {
-      // TODO: Implement API call
-      const formData = new FormData();
-      formData.append("audio", audioFile);
-      formData.append("refLanguage", refLanguage);
-      formData.append("prefix", prefix);
+      const response = await cloneVoice(audioFile, prefix, refLanguage);
 
-      console.log("Registering voice:", { audioFile: audioFile.name, refLanguage, prefix });
+      if (response.error) {
+        setResult({ type: "error", message: response.error });
+      } else {
+        setResult({
+          type: "success",
+          message: response.message || `音色注册成功！Voice ID: ${response.voice_id}`,
+        });
+        setAudioFile(null);
+        setPrefix("");
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
 
-      // Mock delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      setResult({ type: "success", message: "音色注册成功！" });
-      setAudioFile(null);
-      setPrefix("");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+        // Reload voices
+        loadVoices();
       }
-
-      // Reload voices
-      loadVoices();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to register voice:", error);
-      setResult({ type: "error", message: "注册失败：" + (error as Error).message });
+      setResult({ type: "error", message: error.message || "注册失败，请重试" });
     } finally {
       setRegistering(false);
     }
@@ -87,19 +101,25 @@ export default function VoiceClone() {
   const loadVoices = async () => {
     setLoadingVoices(true);
     try {
-      // TODO: Implement API call
-      // const response = await fetch("/api/voices/");
-      // const data = await response.json();
-      // setVoices(data);
+      const data = await getVoices();
 
-      // Mock data
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setVoices([
-        { voiceId: "voice_001", prefix: "voice1", createdAt: "2026-02-19" },
-        { voiceId: "voice_002", prefix: "voice2", createdAt: "2026-02-18" },
-      ]);
+      // Convert voices object to array
+      const voiceList: Voice[] = [];
+      if (data.voices) {
+        for (const [voiceId, info] of Object.entries(data.voices)) {
+          voiceList.push({
+            voiceId: voiceId,
+            prefix: info.prefix || voiceId,
+            createdAt: info.created_at,
+            isLocal: info.is_local,
+          });
+        }
+      }
+
+      setVoices(voiceList);
     } catch (error) {
       console.error("Failed to load voices:", error);
+      setVoices([]);
     } finally {
       setLoadingVoices(false);
     }
@@ -108,13 +128,21 @@ export default function VoiceClone() {
   const handleDeleteVoice = async (voiceId: string) => {
     if (!confirm("确定要删除这个音色吗？")) return;
 
+    setDeletingVoiceId(voiceId);
     try {
-      // TODO: Implement API call
-      console.log("Deleting voice:", voiceId);
-      setVoices(voices.filter((v) => v.voiceId !== voiceId));
-    } catch (error) {
+      const result = await deleteVoice(voiceId);
+
+      if (result.success) {
+        setVoices(voices.filter((v) => v.voiceId !== voiceId));
+        setResult({ type: "success", message: result.message || "删除成功" });
+      } else {
+        setResult({ type: "error", message: result.error || "删除失败" });
+      }
+    } catch (error: any) {
       console.error("Failed to delete voice:", error);
-      alert("删除失败：" + (error as Error).message);
+      setResult({ type: "error", message: error.message || "删除失败" });
+    } finally {
+      setDeletingVoiceId(null);
     }
   };
 
@@ -135,13 +163,13 @@ export default function VoiceClone() {
       <div className="neko-content">
         {/* Notice */}
         <div className="neko-info-box" style={{ marginBottom: 24 }}>
-          此功能需要使用阿里云API
+          此功能需要使用阿里云API或本地TTS服务
         </div>
 
         {/* File Upload */}
         <div className="neko-field-row">
           <label className="neko-label">
-            选择本地音频文件 <em>（15秒最佳，请勿超过30秒，wav/mp3格式）</em>
+            选择本地音频文件 <em>（15秒最佳，请勿超过30秒，wav/mp3/m4a格式）</em>
           </label>
 
           <div className="file-upload-area">
@@ -208,8 +236,8 @@ export default function VoiceClone() {
         <div className="voice-list-section">
           <div className="voice-list-header">
             <label className="neko-label">已注册音色</label>
-            <button className="neko-btn neko-btn-secondary neko-btn-sm" onClick={loadVoices}>
-              刷新
+            <button className="neko-btn neko-btn-secondary neko-btn-sm" onClick={loadVoices} disabled={loadingVoices}>
+              {loadingVoices ? "加载中..." : "刷新"}
             </button>
           </div>
 
@@ -223,7 +251,10 @@ export default function VoiceClone() {
                 {voices.map((voice) => (
                   <div key={voice.voiceId} className="voice-item">
                     <div className="voice-info">
-                      <div className="voice-id">Voice ID: {voice.voiceId}</div>
+                      <div className="voice-id">
+                        Voice ID: {voice.voiceId}
+                        {voice.isLocal && <span className="local-badge">本地</span>}
+                      </div>
                       <div className="voice-meta">前缀: {voice.prefix}</div>
                       {voice.createdAt && (
                         <div className="voice-meta">创建时间: {voice.createdAt}</div>
@@ -232,8 +263,9 @@ export default function VoiceClone() {
                     <button
                       className="neko-btn neko-btn-danger neko-btn-sm"
                       onClick={() => handleDeleteVoice(voice.voiceId)}
+                      disabled={deletingVoiceId === voice.voiceId}
                     >
-                      删除
+                      {deletingVoiceId === voice.voiceId ? "删除中..." : "删除"}
                     </button>
                   </div>
                 ))}

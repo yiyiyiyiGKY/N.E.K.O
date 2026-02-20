@@ -1,4 +1,130 @@
 {
+  "webapp": {
+    "connectionStatus": {
+      "idle": "未连接",
+      "connecting": "连接中...",
+      "open": "已连接",
+      "closing": "断开中...",
+      "closed": "已断开",
+      "reconnecting": "重连中..."
+    },
+    "characterManager": {
+      "title": "角色管理",
+      "loadingProfile": "正在加载档案...",
+      "profileName": "档案名",
+      "nickname": "昵称",
+      "gender": "性别",
+      "age": "年龄",
+      "personality": "性格",
+      "backstory": "背景故事",
+      "masterProfile": "主人档案",
+      "nekoProfile": "猫娘档案",
+      "saveSuccess": "保存成功！",
+      "deleteSuccess": "删除成功！",
+      "confirmDelete": "确定要删除这个角色吗？",
+      "addField": "添加字段",
+      "deleteField": "删除字段",
+      "saveChanges": "保存更改",
+      "noCharacters": "暂无角色"
+    },
+    "apiKeySettings": {
+      "title": "API Key 设置",
+      "loadingConfig": "正在加载配置...",
+      "saveSuccess": "配置保存成功！",
+      "saveFailed": "配置保存失败",
+      "freeVersion": "免费版（推荐新手）",
+      "alibabaBailian": "阿里云百炼",
+      "openai": "OpenAI",
+      "gemini": "Google Gemini",
+      "zhipu": "智谱 AI",
+      "deepseek": "DeepSeek",
+      "ollama": "Ollama（本地）",
+      "custom": "自定义",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "请输入您的 API Key",
+      "freeVersionHint": "（免费版不需要）",
+      "coreApiProvider": "核心 API 提供商",
+      "auxApiProvider": "辅助 API 提供商",
+      "advancedOptions": "高级选项",
+      "saveSettings": "保存设置"
+    },
+    "memoryBrowser": {
+      "title": "记忆浏览器",
+      "nekoMemory": "猫娘记忆库",
+      "memoryCount": "{{count}} 条记忆",
+      "noMemory": "暂无记忆",
+      "clearConfirm": "确定要清空所有记忆吗？",
+      "clearSuccess": "记忆已清空！",
+      "saveSuccess": "保存成功！",
+      "searchPlaceholder": "搜索记忆...",
+      "clearAll": "清空"
+    },
+    "modelManager": {
+      "title": "模型管理",
+      "importModel": "导入模型",
+      "uploading": "上传中...",
+      "noModels": "暂无模型",
+      "deleteConfirm": "确定要删除这个模型吗？",
+      "deleteSuccess": "模型删除成功！",
+      "deleteFailed": "删除失败",
+      "live2dModels": "Live2D 模型",
+      "vrmModels": "VRM 模型",
+      "refresh": "刷新"
+    },
+    "voiceClone": {
+      "title": "语音克隆",
+      "registering": "注册中...",
+      "registerSuccess": "语音注册成功！",
+      "registerFailed": "语音注册失败",
+      "uploadHint": "请上传 WAV、MP3 或 M4A 格式的音频文件",
+      "voiceId": "语音 ID",
+      "selectAudio": "选择音频文件",
+      "register": "注册语音"
+    },
+    "live2dParameterEditor": {
+      "title": "Live2D 参数编辑器",
+      "selectModel": "选择模型",
+      "loadModelFailed": "加载模型列表失败",
+      "headRotationX": "头部左右旋转",
+      "headRotationY": "头部上下旋转",
+      "headRotationZ": "头部倾斜",
+      "eyeLOpen": "左眼开合",
+      "eyeROpen": "右眼开合",
+      "mouthOpen": "嘴巴开合",
+      "face": "面部",
+      "eyes": "眼睛",
+      "mouth": "嘴巴",
+      "body": "身体",
+      "resetAll": "重置全部"
+    },
+    "emotionManager": {
+      "live2dTitle": "Live2D 情感映射管理器",
+      "vrmTitle": "VRM 情感映射管理器",
+      "happy": "开心",
+      "sad": "悲伤",
+      "angry": "生气",
+      "neutral": "平静",
+      "relaxed": "放松",
+      "surprised": "惊讶",
+      "saveSuccess": "配置保存成功！",
+      "saveFailed": "配置保存失败",
+      "resetConfirm": "确定要重置为默认配置吗？"
+    },
+    "steamWorkshop": {
+      "title": "Steam 创意工坊",
+      "subscriptions": "订阅内容",
+      "startDownload": "开始下载...",
+      "unsubscribeSuccess": "已取消订阅",
+      "noSubscriptions": "暂无订阅"
+    },
+    "subtitle": {
+      "waiting": "等待字幕..."
+    },
+    "viewer": {
+      "title": "模型查看器",
+      "placeholder": "Live2D/VRM 模型将在此显示"
+    }
+  },
   "common": {
     "load": "加载",
     "minimize": "最小化",

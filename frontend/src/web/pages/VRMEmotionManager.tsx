@@ -3,12 +3,22 @@
  *
  * Migrated from templates/vrm_emotion_manager.html
  * Manages emotion-to-expression mappings for VRM models
+ * Now connected to real backend API
  */
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ChangeEvent } from "react";
 import "./VRMEmotionManager.css";
+import {
+  getVRMModels,
+  getVRMExpressions,
+  getVRMEmotionMapping,
+  saveVRMEmotionMapping,
+  type VRMModel,
+  type VRMExpression,
+  type EmotionMapping,
+} from "../api/models";
 
 interface ModelInfo {
   name: string;
@@ -53,20 +63,22 @@ export default function VRMEmotionManager() {
   const loadModels = async () => {
     try {
       setLoading(true);
-      // TODO: Implement API call
-      // const response = await fetch("/api/vrm/models");
-      // const data = await response.json();
-      // setModels(data);
+      const data = await getVRMModels();
 
-      // Mock data
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setModels([
-        { name: "VRM_Model_1", path: "/models/vrm1.vrm" },
-        { name: "VRM_Model_2", path: "/models/vrm2.vrm" },
-      ]);
-    } catch (error) {
-      console.error("Failed to load models:", error);
-      showStatus("加载模型列表失败", "error");
+      if (data.error) {
+        showStatus(data.error, "error");
+        setModels([]);
+      } else {
+        setModels(
+          (data.models || []).map((m: VRMModel) => ({
+            name: m.name,
+            path: m.path,
+          }))
+        );
+      }
+    } catch (err: any) {
+      console.error("Failed to load models:", err);
+      showStatus(err.message || "加载模型列表失败", "error");
     } finally {
       setLoading(false);
     }
@@ -75,33 +87,18 @@ export default function VRMEmotionManager() {
   const loadModelExpressions = async (model: ModelInfo) => {
     try {
       setLoading(true);
-      // TODO: Implement API call
-      // const response = await fetch(`/api/vrm/model_expressions/${encodeURIComponent(model.name)}`);
-      // const data = await response.json();
+      const data = await getVRMExpressions(model.name);
 
-      // Mock data - VRM expression names
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      setAvailableExpressions([
-        "happy",
-        "joy",
-        "sad",
-        "angry",
-        "relaxed",
-        "surprised",
-        "neutral",
-        "aaa",
-        "iii",
-        "uuu",
-        "eee",
-        "ooo",
-        "blink",
-        "blinkLeft",
-        "blinkRight",
-      ]);
-      showStatus("表情列表加载成功", "success");
-    } catch (error) {
-      console.error("Failed to load expressions:", error);
-      showStatus("加载表情列表失败", "error");
+      if (data.error) {
+        showStatus(data.error, "error");
+        setAvailableExpressions([]);
+      } else {
+        setAvailableExpressions((data.expressions || []).map((e: VRMExpression) => e.name));
+        showStatus("表情列表加载成功", "success");
+      }
+    } catch (err: any) {
+      console.error("Failed to load expressions:", err);
+      showStatus(err.message || "加载表情列表失败", "error");
     } finally {
       setLoading(false);
     }
@@ -109,19 +106,18 @@ export default function VRMEmotionManager() {
 
   const loadEmotionMapping = async (modelName: string) => {
     try {
-      // TODO: Implement API call
-      // const response = await fetch(`/api/vrm/emotion_mapping/${encodeURIComponent(modelName)}`);
-      // const data = await response.json();
+      const data = await getVRMEmotionMapping(modelName);
 
-      // Mock data
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      setEmotionConfig({
-        happy: ["happy", "joy"],
-        sad: ["sad"],
-        neutral: ["neutral"],
-      });
-    } catch (error) {
-      console.error("Failed to load emotion mapping:", error);
+      if (data.error) {
+        console.error("Failed to load emotion mapping:", data.error);
+        setEmotionConfig({});
+      } else {
+        // For VRM, mapping is a simple emotion -> expressions map
+        const mapping = data.mapping as EmotionConfig || {};
+        setEmotionConfig(mapping);
+      }
+    } catch (err: any) {
+      console.error("Failed to load emotion mapping:", err);
     }
   };
 
@@ -150,7 +146,7 @@ export default function VRMEmotionManager() {
 
   const handlePreviewExpression = (expression: string) => {
     if (!selectedModel) return;
-    // TODO: Implement preview API call
+    // Preview would need WebSocket connection to live model
     console.log("Preview expression:", expression);
     showStatus(`预览表情: ${expression}`, "info");
   };
@@ -163,18 +159,16 @@ export default function VRMEmotionManager() {
 
     try {
       setSaving(true);
-      // TODO: Implement API call
-      // const response = await fetch(`/api/vrm/emotion_mapping/${encodeURIComponent(selectedModel.name)}`, {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(emotionConfig),
-      // });
+      const result = await saveVRMEmotionMapping(selectedModel.name, emotionConfig as EmotionMapping);
 
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      showStatus("配置保存成功", "success");
-    } catch (error) {
-      console.error("Failed to save emotion mapping:", error);
-      showStatus("保存失败", "error");
+      if (result.success) {
+        showStatus(result.message || "配置保存成功", "success");
+      } else {
+        showStatus(result.error || "保存失败", "error");
+      }
+    } catch (err: any) {
+      console.error("Failed to save emotion mapping:", err);
+      showStatus(err.message || "保存失败", "error");
     } finally {
       setSaving(false);
     }
@@ -237,6 +231,8 @@ export default function VRMEmotionManager() {
               <div className="preview-buttons">
                 {loading ? (
                   <span className="loading-text">加载表情列表...</span>
+                ) : availableExpressions.length === 0 ? (
+                  <span className="loading-text">无可用表情</span>
                 ) : (
                   availableExpressions.map((expression) => (
                     <button
@@ -276,16 +272,20 @@ export default function VRMEmotionManager() {
                       )}
                     </div>
                     <div className="multiselect-options">
-                      {availableExpressions.map((expression) => (
-                        <label key={expression} className="option-item">
-                          <input
-                            type="checkbox"
-                            checked={(emotionConfig[emotion.key] || []).includes(expression)}
-                            onChange={() => handleExpressionToggle(emotion.key, expression)}
-                          />
-                          <span>{expression}</span>
-                        </label>
-                      ))}
+                      {availableExpressions.length === 0 ? (
+                        <span className="empty-option">无可用表情</span>
+                      ) : (
+                        availableExpressions.map((expression) => (
+                          <label key={expression} className="option-item">
+                            <input
+                              type="checkbox"
+                              checked={(emotionConfig[emotion.key] || []).includes(expression)}
+                              onChange={() => handleExpressionToggle(emotion.key, expression)}
+                            />
+                            <span>{expression}</span>
+                          </label>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>

@@ -1,4 +1,130 @@
 {
+  "webapp": {
+    "connectionStatus": {
+      "idle": "Not Connected",
+      "connecting": "Connecting...",
+      "open": "Connected",
+      "closing": "Disconnecting...",
+      "closed": "Disconnected",
+      "reconnecting": "Reconnecting..."
+    },
+    "characterManager": {
+      "title": "Character Management",
+      "loadingProfile": "Loading profile...",
+      "profileName": "Profile Name",
+      "nickname": "Nickname",
+      "gender": "Gender",
+      "age": "Age",
+      "personality": "Personality",
+      "backstory": "Backstory",
+      "masterProfile": "Master Profile",
+      "nekoProfile": "NEKO Profile",
+      "saveSuccess": "Saved successfully!",
+      "deleteSuccess": "Deleted successfully!",
+      "confirmDelete": "Are you sure you want to delete this character?",
+      "addField": "Add Field",
+      "deleteField": "Delete Field",
+      "saveChanges": "Save Changes",
+      "noCharacters": "No characters available"
+    },
+    "apiKeySettings": {
+      "title": "API Key Settings",
+      "loadingConfig": "Loading configuration...",
+      "saveSuccess": "Configuration saved successfully!",
+      "saveFailed": "Failed to save configuration",
+      "freeVersion": "Free Version (Recommended for Beginners)",
+      "alibabaBailian": "Alibaba Cloud Bailian",
+      "openai": "OpenAI",
+      "gemini": "Google Gemini",
+      "zhipu": "Zhipu AI",
+      "deepseek": "DeepSeek",
+      "ollama": "Ollama (Local)",
+      "custom": "Custom",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "Please enter your API Key",
+      "freeVersionHint": "(Not required for Free Version)",
+      "coreApiProvider": "Core API Provider",
+      "auxApiProvider": "Auxiliary API Provider",
+      "advancedOptions": "Advanced Options",
+      "saveSettings": "Save Settings"
+    },
+    "memoryBrowser": {
+      "title": "Memory Browser",
+      "nekoMemory": "NEKO Memory",
+      "memoryCount": "{{count}} memories",
+      "noMemory": "No memories yet",
+      "clearConfirm": "Are you sure you want to clear all memories?",
+      "clearSuccess": "Memories cleared!",
+      "saveSuccess": "Saved successfully!",
+      "searchPlaceholder": "Search memories...",
+      "clearAll": "Clear All"
+    },
+    "modelManager": {
+      "title": "Model Management",
+      "importModel": "Import Model",
+      "uploading": "Uploading...",
+      "noModels": "No models available",
+      "deleteConfirm": "Are you sure you want to delete this model?",
+      "deleteSuccess": "Model deleted successfully!",
+      "deleteFailed": "Delete failed",
+      "live2dModels": "Live2D Models",
+      "vrmModels": "VRM Models",
+      "refresh": "Refresh"
+    },
+    "voiceClone": {
+      "title": "Voice Clone",
+      "registering": "Registering...",
+      "registerSuccess": "Voice registered successfully!",
+      "registerFailed": "Voice registration failed",
+      "uploadHint": "Please upload WAV, MP3 or M4A format audio file",
+      "voiceId": "Voice ID",
+      "selectAudio": "Select Audio File",
+      "register": "Register Voice"
+    },
+    "live2dParameterEditor": {
+      "title": "Live2D Parameter Editor",
+      "selectModel": "Select Model",
+      "loadModelFailed": "Failed to load model list",
+      "headRotationX": "Head Rotation Left/Right",
+      "headRotationY": "Head Rotation Up/Down",
+      "headRotationZ": "Head Tilt",
+      "eyeLOpen": "Left Eye Open/Close",
+      "eyeROpen": "Right Eye Open/Close",
+      "mouthOpen": "Mouth Open/Close",
+      "face": "Face",
+      "eyes": "Eyes",
+      "mouth": "Mouth",
+      "body": "Body",
+      "resetAll": "Reset All"
+    },
+    "emotionManager": {
+      "live2dTitle": "Live2D Emotion Mapping Manager",
+      "vrmTitle": "VRM Emotion Mapping Manager",
+      "happy": "Happy",
+      "sad": "Sad",
+      "angry": "Angry",
+      "neutral": "Neutral",
+      "relaxed": "Relaxed",
+      "surprised": "Surprised",
+      "saveSuccess": "Configuration saved successfully!",
+      "saveFailed": "Failed to save configuration",
+      "resetConfirm": "Are you sure you want to reset to default?"
+    },
+    "steamWorkshop": {
+      "title": "Steam Workshop",
+      "subscriptions": "Subscriptions",
+      "startDownload": "Starting download...",
+      "unsubscribeSuccess": "Successfully unsubscribed",
+      "noSubscriptions": "No subscriptions yet"
+    },
+    "subtitle": {
+      "waiting": "Waiting for subtitles..."
+    },
+    "viewer": {
+      "title": "Model Viewer",
+      "placeholder": "Live2D/VRM model will be displayed here"
+    }
+  },
   "common": {
     "load": "Load",
     "minimize": "Minimize",

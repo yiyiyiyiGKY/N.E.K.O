@@ -3,12 +3,14 @@
  *
  * Migrated from templates/api_key_settings.html
  * Uses neko theme system from theme.css
+ * Now connected to real backend API
  */
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ChangeEvent } from "react";
 import "./ApiKeySettings.css";
+import { getCoreConfig, updateCoreConfig } from "../api/config";
 
 type ApiProvider = "free" | "ali" | "glm" | "step" | "silicon" | "openai" | "gemini";
 
@@ -37,10 +39,21 @@ const API_PROVIDERS = [
   { value: "gemini", label: "Gemini" },
 ];
 
+// Map backend field names to frontend field names
+const ASSIST_KEY_MAP: Record<string, keyof ApiConfig["assistApiKeys"]> = {
+  qwen: "ali",
+  openai: "openai",
+  glm: "glm",
+  step: "step",
+  silicon: "silicon",
+  gemini: "gemini",
+};
+
 export default function ApiKeySettings() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [config, setConfig] = useState<ApiConfig>({
     coreApiProvider: "free",
@@ -64,40 +77,65 @@ export default function ApiKeySettings() {
 
   const loadConfig = async () => {
     try {
-      // TODO: Implement API call to load config
-      // const response = await fetch("/api/config/api_keys");
-      // const data = await response.json();
-      // setConfig(data);
+      setLoading(true);
+      setError(null);
 
-      // Mock loading
-      setTimeout(() => {
-        setLoading(false);
-      }, 500);
-    } catch (error) {
-      console.error("Failed to load config:", error);
+      const data = await getCoreConfig();
+
+      // Map backend response to frontend state
+      setConfig({
+        coreApiProvider: (data.coreApi || "free") as ApiProvider,
+        coreApiKey: data.api_key || "",
+        assistApiProvider: (data.assistApi || "free") as ApiProvider,
+        assistApiKeys: {
+          ali: data.assistApiKeyQwen || "",
+          openai: data.assistApiKeyOpenai || "",
+          glm: data.assistApiKeyGlm || "",
+          step: data.assistApiKeyStep || "",
+          silicon: data.assistApiKeySilicon || "",
+          gemini: data.assistApiKeyGemini || "",
+        },
+        mcpRouterToken: data.mcpToken || "",
+      });
+    } catch (err) {
+      console.error("Failed to load config:", err);
+      setError("加载配置失败，请刷新页面重试");
+    } finally {
       setLoading(false);
     }
   };
 
   const handleSave = async () => {
     setSaving(true);
-    try {
-      // TODO: Implement API call to save config
-      // await fetch("/api/config/api_keys", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(config),
-      // });
+    setError(null);
 
-      // Mock saving
-      setTimeout(() => {
-        setSaving(false);
-        alert("配置保存成功！需要重启服务才能生效。");
-      }, 1000);
-    } catch (error) {
-      console.error("Failed to save config:", error);
+    try {
+      // Map frontend state to backend request format
+      const requestData = {
+        coreApiKey: config.coreApiKey,
+        coreApi: config.coreApiProvider,
+        assistApi: config.assistApiProvider,
+        assistApiKeyQwen: config.assistApiKeys.ali,
+        assistApiKeyOpenai: config.assistApiKeys.openai,
+        assistApiKeyGlm: config.assistApiKeys.glm,
+        assistApiKeyStep: config.assistApiKeys.step,
+        assistApiKeySilicon: config.assistApiKeys.silicon,
+        assistApiKeyGemini: config.assistApiKeys.gemini,
+        mcpToken: config.mcpRouterToken,
+      };
+
+      const result = await updateCoreConfig(requestData);
+
+      if (result.success) {
+        alert(result.message || "配置保存成功！");
+      } else {
+        setError(result.error || "保存失败，请重试");
+      }
+    } catch (err: any) {
+      console.error("Failed to save config:", err);
+      setError(err.message || "保存失败，请检查网络连接");
+    } finally {
       setSaving(false);
-      alert("保存失败：" + (error as Error).message);
     }
   };
 
@@ -127,6 +165,16 @@ export default function ApiKeySettings() {
       </div>
 
       <div className="neko-content">
+        {/* Error Message */}
+        {error && (
+          <div className="neko-card neko-error-box">
+            <p>❌ {error}</p>
+            <button className="neko-btn neko-btn-secondary" onClick={() => setError(null)}>
+              关闭
+            </button>
+          </div>
+        )}
+
         {/* Quick Start Guide */}
         <section className="neko-info-box api-guide-box">
           <h3>🔑 快速开始</h3>

@@ -2,12 +2,22 @@
  * Memory Browser Page
  *
  * Migrated from templates/memory_browser.html
+ * Now connected to real backend API
  */
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ChangeEvent } from "react";
 import "./MemoryBrowser.css";
+import {
+  getRecentFiles,
+  getRecentFile,
+  saveRecentFile,
+  getReviewConfig,
+  updateReviewConfig,
+  type MemoryFile,
+  type MemoryContent,
+} from "../api/memory";
 
 interface Memory {
   id: string;
@@ -23,71 +33,108 @@ interface CharacterMemory {
   lastUpdated: string;
 }
 
+// Parse memory file name to extract character info
+function parseMemoryFileName(fileName: string): { characterName: string; timestamp: string } {
+  // Expected format: recent_{character_name}.json or similar
+  const match = fileName.match(/recent_(.+)\.json$/i);
+  if (match) {
+    return {
+      characterName: match[1],
+      timestamp: "",
+    };
+  }
+  return {
+    characterName: fileName.replace(/\.json$/i, ""),
+    timestamp: "",
+  };
+}
+
 export default function MemoryBrowser() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [characterMemories, setCharacterMemories] = useState<CharacterMemory[]>([]);
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
   const [memoryContent, setMemoryContent] = useState("");
+  const [originalContent, setOriginalContent] = useState("");
   const [autoReview, setAutoReview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadCharacterMemories();
+    loadReviewConfig();
   }, []);
 
   const loadCharacterMemories = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // TODO: Implement API call
-      // const response = await fetch("/api/memories/");
-      // const data = await response.json();
-      // setCharacterMemories(data);
+      const data = await getRecentFiles();
 
-      // Mock data
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setCharacterMemories([
-        {
-          characterId: "yui",
-          characterName: "Yui",
-          memoryCount: 42,
-          lastUpdated: "2026-02-19",
-        },
-        {
-          characterId: "miku",
-          characterName: "Miku",
-          memoryCount: 28,
-          lastUpdated: "2026-02-18",
-        },
-      ]);
-    } catch (error) {
-      console.error("Failed to load memories:", error);
+      if (data.error) {
+        setError(data.error);
+        setCharacterMemories([]);
+        return;
+      }
+
+      // Convert files to CharacterMemory format
+      const memories: CharacterMemory[] = (data.files || []).map((file: MemoryFile) => {
+        const parsed = parseMemoryFileName(file.name);
+        return {
+          characterId: file.name,
+          characterName: parsed.characterName,
+          memoryCount: 1, // We don't have count from API
+          lastUpdated: file.modified || "",
+        };
+      });
+
+      setCharacterMemories(memories);
+    } catch (err: any) {
+      console.error("Failed to load memories:", err);
+      setError(err.message || "加载记忆列表失败");
     } finally {
       setLoading(false);
     }
   };
 
-  const loadMemoryContent = async (characterId: string) => {
+  const loadReviewConfig = async () => {
     try {
-      // TODO: Implement API call
-      // const response = await fetch(`/api/memories/${characterId}`);
-      // const data = await response.json();
-      // setSelectedMemory(data);
-      // setMemoryContent(data.content);
+      const data = await getReviewConfig();
+      if (data.config) {
+        setAutoReview(data.config.auto_review || false);
+      }
+    } catch (err) {
+      console.error("Failed to load review config:", err);
+    }
+  };
 
-      // Mock data
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      const mockMemory: Memory = {
-        id: `${characterId}-memory`,
-        characterName: characterId,
-        content: `这是 ${characterId} 的记忆内容...\n\n用户: 你好\n${characterId}: 你好！有什么可以帮你的吗？\n\n用户: 今天天气怎么样？\n${characterId}: 今天天气很晴朗！`,
-        timestamp: "2026-02-19 18:30:00",
+  const loadMemoryContent = async (characterId: string) => {
+    setError(null);
+    try {
+      const data = await getRecentFile(characterId);
+
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+
+      const parsed = parseMemoryFileName(characterId);
+      const contentStr = JSON.stringify(data.content, null, 2);
+
+      const memory: Memory = {
+        id: characterId,
+        characterName: data.name || parsed.characterName,
+        content: contentStr,
+        timestamp: new Date().toISOString(),
       };
-      setSelectedMemory(mockMemory);
-      setMemoryContent(mockMemory.content);
-    } catch (error) {
-      console.error("Failed to load memory content:", error);
+
+      setSelectedMemory(memory);
+      setMemoryContent(contentStr);
+      setOriginalContent(contentStr);
+    } catch (err: any) {
+      console.error("Failed to load memory content:", err);
+      setError(err.message || "加载记忆内容失败");
     }
   };
 
@@ -95,14 +142,29 @@ export default function MemoryBrowser() {
     if (!selectedMemory) return;
 
     setSaving(true);
+    setError(null);
     try {
-      // TODO: Implement API call
-      console.log("Saving memory:", selectedMemory.id, memoryContent);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      alert("保存成功！");
-    } catch (error) {
-      console.error("Failed to save memory:", error);
-      alert("保存失败：" + (error as Error).message);
+      // Parse the content back to JSON
+      let content: MemoryContent;
+      try {
+        content = JSON.parse(memoryContent);
+      } catch {
+        setError("JSON 格式错误，请检查内容");
+        setSaving(false);
+        return;
+      }
+
+      const result = await saveRecentFile(selectedMemory.id, content);
+
+      if (result.success) {
+        setOriginalContent(memoryContent);
+        alert("保存成功！");
+      } else {
+        setError(result.error || "保存失败");
+      }
+    } catch (err: any) {
+      console.error("Failed to save memory:", err);
+      setError(err.message || "保存失败");
     } finally {
       setSaving(false);
     }
@@ -113,29 +175,42 @@ export default function MemoryBrowser() {
     if (!confirm("确定要清空这个角色的记忆吗？此操作不可恢复！")) return;
 
     try {
-      // TODO: Implement API call
-      console.log("Clearing memory for:", selectedMemory.characterName);
-      setMemoryContent("");
-      alert("记忆已清空！");
-    } catch (error) {
-      console.error("Failed to clear memory:", error);
-      alert("清空失败：" + (error as Error).message);
+      // Save empty content
+      const result = await saveRecentFile(selectedMemory.id, {});
+
+      if (result.success) {
+        setMemoryContent("{}");
+        setOriginalContent("{}");
+        alert("记忆已清空！");
+      } else {
+        setError(result.error || "清空失败");
+      }
+    } catch (err: any) {
+      console.error("Failed to clear memory:", err);
+      setError(err.message || "清空失败");
     }
   };
 
   const handleAutoReviewToggle = async (enabled: boolean) => {
     try {
-      // TODO: Implement API call
-      console.log("Setting auto review:", enabled);
-      setAutoReview(enabled);
-    } catch (error) {
-      console.error("Failed to toggle auto review:", error);
+      const result = await updateReviewConfig({ auto_review: enabled });
+
+      if (result.success) {
+        setAutoReview(enabled);
+      } else {
+        setError(result.error || "设置失败");
+      }
+    } catch (err: any) {
+      console.error("Failed to toggle auto review:", err);
+      setError(err.message || "设置失败");
     }
   };
 
   const handleClose = () => {
     navigate("/");
   };
+
+  const hasChanges = memoryContent !== originalContent;
 
   const filteredMemories = characterMemories.filter((m) =>
     m.characterName.toLowerCase().includes(searchTerm.toLowerCase())
@@ -152,6 +227,16 @@ export default function MemoryBrowser() {
       </div>
 
       <div className="neko-content">
+        {/* Error Message */}
+        {error && (
+          <div className="neko-card neko-error-box" style={{ marginBottom: 16 }}>
+            <p>❌ {error}</p>
+            <button className="neko-btn neko-btn-secondary neko-btn-sm" onClick={() => setError(null)}>
+              关闭
+            </button>
+          </div>
+        )}
+
         {/* Tips */}
         <div className="neko-info-box tips-container">
           <span className="tip-text">刚刚结束的对话内容要稍等片刻才会载入，可以重新点击猫娘名称刷新。</span>
@@ -185,14 +270,16 @@ export default function MemoryBrowser() {
                     <div
                       key={memory.characterId}
                       className={`character-item ${
-                        selectedMemory?.id.startsWith(memory.characterId) ? "active" : ""
+                        selectedMemory?.id === memory.characterId ? "active" : ""
                       }`}
                       onClick={() => loadMemoryContent(memory.characterId)}
                     >
                       <div className="character-name">{memory.characterName}</div>
                       <div className="character-meta">
                         <span className="memory-count">{memory.memoryCount} 条记忆</span>
-                        <span className="last-updated">{memory.lastUpdated}</span>
+                        {memory.lastUpdated && (
+                          <span className="last-updated">{memory.lastUpdated}</span>
+                        )}
                       </div>
                     </div>
                   ))
@@ -229,7 +316,7 @@ export default function MemoryBrowser() {
                 <>
                   <div className="editor-meta">
                     <span className="character-label">角色: {selectedMemory.characterName}</span>
-                    <span className="timestamp">时间: {selectedMemory.timestamp}</span>
+                    {hasChanges && <span className="unsaved-badge">未保存</span>}
                   </div>
 
                   <textarea
@@ -237,18 +324,26 @@ export default function MemoryBrowser() {
                     value={memoryContent}
                     onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMemoryContent(e.target.value)}
                     placeholder="记忆内容..."
+                    spellCheck={false}
                   />
 
                   <div className="editor-actions">
                     <button
                       className="neko-btn neko-btn-primary"
                       onClick={handleSave}
-                      disabled={saving}
+                      disabled={saving || !hasChanges}
                     >
                       {saving ? "保存中..." : "保存"}
                     </button>
                     <button className="neko-btn neko-btn-danger" onClick={handleClear}>
                       清空
+                    </button>
+                    <button
+                      className="neko-btn neko-btn-secondary"
+                      onClick={() => setMemoryContent(originalContent)}
+                      disabled={!hasChanges}
+                    >
+                      撤销
                     </button>
                   </div>
                 </>

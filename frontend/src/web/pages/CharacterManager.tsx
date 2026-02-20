@@ -2,13 +2,26 @@
  * Character Manager Page
  *
  * Migrated from templates/chara_manager.html
+ * Now connected to real backend API
  */
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ChangeEvent, MouseEvent } from "react";
+import { useT, tOrDefault } from "@project_neko/components";
 import "./CharacterManager.css";
+import {
+  getCharacters,
+  updateMaster,
+  addCatgirl,
+  updateCatgirl,
+  deleteCatgirl,
+  type CharactersData,
+  type MasterProfile,
+  type CatgirlProfile,
+} from "../api/characters";
 
+// Frontend character interface (for UI state)
 interface Character {
   id: string;
   name: string;
@@ -23,18 +36,54 @@ interface Character {
   voiceId?: string;
 }
 
-interface MasterProfile {
-  name: string;
-  nickname?: string;
-  gender?: string;
-  age?: string;
-  personality?: string;
+// Convert backend CatgirlProfile to frontend Character
+function catgirlToCharacter(name: string, profile: CatgirlProfile): Character {
+  return {
+    id: name,
+    name: name,
+    nickname: profile.昵称,
+    gender: profile.性别,
+    age: profile.年龄,
+    personality: profile.性格,
+    backstory: profile.背景故事,
+    systemPrompt: profile.system_prompt,
+    live2dModel: profile.live2d,
+    voiceId: profile.voice_id,
+  };
+}
+
+// Convert frontend Character to backend CatgirlProfile
+function characterToCatgirl(character: Character): CatgirlProfile {
+  const profile: CatgirlProfile = {
+    档案名: character.name,
+  };
+  if (character.nickname) profile.昵称 = character.nickname;
+  if (character.gender) profile.性别 = character.gender;
+  if (character.age) profile.年龄 = character.age;
+  if (character.personality) profile.性格 = character.personality;
+  if (character.backstory) profile.背景故事 = character.backstory;
+  if (character.systemPrompt) profile.system_prompt = character.systemPrompt;
+  if (character.live2dModel) profile.live2d = character.live2dModel;
+  if (character.voiceId) profile.voice_id = character.voiceId;
+  return profile;
+}
+
+// Convert backend MasterProfile to frontend state
+function masterToState(profile: MasterProfile): { name: string; nickname?: string; gender?: string } {
+  return {
+    name: profile.档案名 || "",
+    nickname: profile.昵称,
+    gender: profile.性别,
+  };
 }
 
 export default function CharacterManager() {
   const navigate = useNavigate();
+  const t = useT();
   const [loading, setLoading] = useState(true);
-  const [masterProfile, setMasterProfile] = useState<MasterProfile>({
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [masterProfile, setMasterProfile] = useState<{ name: string; nickname?: string; gender?: string }>({
     name: "",
   });
   const [catgirls, setCatgirls] = useState<Character[]>([]);
@@ -46,83 +95,122 @@ export default function CharacterManager() {
 
   const loadCharacters = async () => {
     try {
-      // TODO: Implement API call
-      // const response = await fetch("/api/characters/");
-      // const data = await response.json();
-      // setMasterProfile(data.master);
-      // setCatgirls(data.catgirls);
+      setLoading(true);
+      setError(null);
 
-      // Mock data
-      setTimeout(() => {
-        setMasterProfile({ name: "主人", nickname: "Master", gender: "男" });
-        setCatgirls([
-          {
-            id: "1",
-            name: "小雪",
-            nickname: "Yuki",
-            gender: "女",
-            personality: "温柔体贴",
-            live2dModel: "yui",
-          },
-        ]);
-        setLoading(false);
-      }, 500);
-    } catch (error) {
-      console.error("Failed to load characters:", error);
+      const data: CharactersData = await getCharacters();
+
+      // Convert master profile
+      setMasterProfile(masterToState(data.主人 || { 档案名: "" }));
+
+      // Convert catgirls
+      const catgirlList: Character[] = [];
+      if (data.猫娘) {
+        for (const [name, profile] of Object.entries(data.猫娘)) {
+          catgirlList.push(catgirlToCharacter(name, profile));
+        }
+      }
+      setCatgirls(catgirlList);
+    } catch (err) {
+      console.error("Failed to load characters:", err);
+      setError(tOrDefault(t, "webapp.characterManager.loadFailed", "加载角色数据失败，请刷新页面重试"));
+    } finally {
       setLoading(false);
     }
   };
 
   const handleSaveMaster = async () => {
     try {
-      // TODO: Implement API call
-      console.log("Saving master profile:", masterProfile);
-      alert("保存成功！");
-    } catch (error) {
-      console.error("Failed to save master profile:", error);
-      alert("保存失败：" + (error as Error).message);
+      setSaving(true);
+      setError(null);
+
+      const profile: MasterProfile = {
+        档案名: masterProfile.name,
+      };
+      if (masterProfile.nickname) profile.昵称 = masterProfile.nickname;
+      if (masterProfile.gender) profile.性别 = masterProfile.gender;
+
+      const result = await updateMaster(profile);
+
+      if (result.success) {
+        alert(tOrDefault(t, "webapp.characterManager.saveSuccess", "保存成功！"));
+      } else {
+        setError(result.error || tOrDefault(t, "common.error", "保存失败"));
+      }
+    } catch (err: any) {
+      console.error("Failed to save master profile:", err);
+      setError(err.message || tOrDefault(t, "common.error", "保存失败"));
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleAddCatgirl = () => {
     const newCatgirl: Character = {
-      id: Date.now().toString(),
-      name: "新猫娘",
+      id: "", // Will be set when saving
+      name: "",
     };
     setEditingCharacter(newCatgirl);
   };
 
   const handleSaveCharacter = async (character: Character) => {
     try {
-      // TODO: Implement API call
-      console.log("Saving character:", character);
+      setSaving(true);
+      setError(null);
 
-      if (catgirls.find((c) => c.id === character.id)) {
-        // Update existing
-        setCatgirls(catgirls.map((c) => (c.id === character.id ? character : c)));
-      } else {
-        // Add new
-        setCatgirls([...catgirls, character]);
+      // Validate name
+      if (!character.name.trim()) {
+        setError(tOrDefault(t, "webapp.characterManager.nameRequired", "名称为必填项"));
+        return;
       }
 
-      setEditingCharacter(null);
-      alert("保存成功！");
-    } catch (error) {
-      console.error("Failed to save character:", error);
-      alert("保存失败：" + (error as Error).message);
+      const profile = characterToCatgirl(character);
+
+      let result;
+      if (catgirls.find((c) => c.id === character.id && character.id)) {
+        // Update existing
+        result = await updateCatgirl(character.id, profile);
+      } else {
+        // Add new
+        result = await addCatgirl(profile);
+      }
+
+      if (result.success) {
+        // Reload to get fresh data
+        await loadCharacters();
+        setEditingCharacter(null);
+        alert(tOrDefault(t, "webapp.characterManager.saveSuccess", "保存成功！"));
+      } else {
+        setError(result.error || tOrDefault(t, "common.error", "保存失败"));
+      }
+    } catch (err: any) {
+      console.error("Failed to save character:", err);
+      setError(err.message || tOrDefault(t, "common.error", "保存失败"));
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDeleteCharacter = async (id: string) => {
-    if (!confirm("确定要删除这个角色吗？")) return;
+    if (!confirm(tOrDefault(t, "webapp.characterManager.confirmDelete", "确定要删除这个角色吗？"))) return;
 
     try {
-      // TODO: Implement API call
-      setCatgirls(catgirls.filter((c) => c.id !== id));
-      alert("删除成功！");
-    } catch (error) {
-      console.error("Failed to delete character:", error);
-      alert("删除失败：" + (error as Error).message);
+      setSaving(true);
+      setError(null);
+
+      const result = await deleteCatgirl(id);
+
+      if (result.success) {
+        setCatgirls(catgirls.filter((c) => c.id !== id));
+        alert(tOrDefault(t, "webapp.characterManager.deleteSuccess", "删除成功！"));
+      } else {
+        setError(result.error || tOrDefault(t, "common.error", "删除失败"));
+      }
+    } catch (err: any) {
+      console.error("Failed to delete character:", err);
+      setError(err.message || tOrDefault(t, "common.error", "删除失败"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -139,7 +227,7 @@ export default function CharacterManager() {
       <div className="neko-container">
         <div className="neko-loading">
           <div className="neko-loading-spinner"></div>
-          <p className="neko-loading-text">正在加载角色数据...</p>
+          <p className="neko-loading-text">{tOrDefault(t, "webapp.characterManager.loadingProfile", "正在加载角色数据...")}</p>
         </div>
       </div>
     );
@@ -149,22 +237,32 @@ export default function CharacterManager() {
     <div className="neko-container">
       {/* Header */}
       <div className="neko-header">
-        <h2 data-text="角色管理">角色管理</h2>
-        <button className="neko-close-btn" onClick={handleClose} title="关闭">
-          <img src="/static/icons/close_button.png" alt="关闭" />
+        <h2 data-text={tOrDefault(t, "webapp.characterManager.title", "角色管理")}>{tOrDefault(t, "webapp.characterManager.title", "角色管理")}</h2>
+        <button className="neko-close-btn" onClick={handleClose} title={tOrDefault(t, "common.close", "关闭")}>
+          <img src="/static/icons/close_button.png" alt={tOrDefault(t, "common.close", "关闭")} />
         </button>
       </div>
 
       <div className="neko-content">
+        {/* Error Message */}
+        {error && (
+          <div className="neko-card neko-error-box">
+            <p>❌ {error}</p>
+            <button className="neko-btn neko-btn-secondary" onClick={() => setError(null)}>
+              {tOrDefault(t, "common.close", "关闭")}
+            </button>
+          </div>
+        )}
+
         {/* Master Profile Section */}
         <section className="neko-section master-section">
           <div className="section-header">
             <div className="neko-tips">
               <span className="icon">⚠️</span>
-              主人档案(唯一): 档案名为必填项，其他均为可选项。
+              {tOrDefault(t, "settings.masterProfile", "主人档案(唯一): 档案名为必填项，其他均为可选项。")}
             </div>
             <button className="neko-btn neko-btn-secondary api-key-btn" onClick={handleOpenApiKeySettings}>
-              🔑 API Key 设置
+              🔑 {tOrDefault(t, "webapp.apiKeySettings.title", "API Key 设置")}
             </button>
           </div>
 
@@ -172,7 +270,7 @@ export default function CharacterManager() {
             <div className="card-body">
               <div className="neko-field-row">
                 <label className="neko-label">
-                  档案名 <span className="required">*</span>
+                  {tOrDefault(t, "webapp.characterManager.profileName", "档案名")} <span className="required">*</span>
                 </label>
                 <input
                   className="neko-input"
@@ -180,13 +278,13 @@ export default function CharacterManager() {
                   value={masterProfile.name}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setMasterProfile({ ...masterProfile, name: e.target.value })}
                   maxLength={20}
-                  placeholder="必填"
+                  placeholder={tOrDefault(t, "common.required", "必填")}
                 />
               </div>
 
               <div className="form-row">
                 <div className="neko-field-row">
-                  <label className="neko-label">昵称</label>
+                  <label className="neko-label">{tOrDefault(t, "webapp.characterManager.nickname", "昵称")}</label>
                   <input
                     className="neko-input"
                     type="text"
@@ -196,22 +294,22 @@ export default function CharacterManager() {
                 </div>
 
                 <div className="neko-field-row">
-                  <label className="neko-label">性别</label>
+                  <label className="neko-label">{tOrDefault(t, "webapp.characterManager.gender", "性别")}</label>
                   <select
                     className="neko-select"
                     value={masterProfile.gender || ""}
                     onChange={(e: ChangeEvent<HTMLSelectElement>) => setMasterProfile({ ...masterProfile, gender: e.target.value })}
                   >
-                    <option value="">未设置</option>
-                    <option value="男">男</option>
-                    <option value="女">女</option>
-                    <option value="其他">其他</option>
+                    <option value="">{tOrDefault(t, "common.unset", "未设置")}</option>
+                    <option value="男">{tOrDefault(t, "characterProfile.values.male", "男")}</option>
+                    <option value="女">{tOrDefault(t, "characterProfile.values.female", "女")}</option>
+                    <option value="其他">{tOrDefault(t, "common.other", "其他")}</option>
                   </select>
                 </div>
               </div>
 
-              <button className="neko-btn neko-btn-primary save-master-btn" onClick={handleSaveMaster}>
-                💾 保存主人档案
+              <button className="neko-btn neko-btn-primary save-master-btn" onClick={handleSaveMaster} disabled={saving}>
+                {saving ? tOrDefault(t, "common.saving", "保存中...") : `💾 ${tOrDefault(t, "settings.saveMaster", "保存主人档案")}`}
               </button>
             </div>
           </div>
@@ -222,7 +320,7 @@ export default function CharacterManager() {
           <div className="section-header">
             <div className="neko-tips">
               <span className="icon">⚠️</span>
-              猫娘档案: 进阶设定包含Live2D形象、语音ID等。
+              {tOrDefault(t, "settings.catgirlProfile", "猫娘档案: 进阶设定包含Live2D形象、语音ID等。")}
             </div>
           </div>
 
@@ -235,23 +333,24 @@ export default function CharacterManager() {
                     <button
                       className="neko-btn neko-btn-secondary neko-btn-sm"
                       onClick={() => setEditingCharacter(catgirl)}
-                      title="编辑"
+                      title={tOrDefault(t, "common.edit", "编辑")}
                     >
                       ✏️
                     </button>
                     <button
                       className="neko-btn neko-btn-danger neko-btn-sm"
                       onClick={() => handleDeleteCharacter(catgirl.id)}
-                      title="删除"
+                      title={tOrDefault(t, "common.delete", "删除")}
+                      disabled={saving}
                     >
                       🗑️
                     </button>
                   </div>
                 </div>
                 <div className="catgirl-info">
-                  {catgirl.nickname && <p>昵称: {catgirl.nickname}</p>}
-                  {catgirl.gender && <p>性别: {catgirl.gender}</p>}
-                  {catgirl.personality && <p>性格: {catgirl.personality}</p>}
+                  {catgirl.nickname && <p>{tOrDefault(t, "webapp.characterManager.nickname", "昵称")}: {catgirl.nickname}</p>}
+                  {catgirl.gender && <p>{tOrDefault(t, "webapp.characterManager.gender", "性别")}: {catgirl.gender}</p>}
+                  {catgirl.personality && <p>{tOrDefault(t, "webapp.characterManager.personality", "性格")}: {catgirl.personality}</p>}
                   {catgirl.live2dModel && <p>Live2D: {catgirl.live2dModel}</p>}
                 </div>
               </div>
@@ -259,7 +358,7 @@ export default function CharacterManager() {
           </div>
 
           <button className="neko-btn neko-btn-primary add-button" onClick={handleAddCatgirl}>
-            ➕ 新增猫娘
+            ➕ {tOrDefault(t, "settings.addCatgirl", "新增猫娘")}
           </button>
         </section>
 
@@ -268,16 +367,16 @@ export default function CharacterManager() {
           <div className="neko-modal-overlay" onClick={() => setEditingCharacter(null)}>
             <div className="neko-modal" onClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}>
               <div className="neko-modal-header">
-                <h3>{editingCharacter.id ? "编辑猫娘" : "新增猫娘"}</h3>
+                <h3>{editingCharacter.id ? tOrDefault(t, "settings.editCatgirl", "编辑猫娘") : tOrDefault(t, "settings.addCatgirl", "新增猫娘")}</h3>
                 <button className="neko-close-btn" onClick={() => setEditingCharacter(null)}>
-                  <img src="/static/icons/close_button.png" alt="关闭" />
+                  <img src="/static/icons/close_button.png" alt={tOrDefault(t, "common.close", "关闭")} />
                 </button>
               </div>
 
               <div className="neko-modal-body">
                 <div className="neko-field-row">
                   <label className="neko-label">
-                    名称 <span className="required">*</span>
+                    {tOrDefault(t, "common.name", "名称")} <span className="required">*</span>
                   </label>
                   <input
                     className="neko-input"
@@ -286,12 +385,13 @@ export default function CharacterManager() {
                     onChange={(e: ChangeEvent<HTMLInputElement>) =>
                       setEditingCharacter({ ...editingCharacter, name: e.target.value })
                     }
+                    disabled={!!editingCharacter.id} // Can't rename via this modal
                   />
                 </div>
 
                 <div className="form-row">
                   <div className="neko-field-row">
-                    <label className="neko-label">昵称</label>
+                    <label className="neko-label">{tOrDefault(t, "webapp.characterManager.nickname", "昵称")}</label>
                     <input
                       className="neko-input"
                       type="text"
@@ -303,7 +403,7 @@ export default function CharacterManager() {
                   </div>
 
                   <div className="neko-field-row">
-                    <label className="neko-label">性别</label>
+                    <label className="neko-label">{tOrDefault(t, "webapp.characterManager.gender", "性别")}</label>
                     <select
                       className="neko-select"
                       value={editingCharacter.gender || ""}
@@ -311,16 +411,16 @@ export default function CharacterManager() {
                         setEditingCharacter({ ...editingCharacter, gender: e.target.value })
                       }
                     >
-                      <option value="">未设置</option>
-                      <option value="女">女</option>
-                      <option value="男">男</option>
-                      <option value="其他">其他</option>
+                      <option value="">{tOrDefault(t, "common.unset", "未设置")}</option>
+                      <option value="女">{tOrDefault(t, "characterProfile.values.female", "女")}</option>
+                      <option value="男">{tOrDefault(t, "characterProfile.values.male", "男")}</option>
+                      <option value="其他">{tOrDefault(t, "common.other", "其他")}</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="neko-field-row">
-                  <label className="neko-label">性格</label>
+                  <label className="neko-label">{tOrDefault(t, "webapp.characterManager.personality", "性格")}</label>
                   <textarea
                     className="neko-textarea"
                     value={editingCharacter.personality || ""}
@@ -332,7 +432,7 @@ export default function CharacterManager() {
                 </div>
 
                 <div className="neko-field-row">
-                  <label className="neko-label">背景故事</label>
+                  <label className="neko-label">{tOrDefault(t, "webapp.characterManager.backstory", "背景故事")}</label>
                   <textarea
                     className="neko-textarea"
                     value={editingCharacter.backstory || ""}
@@ -344,7 +444,7 @@ export default function CharacterManager() {
                 </div>
 
                 <div className="neko-field-row">
-                  <label className="neko-label">系统提示词</label>
+                  <label className="neko-label">{tOrDefault(t, "settings.systemPrompt", "系统提示词")}</label>
                   <textarea
                     className="neko-textarea"
                     value={editingCharacter.systemPrompt || ""}
@@ -352,13 +452,13 @@ export default function CharacterManager() {
                       setEditingCharacter({ ...editingCharacter, systemPrompt: e.target.value })
                     }
                     rows={4}
-                    placeholder="定义角色的行为和性格..."
+                    placeholder={tOrDefault(t, "settings.systemPromptPlaceholder", "定义角色的行为和性格...")}
                   />
                 </div>
 
                 <div className="form-row">
                   <div className="neko-field-row">
-                    <label className="neko-label">Live2D 模型</label>
+                    <label className="neko-label">Live2D {tOrDefault(t, "settings.modelSettings", "模型")}</label>
                     <select
                       className="neko-select"
                       value={editingCharacter.live2dModel || ""}
@@ -366,14 +466,14 @@ export default function CharacterManager() {
                         setEditingCharacter({ ...editingCharacter, live2dModel: e.target.value })
                       }
                     >
-                      <option value="">未设置</option>
+                      <option value="">{tOrDefault(t, "common.unset", "未设置")}</option>
                       <option value="yui">Yui</option>
                       <option value="other">Other</option>
                     </select>
                   </div>
 
                   <div className="neko-field-row">
-                    <label className="neko-label">语音 ID</label>
+                    <label className="neko-label">{tOrDefault(t, "webapp.voiceClone.voiceId", "语音 ID")}</label>
                     <input
                       className="neko-input"
                       type="text"
@@ -389,13 +489,14 @@ export default function CharacterManager() {
 
               <div className="neko-modal-footer">
                 <button className="neko-btn neko-btn-secondary" onClick={() => setEditingCharacter(null)}>
-                  取消
+                  {tOrDefault(t, "common.cancel", "取消")}
                 </button>
                 <button
                   className="neko-btn neko-btn-primary"
                   onClick={() => handleSaveCharacter(editingCharacter)}
+                  disabled={saving}
                 >
-                  保存
+                  {saving ? tOrDefault(t, "common.saving", "保存中...") : tOrDefault(t, "common.save", "保存")}
                 </button>
               </div>
             </div>

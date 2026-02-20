@@ -2,19 +2,28 @@
  * Model Manager Page
  *
  * Migrated from templates/model_manager.html
+ * Now connected to real backend API
  */
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ChangeEvent } from "react";
 import "./ModelManager.css";
+import {
+  getLive2DModels,
+  getVRMModels,
+  uploadVRMModel,
+  deleteVRMModel,
+  type Live2DModel,
+  type VRMModel,
+} from "../api/models";
 
 interface Model {
   id: string;
   name: string;
   type: "live2d" | "vrm";
-  size: string;
-  uploadDate: string;
+  path: string;
+  source?: string;
 }
 
 type ModelType = "live2d" | "vrm";
@@ -29,6 +38,7 @@ export default function ModelManager() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadModels();
@@ -36,32 +46,43 @@ export default function ModelManager() {
 
   const loadModels = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // TODO: Implement API call
-      // const response = await fetch(`/api/models/${modelType}`);
-      // const data = await response.json();
-      // setModels(data);
-
-      // Mock data
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setModels([
-        {
-          id: "1",
-          name: "Yui",
-          type: modelType,
-          size: "15 MB",
-          uploadDate: "2026-02-19",
-        },
-        {
-          id: "2",
-          name: "Miku",
-          type: modelType,
-          size: "18 MB",
-          uploadDate: "2026-02-18",
-        },
-      ]);
-    } catch (error) {
-      console.error("Failed to load models:", error);
+      if (modelType === "live2d") {
+        const data = await getLive2DModels();
+        if (data.error) {
+          setError(data.error);
+          setModels([]);
+        } else {
+          setModels(
+            (data.models || []).map((m: Live2DModel) => ({
+              id: m.name,
+              name: m.name,
+              type: "live2d" as const,
+              path: m.path,
+              source: m.source,
+            }))
+          );
+        }
+      } else {
+        const data = await getVRMModels();
+        if (data.error) {
+          setError(data.error);
+          setModels([]);
+        } else {
+          setModels(
+            (data.models || []).map((m: VRMModel) => ({
+              id: m.name,
+              name: m.name,
+              type: "vrm" as const,
+              path: m.path,
+            }))
+          );
+        }
+      }
+    } catch (err: any) {
+      console.error("Failed to load models:", err);
+      setError(err.message || "加载模型列表失败");
     } finally {
       setLoading(false);
     }
@@ -73,21 +94,30 @@ export default function ModelManager() {
 
     setUploading(true);
     setUploadStatus("上传中...");
+    setError(null);
 
     try {
-      // TODO: Implement API call
-      console.log("Uploading files:", files);
-
-      // Mock upload
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      setUploadStatus("上传成功！");
-      loadModels();
+      if (modelType === "vrm") {
+        // VRM upload
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const result = await uploadVRMModel(file);
+          if (!result.success) {
+            throw new Error(result.error || "上传失败");
+          }
+        }
+        setUploadStatus("上传成功！");
+        loadModels();
+      } else {
+        // Live2D upload (would need backend support)
+        setUploadStatus("Live2D 模型上传功能开发中...");
+      }
 
       setTimeout(() => setUploadStatus(""), 3000);
-    } catch (error) {
-      console.error("Failed to upload:", error);
-      setUploadStatus("上传失败：" + (error as Error).message);
+    } catch (err: any) {
+      console.error("Failed to upload:", err);
+      setError(err.message || "上传失败");
+      setUploadStatus("");
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -99,32 +129,43 @@ export default function ModelManager() {
   const handleDeleteModel = async (modelId: string) => {
     if (!confirm("确定要删除这个模型吗？此操作不可恢复！")) return;
 
+    setError(null);
     try {
-      // TODO: Implement API call
-      console.log("Deleting model:", modelId);
+      if (modelType === "vrm") {
+        const result = await deleteVRMModel(modelId);
+        if (!result.success) {
+          throw new Error(result.error || "删除失败");
+        }
+      }
+      // Live2D delete would need backend support
+
       setModels(models.filter((m) => m.id !== modelId));
       if (selectedModel?.id === modelId) {
         setSelectedModel(null);
       }
-      alert("模型已删除");
-    } catch (error) {
-      console.error("Failed to delete model:", error);
-      alert("删除失败：" + (error as Error).message);
+    } catch (err: any) {
+      console.error("Failed to delete model:", err);
+      setError(err.message || "删除失败");
     }
   };
 
   const handleDeleteAllModels = async () => {
     if (!confirm("确定要删除所有导入的模型吗？此操作不可恢复！")) return;
 
+    setError(null);
     try {
-      // TODO: Implement API call
-      console.log("Deleting all models");
+      // Delete each model
+      for (const model of models) {
+        if (modelType === "vrm") {
+          await deleteVRMModel(model.id);
+        }
+      }
+
       setModels([]);
       setSelectedModel(null);
-      alert("所有模型已删除");
-    } catch (error) {
-      console.error("Failed to delete all models:", error);
-      alert("删除失败：" + (error as Error).message);
+    } catch (err: any) {
+      console.error("Failed to delete all models:", err);
+      setError(err.message || "删除失败");
     }
   };
 
@@ -144,6 +185,20 @@ export default function ModelManager() {
 
       <div className="neko-content model-layout">
         <div className="model-sidebar">
+          {/* Error Message */}
+          {error && (
+            <div className="neko-error-box" style={{ marginBottom: 16, padding: 8 }}>
+              <p style={{ margin: 0, fontSize: 14 }}>❌ {error}</p>
+              <button
+                className="neko-btn neko-btn-secondary neko-btn-sm"
+                onClick={() => setError(null)}
+                style={{ marginTop: 8 }}
+              >
+                关闭
+              </button>
+            </div>
+          )}
+
           {/* Back Button */}
           <div className="control-group">
             <button className="neko-btn neko-btn-primary" onClick={handleClose}>
@@ -169,11 +224,12 @@ export default function ModelManager() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
               >
-                导入模型
+                {uploading ? "上传中..." : "导入模型"}
               </button>
               <button
                 className="neko-btn neko-btn-danger"
                 onClick={handleDeleteAllModels}
+                disabled={models.length === 0}
               >
                 全部删除
               </button>
@@ -213,10 +269,15 @@ export default function ModelManager() {
                     className={`model-item ${selectedModel?.id === model.id ? "active" : ""}`}
                     onClick={() => setSelectedModel(model)}
                   >
-                    <div className="model-name">{model.name}</div>
+                    <div className="model-name">
+                      {model.name}
+                      {model.source === "steam_workshop" && (
+                        <span className="source-badge">Workshop</span>
+                      )}
+                    </div>
                     <button
                       className="delete-btn"
-                      onClick={(e) => {
+                      onClick={(e: React.MouseEvent) => {
                         e.stopPropagation();
                         handleDeleteModel(model.id);
                       }}
@@ -244,14 +305,12 @@ export default function ModelManager() {
                   {selectedModel.type.toUpperCase()}
                 </span>
               </div>
-              <div className="info-row">
-                <span className="info-label">大小:</span>
-                <span className="info-value">{selectedModel.size}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">上传:</span>
-                <span className="info-value">{selectedModel.uploadDate}</span>
-              </div>
+              {selectedModel.source && (
+                <div className="info-row">
+                  <span className="info-label">来源:</span>
+                  <span className="info-value">{selectedModel.source}</span>
+                </div>
+              )}
             </div>
           )}
         </div>

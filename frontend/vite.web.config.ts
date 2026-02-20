@@ -56,6 +56,8 @@ export default defineConfig(({ mode }) => {
       outDir: path.resolve(__dirname, "dist/webapp"),
       emptyOutDir: true,
       sourcemap: true,
+      // Improve chunk size warnings
+      chunkSizeWarningLimit: 500,
       rollupOptions: {
         // 仅保留业务代码，React 相关依赖由外部全局或 CDN 提供
         external: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
@@ -63,6 +65,21 @@ export default defineConfig(({ mode }) => {
           globals: {
             react: "React",
             "react-dom": "ReactDOM"
+          },
+          // Manual chunk splitting for better caching
+          manualChunks: (id) => {
+            // Split node_modules into vendor chunk
+            if (id.includes("node_modules")) {
+              return "vendor";
+            }
+            // Split pages into separate chunks (lazy loaded)
+            if (id.includes("/pages/")) {
+              return "pages";
+            }
+            // Split packages into separate chunk
+            if (id.includes("/packages/")) {
+              return "packages";
+            }
           }
         }
       }

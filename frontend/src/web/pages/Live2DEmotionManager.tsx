@@ -3,12 +3,23 @@
  *
  * Migrated from templates/live2d_emotion_manager.html
  * Manages emotion mappings for Live2D models
+ * Now connected to real backend API
  */
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ChangeEvent } from "react";
 import "./Live2DEmotionManager.css";
+import {
+  getLive2DModels,
+  getLive2DModelFiles,
+  getLive2DEmotionMapping,
+  saveLive2DEmotionMapping,
+  type Live2DModel,
+  type MotionFile,
+  type ExpressionFile,
+  type Live2DEmotionMapping,
+} from "../api/models";
 
 interface ModelInfo {
   name: string;
@@ -60,15 +71,24 @@ export default function Live2DEmotionManager() {
   const loadModels = async () => {
     try {
       setLoading(true);
-      // TODO: Implement API call
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setModels([
-        { name: "Yui", path: "/models/yui.model3.json" },
-        { name: "Miku", path: "/models/miku.model3.json" },
-      ]);
-    } catch (error) {
-      console.error("Failed to load models:", error);
-      showStatus("加载模型列表失败", "error");
+      const data = await getLive2DModels();
+
+      if (data.error) {
+        showStatus(data.error, "error");
+        setModels([]);
+      } else {
+        setModels(
+          (data.models || []).map((m: Live2DModel) => ({
+            name: m.name,
+            path: m.path,
+            source: m.source,
+            item_id: m.item_id,
+          }))
+        );
+      }
+    } catch (err: any) {
+      console.error("Failed to load models:", err);
+      showStatus(err.message || "加载模型列表失败", "error");
     } finally {
       setLoading(false);
     }
@@ -77,22 +97,20 @@ export default function Live2DEmotionManager() {
   const loadModelFiles = async (model: ModelInfo) => {
     try {
       setLoading(true);
-      // TODO: Implement API call
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      setAvailableMotions([
-        "motions/idle_01.motion3.json",
-        "motions/happy_01.motion3.json",
-        "motions/sad_01.motion3.json",
-      ]);
-      setAvailableExpressions([
-        "expressions/happy.exp3.json",
-        "expressions/sad.exp3.json",
-        "expressions/angry.exp3.json",
-      ]);
-      showStatus("模型文件加载成功", "success");
-    } catch (error) {
-      console.error("Failed to load model files:", error);
-      showStatus("加载模型文件失败", "error");
+      const data = await getLive2DModelFiles(model.name);
+
+      if (data.error) {
+        showStatus(data.error, "error");
+        setAvailableMotions([]);
+        setAvailableExpressions([]);
+      } else {
+        setAvailableMotions((data.motions || []).map((m: MotionFile) => m.path || m.name));
+        setAvailableExpressions((data.expressions || []).map((e: ExpressionFile) => e.path || e.name));
+        showStatus("模型文件加载成功", "success");
+      }
+    } catch (err: any) {
+      console.error("Failed to load model files:", err);
+      showStatus(err.message || "加载模型文件失败", "error");
     } finally {
       setLoading(false);
     }
@@ -100,18 +118,21 @@ export default function Live2DEmotionManager() {
 
   const loadEmotionMapping = async (modelName: string) => {
     try {
-      // TODO: Implement API call
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      setEmotionConfig({
-        motions: {
-          happy: ["motions/happy_01.motion3.json"],
-        },
-        expressions: {
-          happy: ["expressions/happy.exp3.json"],
-        },
-      });
-    } catch (error) {
-      console.error("Failed to load emotion mapping:", error);
+      const data = await getLive2DEmotionMapping(modelName);
+
+      if (data.error) {
+        console.error("Failed to load emotion mapping:", data.error);
+        setEmotionConfig({ motions: {}, expressions: {} });
+      } else {
+        // Convert from backend format to local format
+        const mapping = data.mapping as Live2DEmotionMapping || { motions: {}, expressions: {} };
+        setEmotionConfig({
+          motions: mapping.motions || {},
+          expressions: mapping.expressions || {},
+        });
+      }
+    } catch (err: any) {
+      console.error("Failed to load emotion mapping:", err);
     }
   };
 
@@ -160,12 +181,16 @@ export default function Live2DEmotionManager() {
     }
     try {
       setSaving(true);
-      // TODO: Implement API call
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      showStatus("配置保存成功", "success");
-    } catch (error) {
-      console.error("Failed to save emotion mapping:", error);
-      showStatus("保存失败", "error");
+      const result = await saveLive2DEmotionMapping(selectedModel.name, emotionConfig);
+
+      if (result.success) {
+        showStatus(result.message || "配置保存成功", "success");
+      } else {
+        showStatus(result.error || "保存失败", "error");
+      }
+    } catch (err: any) {
+      console.error("Failed to save emotion mapping:", err);
+      showStatus(err.message || "保存失败", "error");
     } finally {
       setSaving(false);
     }
@@ -209,6 +234,7 @@ export default function Live2DEmotionManager() {
             {models.map((model) => (
               <option key={model.name} value={model.name}>
                 {model.name}
+                {model.source === "steam_workshop" ? " (Workshop)" : ""}
               </option>
             ))}
           </select>
@@ -242,16 +268,20 @@ export default function Live2DEmotionManager() {
                       )}
                     </div>
                     <div className="multiselect-options">
-                      {availableMotions.map((motion) => (
-                        <label key={motion} className="option-item">
-                          <input
-                            type="checkbox"
-                            checked={(emotionConfig.motions[emotion.key] || []).includes(motion)}
-                            onChange={() => handleMotionToggle(emotion.key, motion)}
-                          />
-                          <span>{getCleanFileName(motion)}</span>
-                        </label>
-                      ))}
+                      {availableMotions.length === 0 ? (
+                        <span className="empty-option">无可用动作</span>
+                      ) : (
+                        availableMotions.map((motion) => (
+                          <label key={motion} className="option-item">
+                            <input
+                              type="checkbox"
+                              checked={(emotionConfig.motions[emotion.key] || []).includes(motion)}
+                              onChange={() => handleMotionToggle(emotion.key, motion)}
+                            />
+                            <span>{getCleanFileName(motion)}</span>
+                          </label>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -277,16 +307,20 @@ export default function Live2DEmotionManager() {
                       )}
                     </div>
                     <div className="multiselect-options">
-                      {availableExpressions.map((expression) => (
-                        <label key={expression} className="option-item">
-                          <input
-                            type="checkbox"
-                            checked={(emotionConfig.expressions[emotion.key] || []).includes(expression)}
-                            onChange={() => handleExpressionToggle(emotion.key, expression)}
-                          />
-                          <span>{getCleanFileName(expression)}</span>
-                        </label>
-                      ))}
+                      {availableExpressions.length === 0 ? (
+                        <span className="empty-option">无可用表情</span>
+                      ) : (
+                        availableExpressions.map((expression) => (
+                          <label key={expression} className="option-item">
+                            <input
+                              type="checkbox"
+                              checked={(emotionConfig.expressions[emotion.key] || []).includes(expression)}
+                              onChange={() => handleExpressionToggle(emotion.key, expression)}
+                            />
+                            <span>{getCleanFileName(expression)}</span>
+                          </label>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>

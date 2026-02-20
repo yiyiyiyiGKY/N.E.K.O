@@ -2,24 +2,51 @@
  * React Router Configuration
  *
  * Defines all routes for the N.E.K.O web application.
- * Each management page is a standalone route (no sidebar layout).
+ * Uses lazy loading for page components to reduce initial bundle size.
  */
 
+import { lazy, Suspense, type LazyExoticComponent, type ReactNode } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import App from "./App";
 
-// Pages
-import ApiKeySettings from "./pages/ApiKeySettings";
-import CharacterManager from "./pages/CharacterManager";
-import VoiceClone from "./pages/VoiceClone";
-import MemoryBrowser from "./pages/MemoryBrowser";
-import SteamWorkshop from "./pages/SteamWorkshop";
-import ModelManager from "./pages/ModelManager";
-import Live2DParameterEditor from "./pages/Live2DParameterEditor";
-import Live2DEmotionManager from "./pages/Live2DEmotionManager";
-import VRMEmotionManager from "./pages/VRMEmotionManager";
-import Subtitle from "./pages/Subtitle";
-import Viewer from "./pages/Viewer";
+// Lazy load page components for better performance
+// Each page is loaded only when user navigates to that route
+const ApiKeySettings = lazy(() => import("./pages/ApiKeySettings"));
+const CharacterManager = lazy(() => import("./pages/CharacterManager"));
+const VoiceClone = lazy(() => import("./pages/VoiceClone"));
+const MemoryBrowser = lazy(() => import("./pages/MemoryBrowser"));
+const SteamWorkshop = lazy(() => import("./pages/SteamWorkshop"));
+const ModelManager = lazy(() => import("./pages/ModelManager"));
+const Live2DParameterEditor = lazy(() => import("./pages/Live2DParameterEditor"));
+const Live2DEmotionManager = lazy(() => import("./pages/Live2DEmotionManager"));
+const VRMEmotionManager = lazy(() => import("./pages/VRMEmotionManager"));
+const Subtitle = lazy(() => import("./pages/Subtitle"));
+const Viewer = lazy(() => import("./pages/Viewer"));
+
+/**
+ * Loading fallback component
+ */
+function PageLoader() {
+  return (
+    <div className="neko-container">
+      <div className="neko-loading">
+        <div className="neko-loading-spinner"></div>
+        <p className="neko-loading-text">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Wrapper for lazy loaded components with Suspense
+ */
+function LazyPage({ component: Component }: { component: LazyExoticComponent<() => ReactNode> }) {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Component />
+    </Suspense>
+  );
+}
 
 /**
  * Wrapper component for App with default props
@@ -36,6 +63,7 @@ function AppWrapper() {
 /**
  * Router configuration
  * Each page is standalone with its own header bar and close button.
+ * Uses lazy loading to reduce initial bundle size.
  */
 export const router = createBrowserRouter([
   {
@@ -48,51 +76,51 @@ export const router = createBrowserRouter([
   },
   {
     path: "/api_key",
-    element: <ApiKeySettings />,
+    element: <LazyPage component={ApiKeySettings} />,
   },
   {
     path: "/chara_manager",
-    element: <CharacterManager />,
+    element: <LazyPage component={CharacterManager} />,
   },
   {
     path: "/voice_clone",
-    element: <VoiceClone />,
+    element: <LazyPage component={VoiceClone} />,
   },
   {
     path: "/memory_browser",
-    element: <MemoryBrowser />,
+    element: <LazyPage component={MemoryBrowser} />,
   },
   {
     path: "/steam_workshop_manager",
-    element: <SteamWorkshop />,
+    element: <LazyPage component={SteamWorkshop} />,
   },
   {
     path: "/model_manager",
-    element: <ModelManager />,
+    element: <LazyPage component={ModelManager} />,
   },
   {
     path: "/l2d",
-    element: <Live2DEmotionManager />,
+    element: <LazyPage component={Live2DEmotionManager} />,
   },
   {
     path: "/live2d_emotion_manager",
-    element: <Live2DEmotionManager />,
+    element: <LazyPage component={Live2DEmotionManager} />,
   },
   {
     path: "/live2d_parameter_editor",
-    element: <Live2DParameterEditor />,
+    element: <LazyPage component={Live2DParameterEditor} />,
   },
   {
     path: "/vrm_emotion_manager",
-    element: <VRMEmotionManager />,
+    element: <LazyPage component={VRMEmotionManager} />,
   },
   {
     path: "/subtitle",
-    element: <Subtitle />,
+    element: <LazyPage component={Subtitle} />,
   },
   {
     path: "/viewer",
-    element: <Viewer />,
+    element: <LazyPage component={Viewer} />,
   },
   {
     path: "*",
