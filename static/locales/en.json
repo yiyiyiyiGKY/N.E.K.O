@@ -1406,6 +1406,7 @@
       "keyboardControl": "Keyboard/Mouse Control",
       "userPlugin": "User Plugin",
       "mcpTools": "MCP Tools",
+      "browserUse": "Browser Control",
       "focusMode": "Allow Interrupt",
       "unavailable": "{{name}} Unavailable",
       "checking": "Checking...",
