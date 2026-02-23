@@ -1,6 +1,6 @@
 import "./styles.css";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { StatusToast, Live2DRightToolbar, useT, tOrDefault, Modal } from "@project_neko/components";
+import { Button, StatusToast, Live2DRightToolbar, useT, tOrDefault, Modal, QrMessageBox } from "@project_neko/components";
 import type {
   StatusToastHandle,
   ModalHandle,
@@ -54,6 +54,7 @@ function App(_props: AppProps) {
   const modalRef = useRef<ModalHandle | null>(null);
   const live2dManagerRef = useRef<Live2DManager | null>(null);
   const live2dPrefsRepoRef = useRef(createLive2DPreferencesRepository(API_BASE));
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
   const handleLive2DReady = useCallback((mgr: Live2DManager) => {
     live2dManagerRef.current = mgr;
@@ -601,6 +602,11 @@ function App(_props: AppProps) {
         }}
         onSettingsMenuClick={handleSettingsMenuClick}
       />
+      <div className="qr-entry">
+        <Button variant="secondary" onClick={() => setIsQrModalOpen(true)}>
+          {tOrDefault(t, "webapp.actions.showQrDrawer", "显示二维码")}
+        </Button>
+      </div>
       <div className="chatDemo">
         <ChatContainer
           externalMessages={chatMessages}
@@ -681,9 +687,15 @@ function App(_props: AppProps) {
           }}
         />
       </div>
+      <QrMessageBox
+        apiBase={API_BASE}
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        title={tOrDefault(t, "webapp.qrDrawer.title", "二维码")}
+        endpoint="/getipqrcode?format=deeplink&path=main"
+      />
     </>
   );
 }
 
 export default App;
-

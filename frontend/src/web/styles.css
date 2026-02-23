@@ -95,3 +95,17 @@ body,
 .chatDemo > * {
   pointer-events: auto;
 }
+
+.qr-entry {
+  position: fixed;
+  left: 16px;
+  top: 16px;
+  z-index: 20;
+}
+
+@media (max-width: 768px) {
+  .qr-entry {
+    left: 12px;
+    top: 12px;
+  }
+}

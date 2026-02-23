@@ -527,10 +527,10 @@ function Demo({ language, onChangeLanguage }: DemoProps) {
         isOpen={isQrModalOpen}
         onClose={() => setIsQrModalOpen(false)}
         title={tOrDefault(t, "webapp.qrDrawer.title", "二维码")}
+        endpoint="/getipqrcode?format=deeplink&path=main"
       />
     </>
   );
 }
 
 export default Demo;
-

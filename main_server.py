@@ -35,6 +35,7 @@ mimetypes.add_type("application/javascript", ".js")
 import asyncio # noqa
 import logging # noqa
 from fastapi import FastAPI # noqa
+from starlette.middleware.cors import CORSMiddleware # noqa
 from fastapi.staticfiles import StaticFiles # noqa
 from main_logic import core as core, cross_server as cross_server # noqa
 from main_logic.agent_event_bus import MainServerAgentBridge, notify_analyze_ack, set_main_bridge # noqa
@@ -425,6 +426,17 @@ lock = asyncio.Lock()
 
 # --- FastAPI App Setup ---
 app = FastAPI()
+
+# --- CORS (dev-friendly) ---
+# Allow local dev origins (Vite/React dev servers).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Neko-Access-Url"],
+)
 
 
 
