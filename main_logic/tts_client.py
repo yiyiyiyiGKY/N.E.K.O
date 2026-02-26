@@ -676,23 +676,27 @@ def qwen_realtime_tts_worker(request_queue, response_queue, audio_api_key, voice
         logger.error(f"Qwen实时TTS Worker启动失败: {e}")
 
 
-def cosyvoice_vc_tts_worker(request_queue, response_queue, audio_api_key, voice_id):
+def cosyvoice_vc_tts_worker(request_queue, response_queue, audio_api_key, voice_id, audio_format=None):
     """
     TTS多进程worker函数，用于阿里云CosyVoice TTS
-    
+
     Args:
         request_queue: 多进程请求队列，接收(speech_id, text)元组
         response_queue: 多进程响应队列，发送音频数据（也用于发送就绪信号）
         audio_api_key: API密钥
         voice_id: 音色ID
+        audio_format: 音频输出格式（DashScope AudioFormat 枚举名），默认 OGG_OPUS
     """
     import dashscope
     from dashscope.audio.tts_v2 import ResultCallback, SpeechSynthesizer, AudioFormat
-    
+
     dashscope.api_key = audio_api_key
-    
+
+    # 解析音频格式，默认 OGG/OPUS
+    tts_audio_format = getattr(AudioFormat, audio_format, AudioFormat.OGG_OPUS_48KHZ_MONO_64KBPS) if audio_format else AudioFormat.OGG_OPUS_48KHZ_MONO_64KBPS
+
     # CosyVoice 不需要预连接，直接发送就绪信号
-    logger.info("CosyVoice TTS 已就绪，发送就绪信号")
+    logger.info(f"CosyVoice TTS 已就绪，audio_format={audio_format}, resolved={tts_audio_format}")
     response_queue.put(("__ready__", True))
     
     class Callback(ResultCallback):
@@ -773,7 +777,7 @@ def cosyvoice_vc_tts_worker(request_queue, response_queue, audio_api_key, voice_
                     model="cosyvoice-v3-plus",
                     voice=voice_id,
                     speech_rate=1.1,
-                    format=AudioFormat.OGG_OPUS_48KHZ_MONO_64KBPS,
+                    format=tts_audio_format,
                     callback=callback,
                 )
                 synthesizer.streaming_call("。")
@@ -804,7 +808,7 @@ def cosyvoice_vc_tts_worker(request_queue, response_queue, audio_api_key, voice_
                     model="cosyvoice-v3-plus",
                     voice=voice_id,
                     speech_rate=1.1,
-                    format=AudioFormat.OGG_OPUS_48KHZ_MONO_64KBPS,
+                    format=tts_audio_format,
                     callback=callback,
                 )
                 synthesizer.streaming_call(tts_text)
@@ -1484,14 +1488,15 @@ def dummy_tts_worker(request_queue, response_queue, audio_api_key, voice_id):
             break
 
 
-def get_tts_worker(core_api_type='qwen', has_custom_voice=False):
+def get_tts_worker(core_api_type='qwen', has_custom_voice=False, audio_format=None):
     """
     根据 core_api 类型和是否有自定义音色，返回对应的 TTS worker 函数
-    
+
     Args:
         core_api_type: core API 类型 ('qwen', 'step', 'glm' 等)
         has_custom_voice: 是否有自定义音色 (voice_id)
-    
+        audio_format: 音频输出格式（DashScope AudioFormat 枚举名）
+
     Returns:
         对应的 TTS worker 函数
     """
@@ -1512,6 +1517,8 @@ def get_tts_worker(core_api_type='qwen', has_custom_voice=False):
 
     # 如果有自定义音色，使用 CosyVoice（仅阿里云支持）
     if has_custom_voice:
+        if audio_format:
+            return partial(cosyvoice_vc_tts_worker, audio_format=audio_format)
         return cosyvoice_vc_tts_worker
 
     # 没有自定义音色时，使用与 core_api 匹配的默认 TTS
