@@ -41,9 +41,11 @@ import json
 from datetime import datetime, timezone
 from typing import Dict
 from multiprocessing import Process, freeze_support, Event
-from config import APP_NAME, MAIN_SERVER_PORT, MEMORY_SERVER_PORT, TOOL_SERVER_PORT
+from config import APP_NAME, MAIN_SERVER_PORT, MEMORY_SERVER_PORT, TOOL_SERVER_PORT, FRP_BIND_PORT, FRP_PROXY_PORT, FRP_TOKEN
+from frp_manager import FRPManager
 
 JOB_HANDLE = None
+_frp_manager: FRPManager | None = None
 _cleanup_lock = threading.Lock()
 _cleanup_done = False
 DEFAULT_PORTS = {
@@ -462,7 +464,7 @@ def _pick_fallback_port(preferred_port: int, reserved: set[int]) -> int | None:
 
 def apply_port_strategy() -> bool:
     """Keep default ports when possible; auto-avoid conflicts when needed."""
-    global MAIN_SERVER_PORT, MEMORY_SERVER_PORT, TOOL_SERVER_PORT
+    global MAIN_SERVER_PORT, MEMORY_SERVER_PORT, TOOL_SERVER_PORT, FRP_BIND_PORT, FRP_PROXY_PORT
     chosen: dict[str, int] = {}
     chosen_internal: dict[str, int] = {}
     fallback_details: list[dict] = []
@@ -528,6 +530,32 @@ def apply_port_strategy() -> bool:
         os.environ[f"NEKO_{key}"] = str(value)
     for key, value in chosen_internal.items():
         os.environ[f"NEKO_{key}"] = str(value)
+
+    # FRP 端口冲突检测
+    frp_fallback_details: list[dict] = []
+    for key, preferred in (("FRP_BIND_PORT", FRP_BIND_PORT), ("FRP_PROXY_PORT", FRP_PROXY_PORT)):
+        if preferred not in reserved and _is_port_bindable(preferred):
+            reserved.add(preferred)
+            if key == "FRP_BIND_PORT":
+                FRP_BIND_PORT = preferred
+            else:
+                FRP_PROXY_PORT = preferred
+            continue
+
+        owners = get_port_owners(preferred)
+        fallback = _pick_fallback_port(preferred, reserved)
+        if fallback is None:
+            print(f"[Launcher] Warning: no fallback for {key} (preferred={preferred}), FRP will be skipped", flush=True)
+            break
+        reserved.add(fallback)
+        if key == "FRP_BIND_PORT":
+            FRP_BIND_PORT = fallback
+        else:
+            FRP_PROXY_PORT = fallback
+        frp_fallback_details.append({"port_key": key, "preferred": preferred, "selected": fallback, "owners": owners})
+
+    if frp_fallback_details:
+        print(f"[Launcher] FRP port fallback applied: {frp_fallback_details}", flush=True)
 
     for server in SERVERS:
         if server["module"] == "memory_server":
@@ -679,6 +707,10 @@ def cleanup_servers():
         _cleanup_done = True
 
     print("\n正在关闭服务器...", flush=True)
+    # 先关闭 FRP 代理
+    if _frp_manager is not None:
+        _frp_manager.stop()
+
     for server in SERVERS:
         proc = server.get('process')
         if not proc:
@@ -770,13 +802,27 @@ def main():
             cleanup_servers()
             return 1
         
-        # 3. 服务器已启动，等待用户操作
+        # 3. 启动 FRP 反向代理
+        global _frp_manager
+        _frp_manager = FRPManager(
+            main_server_port=MAIN_SERVER_PORT,
+            frp_bind_port=FRP_BIND_PORT,
+            frp_proxy_port=FRP_PROXY_PORT,
+            token=FRP_TOKEN,
+        )
+        frp_ok = _frp_manager.start()
+        if not frp_ok:
+            print("[Launcher] FRP 启动失败，局域网设备将无法连接。后端仍可通过 localhost 访问。", flush=True)
+
+        # 4. 服务器已启动，等待用户操作
         print("", flush=True)
         print("=" * 60, flush=True)
         print("  🎉 所有服务器已启动完成！", flush=True)
         print("\n  现在你可以：", flush=True)
         print("  1. 启动 lanlan_frd.exe 使用系统", flush=True)
         print(f"  2. 在浏览器访问 http://localhost:{MAIN_SERVER_PORT}", flush=True)
+        if frp_ok:
+            print(f"  3. 手机端连接 <电脑IP>:{FRP_PROXY_PORT}", flush=True)
         print("\n  按 Ctrl+C 关闭所有服务器", flush=True)
         print("=" * 60, flush=True)
         print("", flush=True)
@@ -786,12 +832,16 @@ def main():
             time.sleep(1)
             # 检查服务器是否还活着
             all_alive = all(
-                server['process'] and server['process'].is_alive() 
+                server['process'] and server['process'].is_alive()
                 for server in SERVERS
             )
             if not all_alive:
                 print("\n检测到服务器异常退出！", flush=True)
                 break
+            # 检查 FRP 是否还活着
+            if _frp_manager and frp_ok and not _frp_manager.is_alive():
+                print("\n[FRP] 检测到 FRP 进程异常退出，局域网连接可能中断", flush=True)
+                frp_ok = False
         
     except KeyboardInterrupt:
         print("\n\n收到中断信号，正在关闭...", flush=True)
