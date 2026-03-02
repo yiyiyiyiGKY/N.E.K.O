@@ -1,0 +1,106 @@
+/**
+ * API Key Settings - Page-specific Styles
+ * Shared styles (header, close button, inputs, buttons, cards, loading) are in theme.css
+ */
+
+/* Guide box - extra left accent border */
+.api-guide-box {
+  border-left: 4px solid var(--neko-primary);
+  margin-bottom: var(--neko-spacing-xl);
+}
+
+.api-guide-box a {
+  color: var(--neko-deep);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.api-guide-box a:hover {
+  text-decoration: underline;
+}
+
+/* Recommend box */
+.api-recommend-box {
+  margin-bottom: var(--neko-spacing-xl);
+}
+
+.api-recommend-box h3 {
+  margin: 0 0 var(--neko-spacing-sm);
+  color: var(--neko-primary);
+  font-size: 1.1rem;
+}
+
+.api-recommend-box p {
+  margin: 0;
+  color: var(--neko-text-dark);
+  line-height: 1.6;
+}
+
+/* Config section */
+.config-section {
+  margin-bottom: var(--neko-spacing-xl);
+}
+
+.config-section h3 {
+  margin: 0 0 var(--neko-spacing-sm);
+  color: var(--neko-primary);
+  font-size: 1.1rem;
+}
+
+/* Free hint label */
+.free-hint {
+  color: #2ecc71;
+  font-weight: normal;
+  margin-left: var(--neko-spacing-sm);
+  font-size: 0.85rem;
+}
+
+/* Tooltip badge */
+.tooltip {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  background: var(--neko-light-bg);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--neko-primary);
+  cursor: help;
+  margin-left: var(--neko-spacing-sm);
+}
+
+/* Fold arrow */
+.fold-arrow {
+  font-size: 12px;
+  transition: transform 0.3s;
+  display: inline-block;
+}
+
+.fold-arrow.open {
+  transform: rotate(180deg);
+}
+
+/* Advanced info box spacing */
+.advanced-info-box {
+  margin-bottom: var(--neko-spacing-xl);
+  font-size: 0.95rem;
+}
+
+/* Coming soon box */
+.coming-soon-box {
+  margin-top: var(--neko-spacing-xl);
+  background: #fff8e1;
+  border-color: #ffd54f;
+  color: var(--neko-text-dark);
+}
+
+.coming-soon-box em {
+  color: var(--neko-text-muted);
+}
+
+/* Monospace input */
+.neko-input.monospace {
+  font-family: var(--neko-font-mono);
+}

@@ -1,0 +1,184 @@
+/**
+ * Memory Browser - Page-specific Styles
+ * Shared styles (header, close button, inputs, buttons, switch) are in theme.css
+ */
+
+/* Tips */
+.tips-container {
+  margin-bottom: var(--neko-spacing-xl);
+}
+
+.tip-text {
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/* Two-column Layout */
+.main-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: var(--neko-spacing-xl);
+  min-height: 600px;
+}
+
+/* Panel Titles */
+.panel-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--neko-primary);
+  margin-bottom: var(--neko-spacing-lg);
+  padding-bottom: var(--neko-spacing-md);
+  border-bottom: 2px solid var(--neko-border);
+}
+
+/* Search */
+.search-box {
+  margin-bottom: var(--neko-spacing-lg);
+}
+
+/* Character List */
+.character-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--neko-spacing-sm);
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: var(--neko-spacing-xl);
+}
+
+.character-item {
+  background: var(--neko-white);
+  border: 2px solid var(--neko-border);
+  border-radius: var(--neko-radius-card);
+  padding: var(--neko-spacing-md);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.character-item:hover {
+  border-color: var(--neko-primary);
+  box-shadow: 0 2px 8px rgba(64, 197, 241, 0.15);
+}
+
+.character-item.active {
+  border-color: var(--neko-primary);
+  background: var(--neko-light-bg);
+}
+
+.character-name {
+  font-weight: 600;
+  color: var(--neko-text-dark);
+  margin-bottom: var(--neko-spacing-xs);
+  font-size: 0.9rem;
+}
+
+.character-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--neko-text-muted);
+}
+
+.memory-count {
+  color: var(--neko-primary);
+  font-weight: 500;
+}
+
+/* Auto Review Section */
+.auto-review-section {
+  padding-top: var(--neko-spacing-lg);
+  border-top: 2px solid var(--neko-border);
+}
+
+.section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--neko-primary);
+  margin-bottom: var(--neko-spacing-md);
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: var(--neko-spacing-md);
+  cursor: pointer;
+}
+
+.toggle-text {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--neko-text-dark);
+}
+
+.toggle-note {
+  margin-top: var(--neko-spacing-sm);
+  font-size: 0.75rem;
+  color: var(--neko-text-muted);
+  line-height: 1.6;
+}
+
+/* Editor Panel */
+.editor-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--neko-spacing-lg);
+  font-size: 0.85rem;
+  color: var(--neko-text-muted);
+  padding: var(--neko-spacing-md);
+  background: var(--neko-light-bg);
+  border-radius: var(--neko-radius-card);
+}
+
+.memory-editor {
+  min-height: 450px;
+  font-family: var(--neko-font-mono);
+}
+
+.editor-actions {
+  display: flex;
+  gap: var(--neko-spacing-md);
+  margin-top: var(--neko-spacing-lg);
+  justify-content: flex-end;
+}
+
+.empty-editor {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  color: var(--neko-text-muted);
+  font-size: 0.9rem;
+}
+
+.loading-text,
+.empty-text {
+  text-align: center;
+  color: var(--neko-text-muted);
+  padding: 20px;
+  font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 968px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .character-list {
+    max-height: 300px;
+  }
+
+  .memory-editor {
+    min-height: 350px;
+  }
+}
+
+@media (max-width: 768px) {
+  .editor-actions {
+    flex-direction: column;
+  }
+
+  .editor-actions .neko-btn {
+    width: 100%;
+  }
+}

@@ -1,0 +1,213 @@
+/**
+ * Steam Workshop - Page-specific Styles
+ * Shared styles (header, close button, inputs, buttons) are in theme.css
+ */
+
+/* Info box note text */
+.neko-info-box .note {
+  margin-top: 8px;
+  color: var(--neko-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin: 20px 0 24px;
+  border-bottom: 2px solid var(--neko-border);
+  padding-bottom: 12px;
+}
+
+.tab {
+  background: var(--neko-white);
+  border: 2px solid var(--neko-border);
+  color: var(--neko-text-muted);
+  padding: 10px 20px;
+  border-radius: var(--neko-radius-capsule);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--neko-font-body);
+}
+
+.tab:hover {
+  background: var(--neko-light-bg);
+  color: var(--neko-primary);
+  border-color: var(--neko-primary);
+}
+
+.tab.active {
+  background: var(--neko-primary);
+  color: var(--neko-white);
+  border-color: var(--neko-primary);
+}
+
+/* Filter Controls */
+.filter-controls {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-group label {
+  color: var(--neko-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.filter-group .neko-input,
+.filter-group .neko-select {
+  min-width: 200px;
+}
+
+/* Items Grid */
+.items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+/* Item Card */
+.item-card {
+  background: var(--neko-white);
+  border: 2px solid var(--neko-border);
+  border-radius: var(--neko-radius-card);
+  padding: 20px;
+  transition: all 0.2s;
+}
+
+.item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(64, 197, 241, 0.15);
+  border-color: var(--neko-primary);
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.item-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--neko-text-dark);
+  flex: 1;
+}
+
+.item-type {
+  padding: 4px 12px;
+  border-radius: var(--neko-radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.item-type.model {
+  background: var(--neko-light-bg);
+  color: var(--neko-deep);
+}
+
+.item-type.voice {
+  background: var(--neko-success-bg);
+  color: var(--neko-success-text);
+}
+
+/* Item Meta */
+.item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.meta-row .label {
+  color: var(--neko-text-muted);
+}
+
+.meta-row .value {
+  color: var(--neko-text-dark);
+  font-weight: 500;
+}
+
+/* Status Badges */
+.item-status {
+  margin-bottom: 16px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: var(--neko-radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-badge.downloaded {
+  background: var(--neko-success-bg);
+  color: var(--neko-success-text);
+  border: 1px solid var(--neko-success-border);
+}
+
+.status-badge.pending {
+  background: #fff3e0;
+  color: #e65100;
+  border: 1px solid #ffe0b2;
+}
+
+/* Item Actions */
+.item-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.item-actions .action-button {
+  flex: 1;
+  font-size: 13px;
+  padding: 8px 16px;
+}
+
+/* Loading / Empty States */
+.loading-state,
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--neko-text-muted);
+  font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .filter-controls {
+    flex-direction: column;
+  }
+
+  .filter-group .neko-input,
+  .filter-group .neko-select {
+    min-width: 100%;
+  }
+
+  .items-grid {
+    grid-template-columns: 1fr;
+  }
+}

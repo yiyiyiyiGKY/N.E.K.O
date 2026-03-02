@@ -125,6 +125,14 @@ MAIN_AGENT_EVENT_PORT = _read_port_env("MAIN_AGENT_EVENT_PORT", 48918)
 # 始终返回有效 id。
 INSTANCE_ID = os.getenv("NEKO_INSTANCE_ID") or uuid.uuid4().hex
 
+# FRP 反向代理配置
+FRP_BIND_PORT = _read_port_env("FRP_BIND_PORT", 7000)        # frps 内部绑定端口
+FRP_PROXY_PORT = _read_port_env("FRP_PROXY_PORT", 48920)     # 对外代理端口（手机连这个）
+FRP_TOKEN = os.getenv("NEKO_FRP_TOKEN", "neko-frp-default")  # FRP 认证 token
+
+# MCP Router配置
+MCP_ROUTER_URL = 'http://localhost:3282'
+
 # tfLink 文件上传服务配置
 TFLINK_UPLOAD_URL = 'http://47.101.214.205:8000/api/upload'
 # tfLink 允许的主机名白名单（用于 SSRF 防护）
@@ -614,6 +622,10 @@ __all__ = [
     'AGENT_MQ_PORT',
     'MAIN_AGENT_EVENT_PORT',
     'INSTANCE_ID',
+    'FRP_BIND_PORT',
+    'FRP_PROXY_PORT',
+    'FRP_TOKEN',
+    'MCP_ROUTER_URL',
     'TFLINK_UPLOAD_URL',
     'TFLINK_ALLOWED_HOSTS',
     'NATIVE_IMAGE_MIN_INTERVAL',
