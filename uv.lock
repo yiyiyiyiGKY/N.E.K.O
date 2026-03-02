@@ -1533,6 +1533,7 @@ requires-dist = [
     { name = "pywin32", marker = "sys_platform == 'win32'" },
     { name = "pywinauto", marker = "sys_platform == 'win32'" },
     { name = "pyzmq", specifier = ">=26.2.0" },
+    { name = "qrcode" },
     { name = "qrcode", specifier = ">=8.2" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "soxr", specifier = "~=0.5.0" },
