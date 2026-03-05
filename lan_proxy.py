@@ -83,27 +83,91 @@ class LanProxy:
 
     def _get_lan_ip(self) -> str:
         """获取当前WiFi网卡的局域网IP"""
+        # 方法1：通过UDP连接外网获取本机出口IP
         try:
-            # 方法1：通过UDP连接外网获取本机出口IP
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                 s.settimeout(2)
-                try:
-                    s.connect(("8.8.8.8", 80))
-                    ip = s.getsockname()[0]
-                    if self._is_private_ip(ip):
-                        return ip
-                except Exception:
-                    pass
+                s.connect(("8.8.8.8", 80))
+                ip = s.getsockname()[0]
+                if self._is_private_ip(ip):
+                    return ip
+        except Exception:
+            pass
 
-            # 方法2：遍历网卡获取私有IP
+        # 方法2：遍历网卡获取私有IP（使用更兼容的方式）
+        try:
+            # 2a: 使用 getaddrinfo 尝试获取
             hostname = socket.gethostname()
             addrs = socket.getaddrinfo(hostname, None, socket.AF_INET)
             for addr in addrs:
                 ip = addr[4][0]
                 if self._is_private_ip(ip) and ip != "127.0.0.1":
                     return ip
-        except Exception as e:
-            print(f"[LAN Proxy] Warning: Failed to get LAN IP: {e}")
+        except Exception:
+            pass
+
+        # 方法3：使用系统命令获取 IP（macOS/Linux/Windows 兼容）
+        try:
+            import subprocess
+            import platform
+
+            system = platform.system()
+            if system == "Darwin":  # macOS
+                # 获取默认路由对应的接口 IP
+                cmd = ["route", "-n", "get", "default"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    # 解析 route 输出找到 interface
+                    interface = None
+                    for line in result.stdout.splitlines():
+                        if "interface:" in line:
+                            interface = line.split(":")[1].strip()
+                            break
+                    if interface:
+                        # 使用 ifconfig 获取该接口 IP
+                        cmd = ["ifconfig", interface]
+                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                        if result.returncode == 0:
+                            import re
+                            # 匹配 inet xxx.xxx.xxx.xxx
+                            match = re.search(r"inet\s+(\d+\.\d+\.\d+\.\d+)", result.stdout)
+                            if match:
+                                ip = match.group(1)
+                                if self._is_private_ip(ip) and ip != "127.0.0.1":
+                                    return ip
+            elif system == "Linux":
+                cmd = ["hostname", "-I"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    for ip in result.stdout.strip().split():
+                        if self._is_private_ip(ip) and ip != "127.0.0.1":
+                            return ip
+            elif system == "Windows":
+                cmd = ["ipconfig"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    import re
+                    # 匹配 IPv4 地址
+                    matches = re.findall(r"IPv4.*?:\s*(\d+\.\d+\.\d+\.\d+)", result.stdout)
+                    for ip in matches:
+                        if self._is_private_ip(ip) and ip != "127.0.0.1":
+                            return ip
+        except Exception:
+            pass
+
+        # 方法4：使用 netifaces 库（如果已安装）
+        try:
+            import netifaces
+            for interface in netifaces.interfaces():
+                if interface.startswith(('lo', 'docker', 'br-', 'veth')):
+                    continue
+                addrs = netifaces.ifaddresses(interface).get(netifaces.AF_INET, [])
+                for addr in addrs:
+                    ip = addr.get('addr')
+                    if ip and self._is_private_ip(ip) and ip != "127.0.0.1":
+                        return ip
+        except Exception:
+            pass
 
         # 兜底：本地测试用
         print("[LAN Proxy] Warning: Using 127.0.0.1 (local testing only)")
