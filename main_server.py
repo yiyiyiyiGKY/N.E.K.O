@@ -62,6 +62,7 @@ if _IS_MAIN_PROCESS:
 try:
     from fastapi import FastAPI # noqa
     from fastapi.staticfiles import StaticFiles # noqa
+    from starlette.middleware.cors import CORSMiddleware # noqa
     from main_logic import core as core, cross_server as cross_server # noqa
     from main_logic.agent_event_bus import MainServerAgentBridge, notify_analyze_ack, set_main_bridge # noqa
     from fastapi.templating import Jinja2Templates # noqa
@@ -455,6 +456,17 @@ lock = asyncio.Lock()
 
 # --- FastAPI App Setup ---
 app = FastAPI()
+
+# --- CORS (dev-friendly) ---
+# Allow local dev origins (Vite/React dev servers).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Neko-Access-Url"],
+)
 
 
 
@@ -1033,7 +1045,7 @@ if __name__ == "__main__":
     # 1) 配置 UVicorn
     config = uvicorn.Config(
         app=app,
-        host="127.0.0.1",
+        host="0.0.0.0",  # 监听所有接口，允许局域网访问
         port=MAIN_SERVER_PORT,
         log_level="info",
         loop="asyncio",

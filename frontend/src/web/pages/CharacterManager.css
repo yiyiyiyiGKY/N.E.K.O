@@ -1,0 +1,131 @@
+/**
+ * Character Manager - Page-specific Styles
+ * Shared styles (header, close button, inputs, buttons, modals, loading) are in theme.css
+ */
+
+/* Section Header */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--neko-spacing-lg);
+}
+
+.section-header .neko-tips {
+  display: flex;
+  align-items: center;
+  gap: var(--neko-spacing-sm);
+}
+
+.section-header .icon {
+  font-size: 18px;
+}
+
+/* Required field marker */
+.required {
+  color: var(--neko-danger);
+  margin-left: var(--neko-spacing-xs);
+}
+
+/* Master Card body layout */
+.master-card .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--neko-spacing-lg);
+}
+
+/* Save master button: full width */
+.save-master-btn {
+  width: 100%;
+  padding: 14px var(--neko-spacing-xl);
+  font-size: 1rem;
+}
+
+/* API Key button override */
+.api-key-btn {
+  white-space: nowrap;
+}
+
+/* Catgirl Section */
+.catgirl-section .section-header {
+  background: var(--neko-light-bg);
+  padding: var(--neko-spacing-md) var(--neko-spacing-lg);
+  border-radius: var(--neko-radius-card);
+  border-left: 4px solid var(--neko-primary);
+}
+
+/* Catgirl List Grid */
+.catgirl-list {
+  display: grid;
+  gap: var(--neko-spacing-lg);
+  margin-bottom: var(--neko-spacing-lg);
+}
+
+/* Catgirl Card (extends neko-card) */
+.catgirl-card {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.catgirl-card:hover {
+  box-shadow: 0 4px 16px rgba(64, 197, 241, 0.2);
+  transform: translateY(-2px);
+}
+
+.catgirl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--neko-spacing-md);
+  padding-bottom: var(--neko-spacing-md);
+  border-bottom: 1px solid var(--neko-border);
+}
+
+.catgirl-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--neko-primary);
+}
+
+.catgirl-actions {
+  display: flex;
+  gap: var(--neko-spacing-sm);
+}
+
+.catgirl-info p {
+  margin: var(--neko-spacing-xs) 0;
+  color: var(--neko-text-muted);
+  font-size: 0.9rem;
+}
+
+/* Add Catgirl Button: full width */
+.add-button {
+  width: 100%;
+  padding: 14px var(--neko-spacing-xl);
+  font-size: 1rem;
+}
+
+/* Form Row: two-column grid */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--neko-spacing-lg);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--neko-spacing-md);
+  }
+
+  .api-key-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

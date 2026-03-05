@@ -22,6 +22,7 @@ dependencies = [
   "dashscope==1.25.4",
   "python-multipart",
   "pillow",
+  "qrcode",
   "pyautogui",
   "backoff",
   "toml",
@@ -97,4 +98,3 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "pytest-playwright>=0.7.2",
 ]
-

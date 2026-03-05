@@ -1,0 +1,386 @@
+/**
+ * Live2D Parameter Editor - Page-specific Styles
+ * Shared styles (buttons, inputs, labels) are in theme.css
+ */
+
+/* ========== Page Layout ========== */
+
+.live2d-parameter-editor {
+  min-height: 100vh;
+  background: url('/static/icons/model_manager_background.png') center center / cover no-repeat fixed,
+              var(--neko-light-bg);
+  color: var(--neko-text-dark);
+  overflow: hidden;
+  position: relative;
+}
+
+/* ========== Sidebar ========== */
+
+.editor-sidebar {
+  position: fixed;
+  left: 20px;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  z-index: 20;
+  width: 360px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 40px);
+  padding: 20px;
+  background: var(--neko-white);
+  border: 2px solid var(--neko-border);
+  border-radius: var(--neko-radius-card);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/* ========== Sidebar Button Overrides ========== */
+
+.editor-sidebar .back-button,
+.editor-sidebar .model-select-button {
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: var(--neko-radius-capsule);
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--neko-font-display);
+}
+
+.btn-icon,
+.btn-icon-right {
+  height: 32px;
+  width: auto;
+  max-width: 60px;
+  object-fit: contain;
+  image-rendering: crisp-edges;
+}
+
+.btn-icon {
+  margin-right: 10px;
+}
+
+.btn-icon-right {
+  margin-left: auto;
+}
+
+.btn-text {
+  flex: 1;
+  text-align: center;
+  font-size: 16px;
+}
+
+/* ========== Button Row ========== */
+
+.button-row {
+  display: flex;
+  gap: 0;
+}
+
+.button-row .neko-btn {
+  flex: 1;
+  border-radius: var(--neko-radius-capsule);
+}
+
+.button-row .neko-btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.button-row .neko-btn:last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* ========== Model Select Dropdown ========== */
+
+.model-select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.model-select-button {
+  justify-content: flex-start;
+}
+
+.model-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 8px;
+  background: var(--neko-white);
+  border: 2px solid var(--neko-primary);
+  border-radius: var(--neko-radius-card);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  z-index: 30;
+}
+
+.dropdown-item {
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid var(--neko-light-bg);
+  color: var(--neko-text-dark);
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background: var(--neko-light-bg);
+}
+
+.dropdown-item.active {
+  background: rgba(64, 197, 241, 0.15);
+  color: var(--neko-primary);
+  font-weight: 600;
+}
+
+/* ========== Parameters List ========== */
+
+.parameters-list-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.parameters-list-wrapper {
+  background: var(--neko-white);
+  border: 2px solid var(--neko-border);
+  border-radius: var(--neko-radius-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 500px;
+}
+
+.parameters-list-header {
+  padding: 12px 16px;
+  background: linear-gradient(135deg, var(--neko-primary) 0%, var(--neko-deep) 100%);
+  color: var(--neko-white);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.parameters-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.parameters-list-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--neko-text-muted);
+  font-size: 14px;
+}
+
+/* ========== Parameter Groups ========== */
+
+.parameter-group {
+  border-bottom: 2px solid var(--neko-light-bg);
+}
+
+.parameter-group:last-child {
+  border-bottom: none;
+}
+
+.parameter-group-title {
+  padding: 10px 16px;
+  background: var(--neko-light-bg);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--neko-primary);
+  border-bottom: 1px solid var(--neko-border);
+}
+
+/* ========== Parameter Items ========== */
+
+.parameter-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--neko-light-bg);
+}
+
+.parameter-item:last-child {
+  border-bottom: none;
+}
+
+.parameter-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--neko-text-dark);
+  margin-bottom: 8px;
+}
+
+.parameter-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ========== Range Slider ========== */
+
+.parameter-control input[type="range"] {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--neko-border);
+  border-radius: 3px;
+  outline: none;
+}
+
+.parameter-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--neko-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.parameter-control input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: var(--neko-deep);
+}
+
+.parameter-control input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: var(--neko-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.parameter-control input[type="range"]::-moz-range-thumb:hover {
+  background: var(--neko-deep);
+}
+
+.parameter-value {
+  min-width: 50px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--neko-text-muted);
+  text-align: right;
+  font-family: var(--neko-font-mono);
+}
+
+/* ========== Status Bar ========== */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--neko-light-bg);
+  border-radius: var(--neko-radius-card);
+  border: 2px solid var(--neko-border);
+  font-size: 13px;
+  color: var(--neko-text-muted);
+}
+
+.status-icon {
+  width: 16px;
+  height: 16px;
+  image-rendering: crisp-edges;
+}
+
+/* ========== Live2D Canvas ========== */
+
+.live2d-container {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+#live2d-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.7);
+  cursor: grab;
+  pointer-events: auto;
+}
+
+#live2d-canvas:active {
+  cursor: grabbing;
+}
+
+.canvas-placeholder {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: var(--neko-text-muted);
+  z-index: 5;
+}
+
+.canvas-placeholder p {
+  margin: 0;
+  font-size: 18px;
+}
+
+.canvas-placeholder .hint {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--neko-text-placeholder);
+}
+
+/* ========== Responsive ========== */
+
+@media (max-width: 968px) {
+  .editor-sidebar {
+    width: 320px;
+  }
+
+  .parameters-list-wrapper {
+    max-height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .live2d-parameter-editor {
+    background-size: cover;
+  }
+
+  .editor-sidebar {
+    width: 100%;
+    max-width: 100%;
+    left: 0;
+    top: 0;
+    max-height: 50vh;
+    border-radius: 0 0 var(--neko-radius-card) var(--neko-radius-card);
+    border-left: none;
+    border-right: none;
+    border-top: none;
+  }
+
+  .live2d-container {
+    height: 50vh;
+  }
+
+  .canvas-placeholder {
+    display: none;
+  }
+}

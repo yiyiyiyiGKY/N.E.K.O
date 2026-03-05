@@ -1045,6 +1045,9 @@ class OmniRealtimeClient:
                     self._current_response_id = None
                     self._current_item_id = None
                     self._skip_until_next_response = False
+                    # 🔧 修复连续语音对话：response.done 时重置 _interrupted 标志
+                    # 确保下一轮对话不会被旧的打断状态影响
+                    self._interrupted = False
                     # 响应完成，检测重复度
                     if self._current_response_transcript:
                         # 不使用logger.info，避免日志文件泄露实际对话内容
@@ -1317,6 +1320,9 @@ class OmniRealtimeClient:
                 # 检查是否 turn 完成（用 getattr 防止 SDK 无该字段时抛错）
                 if getattr(server_content, 'turn_complete', False):
                     self._is_responding = False
+                    # 🔧 修复连续语音对话：turn 完成时重置 _interrupted 标志
+                    # 确保下一轮对话不会被旧的打断状态影响
+                    self._interrupted = False
                     # 不再调用 on_output_transcript（已通过 on_text_delta 流式发送）
                     if self.on_response_done:
                         await self.on_response_done()
