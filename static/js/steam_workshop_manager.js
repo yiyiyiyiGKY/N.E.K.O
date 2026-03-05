@@ -1776,7 +1776,7 @@ function renderSubscriptionsPage() {
                     </div>
                 </div>
                 <div class="card-content">
-                    <h3 class="card-title">${formattedItem.name}</h3>
+                    <h3 class="card-title">${formattedItem.name}<img src="/static/icons/paw_ui.png" class="card-title-paw" alt=""></h3>
                     <div class="author-info">
                         <div class="author-avatar">${escapeHtml(String(formattedItem.rawAuthor).substring(0, 2).toUpperCase())}</div>
                         <span>${window.t ? window.t('steam.author') : '作者'}: ${formattedItem.author}</span>

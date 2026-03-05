@@ -138,6 +138,7 @@ background-image: url('/static/icons/steam_shop_bg.png');
 background-position: top center;
 background-repeat: no-repeat;
 background-size: 100%;
+min-height: 100vh;
 }
 
 #sidebar {
@@ -284,6 +285,7 @@ box-sizing: border-box;
     background: transparent;
     position: relative;
     padding-bottom: 30px;
+    overflow: visible;
 }
 
 /* filter-controls 底部线条，贯穿左右 */
@@ -295,6 +297,21 @@ box-sizing: border-box;
     right: -15px;
     height: 1px;
     background: #9ce4ff;
+}
+
+/* 下划线中间区域向下渐变，左右自然过渡 */
+#subscriptions-content .section-card .filter-controls::before {
+    content: '';
+    position: absolute;
+    bottom: -30px;
+    left: 20%;
+    width: 60%;
+    height: 30px;
+    background: linear-gradient(to bottom, rgba(156, 228, 255, 0.6), transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
+    mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
+    pointer-events: none;
+    z-index: 1;
 }
 
 /* 搜索框图标容器 */
@@ -565,6 +582,7 @@ padding: 12px;
 /* 左侧：角色卡信息 */
 .character-card-info-section {
 flex: 1;
+min-width: 0;
 padding: 0;
 box-sizing: border-box;
 border-radius: 0;
@@ -771,6 +789,7 @@ z-index: 1;
 padding: 15px;
 word-wrap: break-word;
 overflow-wrap: break-word;
+min-width: 0;
 }
 
 #card-info-dynamic-content > div {
@@ -788,6 +807,7 @@ overflow-wrap: break-word;
 /* 右侧：Live2D预览 */
 .character-card-live2d-section {
 flex: 1;
+min-width: 0;
 padding: 0;
 box-sizing: border-box;
 background: linear-gradient(to bottom, #D6F5FF 0%, #8AE3FF 78%, #40C5F1 100%);
@@ -986,6 +1006,10 @@ font-size: 16px;
         
 /* 响应式设计 */
 @media (max-width: 900px) {
+.layout-container {
+    background-size: cover;
+}
+
 .character-card-layout {
 flex-direction: column;
 }
@@ -1226,6 +1250,7 @@ color: #333;
 .tab-button.active {
 background: #44b7fe;
 color: white;
+font-size: 17px;
 }
 
 .tab-content {
@@ -1638,6 +1663,28 @@ line-height: 1.5;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    position: relative;
+}
+
+/* 订阅卡片星星背景装饰 */
+.workshop-card .card-content::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.15;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Cpath d='M 12 3 Q 12 12 21 12 Q 12 12 12 21 Q 12 12 3 12 Q 12 12 12 3 Z' fill='%238cd5ff' stroke='%238cd5ff' stroke-width='3.5' stroke-linejoin='round' transform='translate(-2,-2) scale(0.625)'/%3E%3Cpath d='M 12 3 Q 12 12 21 12 Q 12 12 12 21 Q 12 12 3 12 Q 12 12 12 3 Z' fill='%238cd5ff' stroke='%238cd5ff' stroke-width='3.5' stroke-linejoin='round' transform='translate(38,38) scale(0.625)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 80px 80px;
+}
+
+.workshop-card .card-content > * {
+    position: relative;
+    z-index: 1;
 }
 
 /* 普通卡片内容样式 */
@@ -1804,10 +1851,28 @@ opacity: 1;
     padding: 4px 16px;
     border-radius: 12px;
     text-align: center;
-    display: block;
+    position: relative;
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.workshop-card .card-title .card-title-paw {
+    width: 60px;
+    height: auto;
+    opacity: 0.85;
+    object-fit: contain;
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.workshop-card .card-title span,
+.workshop-card .card-title {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 /* 普通卡片标题样式 */
@@ -2877,7 +2942,32 @@ margin-top: 10px;
 /* 角色卡标签页 section-header 背景透明，底部边框浅蓝色 */
 #character-cards-content .section-header {
     background: transparent;
-    border-bottom: 1px solid rgba(64, 197, 241, 0.35);
+    border-bottom: none;
+    position: relative;
+}
+
+#character-cards-content .section-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: #9ce4ff;
+}
+
+#character-cards-content .section-header::before {
+    content: '';
+    position: absolute;
+    bottom: -30px;
+    left: 20%;
+    width: 60%;
+    height: 30px;
+    background: linear-gradient(to bottom, rgba(156, 228, 255, 0.6), transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
+    mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
+    pointer-events: none;
+    z-index: 1;
 }
 
 /* 角色卡部分单行输入框和下拉框 */
