@@ -1,32 +1,32 @@
-import e, { forwardRef as z, useState as D, useEffect as R, useRef as S, useCallback as I, useImperativeHandle as F, createContext as Y, useContext as J, useMemo as O } from "react";
+import e, { forwardRef as z, useState as C, useEffect as R, useRef as D, useCallback as q, useImperativeHandle as F, createContext as Y, useContext as Z, useMemo as P } from "react";
 import { createPortal as K } from "react-dom";
-function Z({
-  variant: s = "primary",
-  size: i = "md",
+function Q({
+  variant: i = "primary",
+  size: s = "md",
   loading: l = !1,
-  icon: d,
-  iconRight: a,
-  fullWidth: n = !1,
-  disabled: g,
-  className: f = "",
-  label: u,
-  children: v,
-  ...m
+  icon: p,
+  iconRight: n,
+  fullWidth: a = !1,
+  disabled: f,
+  className: u = "",
+  label: d,
+  children: b,
+  ...c
 }) {
-  const h = g || l, c = v ?? u, k = [
+  const g = f || l, m = b ?? d, y = [
     "btn",
-    `btn-${s}`,
     `btn-${i}`,
-    n && "btn-full-width",
+    `btn-${s}`,
+    a && "btn-full-width",
     l && "btn-loading",
-    f
+    u
   ].filter(Boolean).join(" ");
   return /* @__PURE__ */ e.createElement(
     "button",
     {
-      className: k,
-      disabled: h,
-      ...m
+      className: y,
+      disabled: g,
+      ...c
     },
     l && /* @__PURE__ */ e.createElement("span", { className: "btn-spinner", "aria-hidden": "true" }, /* @__PURE__ */ e.createElement(
       "svg",
@@ -69,162 +69,261 @@ function Z({
         )
       )
     )),
-    d && !l && /* @__PURE__ */ e.createElement("span", { className: "btn-icon-left" }, d),
-    c && /* @__PURE__ */ e.createElement("span", { className: "btn-content" }, c),
-    a && !l && /* @__PURE__ */ e.createElement("span", { className: "btn-icon-right" }, a)
+    p && !l && /* @__PURE__ */ e.createElement("span", { className: "btn-icon-left" }, p),
+    m && /* @__PURE__ */ e.createElement("span", { className: "btn-content" }, m),
+    n && !l && /* @__PURE__ */ e.createElement("span", { className: "btn-icon-right" }, n)
   );
 }
-const ee = { BASE_URL: "/", DEV: !1, MODE: "production", PROD: !0, SSR: !1 }, Q = (s) => s ? s.replace(/\/+$/, "") : "", te = () => {
+const ee = { BASE_URL: "/", DEV: !1, MODE: "production", PROD: !0, SSR: !1 }, X = (i) => i ? i.replace(/\/+$/, "") : "", te = () => {
   try {
-    const s = ee ?? {}, i = typeof window < "u" ? window : {};
-    return Q(
-      i.STATIC_SERVER_URL || i.API_BASE_URL || s.VITE_STATIC_SERVER_URL || s.VITE_API_BASE_URL || ""
+    const i = ee ?? {}, s = typeof window < "u" ? window : {};
+    return X(
+      s.STATIC_SERVER_URL || s.API_BASE_URL || i.VITE_STATIC_SERVER_URL || i.VITE_API_BASE_URL || ""
     ) || "";
   } catch {
     return "";
   }
-}, fe = z(function({ staticBaseUrl: i }, l) {
-  const [d, a] = D({
+}, fe = z(function({ staticBaseUrl: s }, l) {
+  const [p, n] = C({
     message: "",
     duration: 3e3,
     isVisible: !1
   });
   R(() => {
     if (typeof document > "u") return;
-    const c = Q(i || te());
-    if (!c) return;
-    const k = `${c}/static/icons/toast_background.png`;
-    document.documentElement.style.setProperty("--toast-background-url", `url('${k}')`);
-  }, [i]);
-  const n = S(null), g = S(null), f = S(null), u = S(!1);
+    const m = X(s || te());
+    if (!m) return;
+    const y = `${m}/static/icons/toast_background.png`;
+    document.documentElement.style.setProperty("--toast-background-url", `url('${y}')`);
+  }, [s]);
+  const a = D(null), f = D(null), u = D(null), d = D(!1);
   R(() => {
     if (typeof document > "u") return;
-    let c = document.getElementById("status-toast-container");
-    return c || (c = document.createElement("div"), c.id = "status-toast-container", document.body.appendChild(c), u.current = !0), f.current = c, () => {
-      u.current && f.current?.parentNode && f.current.parentNode.removeChild(f.current), f.current = null, u.current = !1;
+    let m = document.getElementById("status-toast-container");
+    return m || (m = document.createElement("div"), m.id = "status-toast-container", document.body.appendChild(m), d.current = !0), u.current = m, () => {
+      d.current && u.current?.parentNode && u.current.parentNode.removeChild(u.current), u.current = null, d.current = !1;
     };
   }, []);
-  const v = I((c, k = 3e3) => {
-    if (n.current && (clearTimeout(n.current), n.current = null), g.current && (clearTimeout(g.current), g.current = null), !c || c.trim() === "") {
-      a((y) => ({ ...y, isVisible: !1 })), g.current = setTimeout(() => {
-        a((y) => ({ ...y, message: "" }));
+  const b = q((m, y = 3e3) => {
+    if (a.current && (clearTimeout(a.current), a.current = null), f.current && (clearTimeout(f.current), f.current = null), !m || m.trim() === "") {
+      n((E) => ({ ...E, isVisible: !1 })), f.current = setTimeout(() => {
+        n((E) => ({ ...E, message: "" }));
       }, 300);
       return;
     }
-    a({
-      message: c,
-      duration: k,
+    n({
+      message: m,
+      duration: y,
       isVisible: !0
-    }), n.current = setTimeout(() => {
-      a((y) => ({ ...y, isVisible: !1 })), g.current = setTimeout(() => {
-        a((y) => ({ ...y, message: "" }));
+    }), a.current = setTimeout(() => {
+      n((E) => ({ ...E, isVisible: !1 })), f.current = setTimeout(() => {
+        n((E) => ({ ...E, message: "" }));
       }, 300);
-    }, k);
+    }, y);
   }, []);
   F(
     l,
     () => ({
-      show: v
+      show: b
     }),
-    [v]
+    [b]
   ), R(() => () => {
-    n.current && clearTimeout(n.current), g.current && clearTimeout(g.current);
+    a.current && clearTimeout(a.current), f.current && clearTimeout(f.current);
   }, []), R(() => {
-    const c = document.getElementById("status");
-    c && (c.textContent = d.message || "");
-  }, [d.message]);
-  const m = d.message ? d.isVisible ? "show" : "hide" : "", h = /* @__PURE__ */ e.createElement(
+    const m = document.getElementById("status");
+    m && (m.textContent = p.message || "");
+  }, [p.message]);
+  const c = p.message ? p.isVisible ? "show" : "hide" : "", g = /* @__PURE__ */ e.createElement(
     "div",
     {
       id: "status-toast",
-      className: m,
+      className: c,
       "aria-live": "polite"
     },
-    d.message
+    p.message
   );
-  return f.current ? K(h, f.current) : h;
-}), X = Y(null);
-function ge({ t: s, children: i }) {
-  return /* @__PURE__ */ e.createElement(X.Provider, { value: s }, i);
+  return u.current ? K(g, u.current) : g;
+}), G = Y(null);
+function ge({ t: i, children: s }) {
+  return /* @__PURE__ */ e.createElement(G.Provider, { value: i }, s);
 }
 function ne() {
   try {
-    const i = (typeof window < "u" ? window : void 0)?.t;
-    return typeof i == "function" ? i : null;
+    const s = (typeof window < "u" ? window : void 0)?.t;
+    return typeof s == "function" ? s : null;
   } catch {
     return null;
   }
 }
-function A() {
-  const s = J(X);
-  if (s) return s;
-  const i = ne();
-  return i || ((l) => l);
+function S() {
+  const i = Z(G);
+  if (i) return i;
+  const s = ne();
+  return s || ((l) => l);
 }
-function t(s, i, l, d) {
+function t(i, s, l, p) {
   try {
-    const a = s(i, d);
-    return !a || a === i ? l : a;
+    const n = i(s, p);
+    return !n || n === s ? l : n;
   } catch {
     return l;
   }
 }
 function j({
-  isOpen: s,
-  onClose: i,
+  isOpen: i,
+  onClose: s,
   title: l,
-  children: d,
-  closeOnClickOutside: a = !0,
-  closeOnEscape: n = !0
+  children: p,
+  closeOnClickOutside: n = !0,
+  closeOnEscape: a = !0
 }) {
-  const g = S(null), f = S(null), u = S(null);
+  const f = D(null), u = D(null), d = D(null);
   R(() => {
-    if (!s || !n) return;
-    const m = (h) => {
-      h.key === "Escape" && i();
+    if (!i || !a) return;
+    const c = (g) => {
+      g.key === "Escape" && s();
     };
-    return u.current = m, document.addEventListener("keydown", m), () => {
-      u.current && (document.removeEventListener("keydown", u.current), u.current = null);
+    return d.current = c, document.addEventListener("keydown", c), () => {
+      d.current && (document.removeEventListener("keydown", d.current), d.current = null);
     };
-  }, [s, n, i]);
-  const v = (m) => {
-    a && m.target === g.current && i();
+  }, [i, a, s]);
+  const b = (c) => {
+    n && c.target === f.current && s();
   };
   return R(() => {
-    if (s && f.current) {
-      const m = setTimeout(() => {
-        const h = f.current?.querySelector("input"), c = f.current?.querySelector("button");
-        h ? (h.focus(), h instanceof HTMLInputElement && h.select()) : c && c.focus();
+    if (i && u.current) {
+      const c = setTimeout(() => {
+        const g = u.current?.querySelector("input"), m = u.current?.querySelector("button");
+        g ? (g.focus(), g instanceof HTMLInputElement && g.select()) : m && m.focus();
       }, 100);
-      return () => clearTimeout(m);
+      return () => clearTimeout(c);
     }
-  }, [s]), s ? K(
+  }, [i]), i ? K(
     /* @__PURE__ */ e.createElement(
       "div",
       {
-        ref: g,
+        ref: f,
         className: "modal-overlay",
-        onClick: v,
+        onClick: b,
         role: "dialog",
         "aria-modal": "true",
         "aria-labelledby": l ? "modal-title" : void 0
       },
-      /* @__PURE__ */ e.createElement("div", { ref: f, className: "modal-dialog" }, l && /* @__PURE__ */ e.createElement("div", { className: "modal-header" }, /* @__PURE__ */ e.createElement("h3", { id: "modal-title", className: "modal-title" }, l)), d)
+      /* @__PURE__ */ e.createElement("div", { ref: u, className: "modal-dialog" }, l && /* @__PURE__ */ e.createElement("div", { className: "modal-header" }, /* @__PURE__ */ e.createElement("h3", { id: "modal-title", className: "modal-title" }, l)), p)
     ),
     document.body
   ) : null;
 }
-function he({
-  apiBase: s,
-  isOpen: i,
-  onClose: l,
-  title: d,
-  endpoint: a = "/getipqrcode"
-}) {
-  const n = A(), [g, f] = D(null), [u, v] = D(null), [m, h] = D(!1), [c, k] = D(null), y = S(null);
+function re({ apiBase: i }) {
+  const [s, l] = C(""), [p, n] = C("48911"), [a, f] = C(!1), u = S();
   R(() => {
-    if (!i) {
-      if (h(!1), k(null), v(null), y.current) {
+    try {
+      const c = new URL(i);
+      l(c.hostname), c.port && n(c.port);
+    } catch {
+      const c = i.replace(/^https?:\/\//, "").split(":");
+      c[0] && l(c[0]), c[1] && n(c[1]);
+    }
+  }, [i]);
+  const d = `${s}:${p}`, b = async () => {
+    try {
+      await navigator.clipboard.writeText(d), f(!0), setTimeout(() => f(!1), 2e3);
+    } catch {
+      const c = document.getElementById("server-address-input");
+      c && c.select();
+    }
+  };
+  return /* @__PURE__ */ e.createElement("div", { className: "manual-input-section" }, /* @__PURE__ */ e.createElement("div", { className: "manual-input-title" }, t(u, "webapp.qrDrawer.manualInput", "手动输入地址")), /* @__PURE__ */ e.createElement("div", { className: "manual-input-row" }, /* @__PURE__ */ e.createElement(
+    "input",
+    {
+      id: "server-address-input",
+      type: "text",
+      className: "manual-input-host",
+      value: s,
+      onChange: (c) => l(c.target.value),
+      placeholder: "192.168.1.100"
+    }
+  ), /* @__PURE__ */ e.createElement("span", { className: "manual-input-separator" }, ":"), /* @__PURE__ */ e.createElement(
+    "input",
+    {
+      type: "text",
+      className: "manual-input-port",
+      value: p,
+      onChange: (c) => n(c.target.value),
+      placeholder: "48911"
+    }
+  )), /* @__PURE__ */ e.createElement("div", { className: "manual-input-result" }, /* @__PURE__ */ e.createElement("code", { className: "manual-input-address" }, d), /* @__PURE__ */ e.createElement(Q, { variant: "secondary", size: "sm", onClick: b }, a ? t(u, "common.copied", "已复制") : t(u, "common.copy", "复制"))), /* @__PURE__ */ e.createElement("div", { className: "manual-input-hint" }, t(u, "webapp.qrDrawer.manualInputHint", "在 App 中手动输入以上地址")));
+}
+function he({
+  apiBase: i,
+  isOpen: s,
+  onClose: l,
+  title: p,
+  endpoint: n = "/getipqrcode"
+}) {
+  const a = S(), [f, u] = C(null), [d, b] = C(null), [c, g] = C(!1), [m, y] = C(null), E = D(null);
+  R(() => {
+    if (!s) {
+      if (g(!1), y(null), b(null), E.current) {
+        try {
+          URL.revokeObjectURL(E.current);
+        } catch {
+        }
+        E.current = null;
+      }
+      u(null);
+      return;
+    }
+    const o = new AbortController();
+    let h = null;
+    return (async () => {
+      g(!0), y(null), b(null);
+      try {
+        const r = await fetch(`${i}${n}`, {
+          method: "GET",
+          signal: o.signal,
+          headers: {
+            Accept: "image/*,application/json"
+          }
+        });
+        if ((r.headers.get("content-type") || "").includes("application/json")) {
+          const w = await r.json(), _ = typeof w?.message == "string" && w.message || typeof w?.error == "string" && w.error || t(a, "webapp.qrDrawer.unknownError", "未知錯誤");
+          throw new Error(_);
+        }
+        if (!r.ok)
+          throw new Error(t(a, "webapp.qrDrawer.fetchError", `獲取失敗: ${r.status}`));
+        const v = await r.blob();
+        h = URL.createObjectURL(v), E.current = h, u(h), b(r.headers.get("X-Neko-Access-Url"));
+        return;
+      } catch (r) {
+        if (o.signal.aborted) return;
+        y(r?.message || t(a, "webapp.qrDrawer.unknownError", "未知錯誤"));
+      } finally {
+        o.signal.aborted || g(!1);
+      }
+    })(), () => {
+      if (o.abort(), h) {
+        try {
+          URL.revokeObjectURL(h);
+        } catch {
+        }
+        E.current === h && (E.current = null);
+      }
+    };
+  }, [i, n, s, a]);
+  const I = p || t(a, "webapp.qrDrawer.title", "二维码");
+  return /* @__PURE__ */ e.createElement(j, { isOpen: s, onClose: l, title: I }, /* @__PURE__ */ e.createElement("div", { className: "modal-body", "aria-live": "polite", "aria-atomic": "true" }, c && t(a, "webapp.qrDrawer.loading", "加载中…"), !c && m && /* @__PURE__ */ e.createElement("div", { className: "qr-error" }, t(a, "webapp.qrDrawer.error", "二维码加载失败"), /* @__PURE__ */ e.createElement("div", { className: "qr-error-detail" }, m)), !c && !m && !f && t(a, "webapp.qrDrawer.placeholder", "二维码区域（待接入）"), !c && !m && f && /* @__PURE__ */ e.createElement(e.Fragment, null, /* @__PURE__ */ e.createElement("img", { className: "qr-image", src: f, alt: I }), d && /* @__PURE__ */ e.createElement("div", { className: "qr-url" }, d), /* @__PURE__ */ e.createElement("div", { className: "qr-divider" }), /* @__PURE__ */ e.createElement(re, { apiBase: i }))), /* @__PURE__ */ e.createElement("div", { className: "modal-footer" }, /* @__PURE__ */ e.createElement(Q, { variant: "secondary", onClick: l }, t(a, "common.close", "关闭"))));
+}
+function be({
+  apiBase: i,
+  isOpen: s,
+  onClose: l,
+  title: p
+}) {
+  const n = S(), [a, f] = C(null), [u, d] = C(null), [b, c] = C(!1), [g, m] = C(null), y = D(null);
+  R(() => {
+    if (!s) {
+      if (c(!1), m(null), d(null), y.current) {
         try {
           URL.revokeObjectURL(y.current);
         } catch {
@@ -235,11 +334,11 @@ function he({
       return;
     }
     const o = new AbortController();
-    let p = null;
+    let h = null;
     return (async () => {
-      h(!0), k(null), v(null);
+      c(!0), m(null), d(null);
       try {
-        const r = await fetch(`${s}${a}`, {
+        const r = await fetch(`${i}/lanproxyqrcode`, {
           method: "GET",
           signal: o.signal,
           headers: {
@@ -247,164 +346,184 @@ function he({
           }
         });
         if ((r.headers.get("content-type") || "").includes("application/json")) {
-          const w = await r.json(), E = typeof w?.message == "string" && w.message || typeof w?.error == "string" && w.error || t(n, "webapp.qrDrawer.unknownError", "未知錯誤");
-          throw new Error(E);
+          const U = await r.json(), L = typeof U?.message == "string" && U.message || t(n, "p2pQr.unknownError", "未知错误");
+          throw new Error(L);
         }
         if (!r.ok)
-          throw new Error(t(n, "webapp.qrDrawer.fetchError", `獲取失敗: ${r.status}`));
-        const b = await r.blob();
-        p = URL.createObjectURL(b), y.current = p, f(p), v(r.headers.get("X-Neko-Access-Url"));
-        return;
+          throw new Error(t(n, "p2pQr.fetchError", `获取失败: ${r.status}`));
+        const v = r.headers.get("X-Lan-Ip") || "", w = r.headers.get("X-Port") || "", _ = r.headers.get("X-Token") || "";
+        v && _ && d({
+          lan_ip: v,
+          port: parseInt(w, 10) || 48920,
+          token: _
+        });
+        const A = await r.blob();
+        h = URL.createObjectURL(A), y.current = h, f(h);
       } catch (r) {
         if (o.signal.aborted) return;
-        k(r?.message || t(n, "webapp.qrDrawer.unknownError", "未知錯誤"));
+        m(r?.message || t(n, "p2pQr.unknownError", "未知错误"));
       } finally {
-        o.signal.aborted || h(!1);
+        o.signal.aborted || c(!1);
       }
     })(), () => {
-      if (o.abort(), p) {
+      if (o.abort(), h) {
         try {
-          URL.revokeObjectURL(p);
+          URL.revokeObjectURL(h);
         } catch {
         }
-        y.current === p && (y.current = null);
+        y.current === h && (y.current = null);
       }
     };
-  }, [s, a, i, n]);
-  const T = d || t(n, "webapp.qrDrawer.title", "二维码");
-  return /* @__PURE__ */ e.createElement(j, { isOpen: i, onClose: l, title: T }, /* @__PURE__ */ e.createElement("div", { className: "modal-body", "aria-live": "polite", "aria-atomic": "true" }, m && t(n, "webapp.qrDrawer.loading", "加载中…"), !m && c && /* @__PURE__ */ e.createElement("div", { className: "qr-error" }, t(n, "webapp.qrDrawer.error", "二维码加载失败"), /* @__PURE__ */ e.createElement("div", { className: "qr-error-detail" }, c)), !m && !c && !g && t(n, "webapp.qrDrawer.placeholder", "二维码区域（待接入）"), !m && !c && g && /* @__PURE__ */ e.createElement(e.Fragment, null, /* @__PURE__ */ e.createElement("img", { className: "qr-image", src: g, alt: T }), u && /* @__PURE__ */ e.createElement("div", { className: "qr-url" }, u))), /* @__PURE__ */ e.createElement("div", { className: "modal-footer" }, /* @__PURE__ */ e.createElement(Z, { variant: "secondary", onClick: l }, t(n, "common.close", "关闭"))));
+  }, [i, s, n]);
+  const E = async () => {
+    if (u)
+      try {
+        const o = JSON.stringify({
+          lan_ip: u.lan_ip,
+          port: u.port,
+          token: u.token
+        });
+        await navigator.clipboard.writeText(o);
+      } catch {
+      }
+  }, I = p || t(n, "p2pQr.title", "P2P 连接二维码");
+  return /* @__PURE__ */ e.createElement(j, { isOpen: s, onClose: l, title: I }, /* @__PURE__ */ e.createElement("div", { className: "modal-body p2p-qr-body", "aria-live": "polite", "aria-atomic": "true" }, /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-description" }, t(n, "p2pQr.description", "使用手机 App 扫码，同 WiFi 下直接连接")), b && /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-loading" }, t(n, "p2pQr.loading", "加载中…")), !b && g && /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-error" }, /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-error-title" }, t(n, "p2pQr.error", "二维码加载失败")), /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-error-detail" }, g)), !b && !g && !a && /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-placeholder" }, t(n, "p2pQr.placeholder", "二维码区域")), !b && !g && a && /* @__PURE__ */ e.createElement(e.Fragment, null, /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-image-wrapper" }, /* @__PURE__ */ e.createElement("img", { className: "p2p-qr-image", src: a, alt: I })), u && /* @__PURE__ */ e.createElement(e.Fragment, null, /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-info" }, /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-info-row" }, /* @__PURE__ */ e.createElement("span", { className: "p2p-qr-info-label" }, "IP:"), /* @__PURE__ */ e.createElement("code", { className: "p2p-qr-info-value" }, u.lan_ip)), /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-info-row" }, /* @__PURE__ */ e.createElement("span", { className: "p2p-qr-info-label" }, t(n, "p2pQr.port", "端口"), ":"), /* @__PURE__ */ e.createElement("code", { className: "p2p-qr-info-value" }, u.port)), /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-info-row" }, /* @__PURE__ */ e.createElement("span", { className: "p2p-qr-info-label" }, "Token:"), /* @__PURE__ */ e.createElement("code", { className: "p2p-qr-info-value p2p-qr-token" }, u.token.slice(0, 8), "...", u.token.slice(-8)))), /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-actions" }, /* @__PURE__ */ e.createElement(Q, { variant: "secondary", size: "sm", onClick: E }, t(n, "p2pQr.copyConnectionInfo", "复制连接信息"))), /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-divider" }), /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-manual" }, /* @__PURE__ */ e.createElement("div", { className: "p2p-qr-manual-title" }, t(n, "p2pQr.manualInput", "手动输入")), /* @__PURE__ */ e.createElement("p", { className: "p2p-qr-manual-hint" }, t(
+    n,
+    "p2pQr.manualHint",
+    "如果扫码失败，请在手机端手动输入以上 IP、端口和 Token"
+  )))))), /* @__PURE__ */ e.createElement("div", { className: "modal-footer" }, /* @__PURE__ */ e.createElement(Q, { variant: "secondary", onClick: l }, t(n, "common.close", "关闭"))));
 }
-function re({
-  isOpen: s,
-  onClose: i,
+function ae({
+  isOpen: i,
+  onClose: s,
   title: l,
-  message: d,
-  okText: a,
-  onConfirm: n,
-  closeOnClickOutside: g = !0,
-  closeOnEscape: f = !0
+  message: p,
+  okText: n,
+  onConfirm: a,
+  closeOnClickOutside: f = !0,
+  closeOnEscape: u = !0
 }) {
-  const u = A(), v = () => {
-    n();
-  }, m = () => a || t(u, "common.ok", "确定");
+  const d = S(), b = () => {
+    a();
+  }, c = () => n || t(d, "common.ok", "确定");
   return /* @__PURE__ */ e.createElement(
     j,
     {
-      isOpen: s,
-      onClose: i,
+      isOpen: i,
+      onClose: s,
       title: l,
-      closeOnClickOutside: g,
-      closeOnEscape: f
+      closeOnClickOutside: f,
+      closeOnEscape: u
     },
-    /* @__PURE__ */ e.createElement("div", { className: "modal-body" }, d),
+    /* @__PURE__ */ e.createElement("div", { className: "modal-body" }, p),
     /* @__PURE__ */ e.createElement("div", { className: "modal-footer" }, /* @__PURE__ */ e.createElement(
       "button",
       {
         className: "modal-btn modal-btn-primary",
-        onClick: v,
+        onClick: b,
         autoFocus: !0
       },
-      m()
-    ))
-  );
-}
-function ae({
-  isOpen: s,
-  onClose: i,
-  title: l,
-  message: d,
-  okText: a,
-  cancelText: n,
-  danger: g = !1,
-  onConfirm: f,
-  onCancel: u,
-  closeOnClickOutside: v = !0,
-  closeOnEscape: m = !0
-}) {
-  const h = A(), c = () => {
-    f();
-  }, k = () => {
-    u && u();
-  }, y = () => a || t(h, "common.ok", "确定"), T = () => n || t(h, "common.cancel", "取消");
-  return /* @__PURE__ */ e.createElement(
-    j,
-    {
-      isOpen: s,
-      onClose: i,
-      title: l,
-      closeOnClickOutside: v,
-      closeOnEscape: m
-    },
-    /* @__PURE__ */ e.createElement("div", { className: "modal-body" }, d),
-    /* @__PURE__ */ e.createElement("div", { className: "modal-footer" }, /* @__PURE__ */ e.createElement(
-      "button",
-      {
-        className: "modal-btn modal-btn-secondary",
-        onClick: k
-      },
-      T()
-    ), /* @__PURE__ */ e.createElement(
-      "button",
-      {
-        className: g ? "modal-btn modal-btn-danger" : "modal-btn modal-btn-primary",
-        onClick: c,
-        autoFocus: !0
-      },
-      y()
+      c()
     ))
   );
 }
 function oe({
-  isOpen: s,
-  onClose: i,
+  isOpen: i,
+  onClose: s,
   title: l,
-  message: d,
-  defaultValue: a = "",
-  placeholder: n = "",
-  okText: g,
-  cancelText: f,
+  message: p,
+  okText: n,
+  cancelText: a,
+  danger: f = !1,
   onConfirm: u,
-  onCancel: v,
-  closeOnClickOutside: m = !0,
-  closeOnEscape: h = !0
+  onCancel: d,
+  closeOnClickOutside: b = !0,
+  closeOnEscape: c = !0
 }) {
-  const [c, k] = D(a), y = S(null);
-  R(() => {
-    s && k(a);
-  }, [s, a]), R(() => {
-    if (s && y.current) {
-      const b = setTimeout(() => {
-        y.current?.focus(), y.current?.select();
-      }, 100);
-      return () => clearTimeout(b);
-    }
-  }, [s]);
-  const T = () => {
-    u(c);
-  }, o = () => {
-    v && v();
-  }, p = (b) => {
-    b.key === "Enter" && T();
-  }, C = A(), r = () => g || t(C, "common.ok", "确定"), x = () => f || t(C, "common.cancel", "取消");
+  const g = S(), m = () => {
+    u();
+  }, y = () => {
+    d && d();
+  }, E = () => n || t(g, "common.ok", "确定"), I = () => a || t(g, "common.cancel", "取消");
   return /* @__PURE__ */ e.createElement(
     j,
     {
-      isOpen: s,
-      onClose: i,
+      isOpen: i,
+      onClose: s,
       title: l,
-      closeOnClickOutside: m,
-      closeOnEscape: h
+      closeOnClickOutside: b,
+      closeOnEscape: c
     },
-    /* @__PURE__ */ e.createElement("div", { className: "modal-body" }, d, /* @__PURE__ */ e.createElement(
+    /* @__PURE__ */ e.createElement("div", { className: "modal-body" }, p),
+    /* @__PURE__ */ e.createElement("div", { className: "modal-footer" }, /* @__PURE__ */ e.createElement(
+      "button",
+      {
+        className: "modal-btn modal-btn-secondary",
+        onClick: y
+      },
+      I()
+    ), /* @__PURE__ */ e.createElement(
+      "button",
+      {
+        className: f ? "modal-btn modal-btn-danger" : "modal-btn modal-btn-primary",
+        onClick: m,
+        autoFocus: !0
+      },
+      E()
+    ))
+  );
+}
+function le({
+  isOpen: i,
+  onClose: s,
+  title: l,
+  message: p,
+  defaultValue: n = "",
+  placeholder: a = "",
+  okText: f,
+  cancelText: u,
+  onConfirm: d,
+  onCancel: b,
+  closeOnClickOutside: c = !0,
+  closeOnEscape: g = !0
+}) {
+  const [m, y] = C(n), E = D(null);
+  R(() => {
+    i && y(n);
+  }, [i, n]), R(() => {
+    if (i && E.current) {
+      const v = setTimeout(() => {
+        E.current?.focus(), E.current?.select();
+      }, 100);
+      return () => clearTimeout(v);
+    }
+  }, [i]);
+  const I = () => {
+    d(m);
+  }, o = () => {
+    b && b();
+  }, h = (v) => {
+    v.key === "Enter" && I();
+  }, N = S(), r = () => f || t(N, "common.ok", "确定"), x = () => u || t(N, "common.cancel", "取消");
+  return /* @__PURE__ */ e.createElement(
+    j,
+    {
+      isOpen: i,
+      onClose: s,
+      title: l,
+      closeOnClickOutside: c,
+      closeOnEscape: g
+    },
+    /* @__PURE__ */ e.createElement("div", { className: "modal-body" }, p, /* @__PURE__ */ e.createElement(
       "input",
       {
-        ref: y,
+        ref: E,
         type: "text",
         className: "modal-input",
-        value: c,
-        onChange: (b) => k(b.target.value),
-        onKeyDown: p,
-        placeholder: n
+        value: m,
+        onChange: (v) => y(v.target.value),
+        onKeyDown: h,
+        placeholder: a
       }
     )),
     /* @__PURE__ */ e.createElement("div", { className: "modal-footer" }, /* @__PURE__ */ e.createElement(
@@ -418,230 +537,230 @@ function oe({
       "button",
       {
         className: "modal-btn modal-btn-primary",
-        onClick: T
+        onClick: I
       },
       r()
     ))
   );
 }
-const be = z(function(i, l) {
-  const [d, a] = D({
+const ve = z(function(s, l) {
+  const [p, n] = C({
     isOpen: !1,
     config: null,
     resolve: null
-  }), n = A(), g = S(d);
+  }), a = S(), f = D(p);
   R(() => {
-    g.current = d;
-  }, [d]);
-  const f = I((o) => new Promise((p) => {
-    a({
+    f.current = p;
+  }, [p]);
+  const u = q((o) => new Promise((h) => {
+    n({
       isOpen: !0,
       config: o,
-      resolve: p
+      resolve: h
     });
-  }), []), u = I(() => {
-    a((o) => (o.resolve && o.config && (o.config.type === "prompt" ? o.resolve(null) : o.config.type === "confirm" ? o.resolve(!1) : o.resolve(!0)), {
+  }), []), d = q(() => {
+    n((o) => (o.resolve && o.config && (o.config.type === "prompt" ? o.resolve(null) : o.config.type === "confirm" ? o.resolve(!1) : o.resolve(!0)), {
       isOpen: !1,
       config: null,
       resolve: null
     }));
-  }, []), v = I((o) => {
-    a((p) => (p.resolve && (p.config?.type === "prompt" ? p.resolve(o || "") : p.resolve(!0)), {
+  }, []), b = q((o) => {
+    n((h) => (h.resolve && (h.config?.type === "prompt" ? h.resolve(o || "") : h.resolve(!0)), {
       isOpen: !1,
       config: null,
       resolve: null
     }));
-  }, []), m = I(() => {
-    a((o) => (o.resolve && (o.config?.type === "prompt" ? o.resolve(null) : o.resolve(!1)), {
+  }, []), c = q(() => {
+    n((o) => (o.resolve && (o.config?.type === "prompt" ? o.resolve(null) : o.resolve(!1)), {
       isOpen: !1,
       config: null,
       resolve: null
     }));
-  }, []), h = I((o) => {
+  }, []), g = q((o) => {
     switch (o) {
       case "alert":
-        return t(n, "common.alert", "提示");
+        return t(a, "common.alert", "提示");
       case "confirm":
-        return t(n, "common.confirm", "确认");
+        return t(a, "common.confirm", "确认");
       case "prompt":
-        return t(n, "common.input", "输入");
+        return t(a, "common.input", "输入");
       default:
         return "提示";
     }
-  }, [n]), c = I(
-    (o, p = null) => f({
+  }, [a]), m = q(
+    (o, h = null) => u({
       type: "alert",
       message: o,
-      title: p !== null ? p : h("alert")
+      title: h !== null ? h : g("alert")
     }),
-    [f, h]
-  ), k = I(
-    (o, p = null, C = {}) => f({
+    [u, g]
+  ), y = q(
+    (o, h = null, N = {}) => u({
       type: "confirm",
       message: o,
-      title: p !== null ? p : h("confirm"),
-      okText: C.okText,
-      cancelText: C.cancelText,
-      danger: C.danger || !1
+      title: h !== null ? h : g("confirm"),
+      okText: N.okText,
+      cancelText: N.cancelText,
+      danger: N.danger || !1
     }),
-    [f, h]
-  ), y = I(
-    (o, p = "", C = null) => f({
+    [u, g]
+  ), E = q(
+    (o, h = "", N = null) => u({
       type: "prompt",
       message: o,
-      defaultValue: p,
-      title: C !== null ? C : h("prompt")
+      defaultValue: h,
+      title: N !== null ? N : g("prompt")
     }),
-    [f, h]
+    [u, g]
   );
   F(
     l,
     () => ({
-      alert: c,
-      confirm: k,
-      prompt: y
+      alert: m,
+      confirm: y,
+      prompt: E
     }),
-    [c, k, y]
+    [m, y, E]
   ), R(() => () => {
-    if (!g.current.isOpen) return;
-    const { resolve: o, config: p } = g.current;
-    o && p && (p.type === "prompt" ? o(null) : p.type === "confirm" ? o(!1) : o(!0)), g.current = {
+    if (!f.current.isOpen) return;
+    const { resolve: o, config: h } = f.current;
+    o && h && (h.type === "prompt" ? o(null) : h.type === "confirm" ? o(!1) : o(!0)), f.current = {
       isOpen: !1,
       config: null,
       resolve: null
     };
   }, []);
-  const T = () => {
-    if (!d.config || !d.isOpen) return null;
-    const { config: o } = d;
+  const I = () => {
+    if (!p.config || !p.isOpen) return null;
+    const { config: o } = p;
     switch (o.type) {
       case "alert":
         return /* @__PURE__ */ e.createElement(
-          re,
+          ae,
           {
-            isOpen: d.isOpen,
-            onClose: u,
+            isOpen: p.isOpen,
+            onClose: d,
             title: o.title || void 0,
             message: o.message,
             okText: o.okText,
-            onConfirm: v
+            onConfirm: b
           }
         );
       case "confirm":
         return /* @__PURE__ */ e.createElement(
-          ae,
+          oe,
           {
-            isOpen: d.isOpen,
-            onClose: u,
+            isOpen: p.isOpen,
+            onClose: d,
             title: o.title || void 0,
             message: o.message,
             okText: o.okText,
             cancelText: o.cancelText,
             danger: o.danger,
-            onConfirm: v,
-            onCancel: m
+            onConfirm: b,
+            onCancel: c
           }
         );
       case "prompt":
         return /* @__PURE__ */ e.createElement(
-          oe,
+          le,
           {
-            isOpen: d.isOpen,
-            onClose: m,
+            isOpen: p.isOpen,
+            onClose: c,
             title: o.title || void 0,
             message: o.message,
             defaultValue: o.defaultValue,
             placeholder: o.placeholder,
             okText: o.okText,
             cancelText: o.cancelText,
-            onConfirm: v,
-            onCancel: m
+            onConfirm: b,
+            onCancel: c
           }
         );
       default:
         return null;
     }
   };
-  return /* @__PURE__ */ e.createElement(e.Fragment, null, T());
+  return /* @__PURE__ */ e.createElement(e.Fragment, null, I());
 });
-function pe({
-  visible: s = !0,
-  right: i = 460,
+function Ee({
+  visible: i = !0,
+  right: s = 460,
   bottom: l,
-  top: d,
-  isMobile: a,
-  micEnabled: n,
-  screenEnabled: g,
-  goodbyeMode: f,
-  openPanel: u,
-  onOpenPanelChange: v,
-  settings: m,
-  onSettingsChange: h,
-  agent: c,
-  onAgentChange: k,
-  onToggleMic: y,
-  onToggleScreen: T,
+  top: p,
+  isMobile: n,
+  micEnabled: a,
+  screenEnabled: f,
+  goodbyeMode: u,
+  openPanel: d,
+  onOpenPanelChange: b,
+  settings: c,
+  onSettingsChange: g,
+  agent: m,
+  onAgentChange: y,
+  onToggleMic: E,
+  onToggleScreen: I,
   onGoodbye: o,
-  onReturn: p,
-  onSettingsMenuClick: C
+  onReturn: h,
+  onSettingsMenuClick: N
 }) {
-  const r = A(), x = S(null), [b, w] = D(null), E = S(null), B = 240, q = O(() => {
-    const _ = {
-      right: i
+  const r = S(), x = D(null), [v, w] = C(null), _ = D(null), A = 240, U = P(() => {
+    const k = {
+      right: s
     };
-    return typeof d == "number" ? _.top = d : _.bottom = typeof l == "number" ? l : 320, _;
-  }, [i, d, l]), M = I(
-    (_) => {
-      w(_), v(null), E.current && clearTimeout(E.current), E.current = setTimeout(() => {
-        w((N) => N === _ ? null : N), E.current = null;
-      }, B);
+    return typeof p == "number" ? k.top = p : k.bottom = typeof l == "number" ? l : 320, k;
+  }, [s, p, l]), L = q(
+    (k) => {
+      w(k), b(null), _.current && clearTimeout(_.current), _.current = setTimeout(() => {
+        w((T) => T === k ? null : T), _.current = null;
+      }, A);
     },
-    [v]
-  ), U = I(
-    (_) => {
-      if (u === _) {
-        M(_);
+    [b]
+  ), B = q(
+    (k) => {
+      if (d === k) {
+        L(k);
         return;
       }
-      u && M(u), v(_);
+      d && L(d), b(k);
     },
-    [v, u, M]
+    [b, d, L]
   );
   R(() => () => {
-    E.current && (clearTimeout(E.current), E.current = null);
+    _.current && (clearTimeout(_.current), _.current = null);
   }, []), R(() => {
-    const _ = (N) => {
-      const L = x.current;
-      if (!L || !u) return;
-      const W = N.target;
-      W && L.contains(W) || M(u);
+    const k = (T) => {
+      const M = x.current;
+      if (!M || !d) return;
+      const W = T.target;
+      W && M.contains(W) || L(d);
     };
-    return document.addEventListener("pointerdown", _), () => document.removeEventListener("pointerdown", _);
-  }, [u, M]);
-  const V = O(
+    return document.addEventListener("pointerdown", k), () => document.removeEventListener("pointerdown", k);
+  }, [d, L]);
+  const $ = P(
     () => [
       {
         id: "mic",
         title: t(r, "buttons.voiceControl", "语音控制"),
         hidden: !1,
-        active: n,
-        onClick: () => y(!n),
+        active: a,
+        onClick: () => E(!a),
         icon: "/static/icons/mic_icon_off.png"
       },
       {
         id: "screen",
         title: t(r, "buttons.screenShare", "屏幕分享"),
         hidden: !1,
-        active: g,
-        onClick: () => T(!g),
+        active: f,
+        onClick: () => I(!f),
         icon: "/static/icons/screen_icon_off.png"
       },
       {
         id: "agent",
         title: t(r, "buttons.agentTools", "Agent工具"),
-        hidden: !!a,
-        active: u === "agent",
-        onClick: () => U("agent"),
+        hidden: !!n,
+        active: d === "agent",
+        onClick: () => B("agent"),
         icon: "/static/icons/Agent_off.png",
         hasPanel: !0
       },
@@ -649,116 +768,116 @@ function pe({
         id: "settings",
         title: t(r, "buttons.settings", "设置"),
         hidden: !1,
-        active: u === "settings",
-        onClick: () => U("settings"),
+        active: d === "settings",
+        onClick: () => B("settings"),
         icon: "/static/icons/set_off.png",
         hasPanel: !0
       },
       {
         id: "goodbye",
         title: t(r, "buttons.leave", "请她离开"),
-        hidden: !!a,
-        active: f,
+        hidden: !!n,
+        active: u,
         onClick: o,
         icon: "/static/icons/rest_off.png",
         hasPanel: !1
       }
-    ].filter((_) => !_.hidden),
-    [f, a, n, o, y, T, u, g, r, U]
-  ), P = O(
+    ].filter((k) => !k.hidden),
+    [u, n, a, o, E, I, d, f, r, B]
+  ), O = P(
     () => [
       {
         id: "mergeMessages",
         label: t(r, "settings.toggles.mergeMessages", "合并消息"),
-        checked: m.mergeMessages
+        checked: c.mergeMessages
       },
       {
         id: "allowInterrupt",
         label: t(r, "settings.toggles.allowInterrupt", "允许打断"),
-        checked: m.allowInterrupt
+        checked: c.allowInterrupt
       },
       {
         id: "proactiveChat",
         label: t(r, "settings.toggles.proactiveChat", "主动搭话"),
-        checked: m.proactiveChat
+        checked: c.proactiveChat
       },
       {
         id: "proactiveVision",
         label: t(r, "settings.toggles.proactiveVision", "自主视觉"),
-        checked: m.proactiveVision
+        checked: c.proactiveVision
       }
     ],
-    [m, r]
-  ), G = O(
+    [c, r]
+  ), J = P(
     () => [
       {
         id: "master",
         label: t(r, "settings.toggles.agentMaster", "Agent总开关"),
-        checked: c.master,
-        disabled: !!c.disabled.master
+        checked: m.master,
+        disabled: !!m.disabled.master
       },
       {
         id: "keyboard",
         label: t(r, "settings.toggles.keyboardControl", "键鼠控制"),
-        checked: c.keyboard,
-        disabled: !!c.disabled.keyboard
+        checked: m.keyboard,
+        disabled: !!m.disabled.keyboard
       },
       {
         id: "mcp",
         label: t(r, "settings.toggles.mcpTools", "MCP工具"),
-        checked: c.mcp,
-        disabled: !!c.disabled.mcp
+        checked: m.mcp,
+        disabled: !!m.disabled.mcp
       },
       {
         id: "userPlugin",
         label: t(r, "settings.toggles.userPlugin", "用户插件"),
-        checked: c.userPlugin,
-        disabled: !!c.disabled.userPlugin
+        checked: m.userPlugin,
+        disabled: !!m.disabled.userPlugin
       }
     ],
-    [c, r]
+    [m, r]
   );
-  return s ? /* @__PURE__ */ e.createElement("div", { ref: x, className: "live2d-right-toolbar", style: q }, f ? /* @__PURE__ */ e.createElement(
+  return i ? /* @__PURE__ */ e.createElement("div", { ref: x, className: "live2d-right-toolbar", style: U }, u ? /* @__PURE__ */ e.createElement(
     "button",
     {
       type: "button",
       className: "live2d-right-toolbar__button live2d-right-toolbar__return",
       title: t(r, "buttons.return", "请她回来"),
-      onClick: p
+      onClick: h
     },
     /* @__PURE__ */ e.createElement("img", { className: "live2d-right-toolbar__icon", src: "/static/icons/rest_off.png", alt: "return" })
-  ) : V.map((_) => /* @__PURE__ */ e.createElement("div", { key: _.id, className: "live2d-right-toolbar__item" }, /* @__PURE__ */ e.createElement(
+  ) : $.map((k) => /* @__PURE__ */ e.createElement("div", { key: k.id, className: "live2d-right-toolbar__item" }, /* @__PURE__ */ e.createElement(
     "button",
     {
       type: "button",
       className: "live2d-right-toolbar__button",
-      title: _.title,
-      "data-active": _.active ? "true" : "false",
-      onClick: _.onClick
+      title: k.title,
+      "data-active": k.active ? "true" : "false",
+      onClick: k.onClick
     },
-    /* @__PURE__ */ e.createElement("img", { className: "live2d-right-toolbar__icon", src: _.icon, alt: _.id })
-  ), _.id === "settings" && (u === "settings" || b === "settings") && /* @__PURE__ */ e.createElement(
+    /* @__PURE__ */ e.createElement("img", { className: "live2d-right-toolbar__icon", src: k.icon, alt: k.id })
+  ), k.id === "settings" && (d === "settings" || v === "settings") && /* @__PURE__ */ e.createElement(
     "div",
     {
-      key: `settings-panel-${u === "settings" ? "open" : "closing"}`,
-      className: `live2d-right-toolbar__panel live2d-right-toolbar__panel--settings${b === "settings" && u !== "settings" ? " live2d-right-toolbar__panel--exit" : ""}`,
+      key: `settings-panel-${d === "settings" ? "open" : "closing"}`,
+      className: `live2d-right-toolbar__panel live2d-right-toolbar__panel--settings${v === "settings" && d !== "settings" ? " live2d-right-toolbar__panel--exit" : ""}`,
       role: "menu"
     },
-    P.map((N) => /* @__PURE__ */ e.createElement("label", { key: N.id, className: "live2d-right-toolbar__row", "data-disabled": "false" }, /* @__PURE__ */ e.createElement(
+    O.map((T) => /* @__PURE__ */ e.createElement("label", { key: T.id, className: "live2d-right-toolbar__row", "data-disabled": "false" }, /* @__PURE__ */ e.createElement(
       "input",
       {
         type: "checkbox",
         className: "live2d-right-toolbar__checkbox",
-        checked: N.checked,
-        onChange: (L) => h(N.id, L.target.checked)
+        checked: T.checked,
+        onChange: (M) => g(T.id, M.target.checked)
       }
-    ), /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__indicator", "aria-hidden": "true" }, /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__checkmark" }, "✓")), /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__label" }, N.label))),
-    !a && /* @__PURE__ */ e.createElement(e.Fragment, null, /* @__PURE__ */ e.createElement("div", { className: "live2d-right-toolbar__separator" }), /* @__PURE__ */ e.createElement(
+    ), /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__indicator", "aria-hidden": "true" }, /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__checkmark" }, "✓")), /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__label" }, T.label))),
+    !n && /* @__PURE__ */ e.createElement(e.Fragment, null, /* @__PURE__ */ e.createElement("div", { className: "live2d-right-toolbar__separator" }), /* @__PURE__ */ e.createElement(
       "button",
       {
         type: "button",
         className: "live2d-right-toolbar__menuItem",
-        onClick: () => C?.("live2dSettings")
+        onClick: () => N?.("live2dSettings")
       },
       /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__menuItemContent" }, /* @__PURE__ */ e.createElement(
         "img",
@@ -773,7 +892,7 @@ function pe({
       {
         type: "button",
         className: "live2d-right-toolbar__menuItem",
-        onClick: () => C?.("apiKeys")
+        onClick: () => N?.("apiKeys")
       },
       /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__menuItemContent" }, /* @__PURE__ */ e.createElement(
         "img",
@@ -788,7 +907,7 @@ function pe({
       {
         type: "button",
         className: "live2d-right-toolbar__menuItem",
-        onClick: () => C?.("characterManage")
+        onClick: () => N?.("characterManage")
       },
       /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__menuItemContent" }, /* @__PURE__ */ e.createElement(
         "img",
@@ -803,7 +922,7 @@ function pe({
       {
         type: "button",
         className: "live2d-right-toolbar__menuItem",
-        onClick: () => C?.("voiceClone")
+        onClick: () => N?.("voiceClone")
       },
       /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__menuItemContent" }, /* @__PURE__ */ e.createElement(
         "img",
@@ -818,7 +937,7 @@ function pe({
       {
         type: "button",
         className: "live2d-right-toolbar__menuItem",
-        onClick: () => C?.("memoryBrowser")
+        onClick: () => N?.("memoryBrowser")
       },
       /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__menuItemContent" }, /* @__PURE__ */ e.createElement(
         "img",
@@ -833,7 +952,7 @@ function pe({
       {
         type: "button",
         className: "live2d-right-toolbar__menuItem",
-        onClick: () => C?.("steamWorkshop")
+        onClick: () => N?.("steamWorkshop")
       },
       /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__menuItemContent" }, /* @__PURE__ */ e.createElement(
         "img",
@@ -843,62 +962,86 @@ function pe({
           alt: t(r, "settings.menu.steamWorkshop", "创意工坊")
         }
       ), t(r, "settings.menu.steamWorkshop", "创意工坊"))
+    ), /* @__PURE__ */ e.createElement(
+      "button",
+      {
+        type: "button",
+        className: "live2d-right-toolbar__menuItem",
+        onClick: () => N?.("p2pConnection")
+      },
+      /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__menuItemContent" }, /* @__PURE__ */ e.createElement(
+        "svg",
+        {
+          className: "live2d-right-toolbar__menuIcon",
+          viewBox: "0 0 24 24",
+          fill: "none",
+          stroke: "currentColor",
+          strokeWidth: "2",
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
+          style: { width: 20, height: 20, color: "#4b5563" }
+        },
+        /* @__PURE__ */ e.createElement("rect", { x: "2", y: "2", width: "20", height: "8", rx: "2", ry: "2" }),
+        /* @__PURE__ */ e.createElement("rect", { x: "2", y: "14", width: "20", height: "8", rx: "2", ry: "2" }),
+        /* @__PURE__ */ e.createElement("line", { x1: "6", y1: "6", x2: "6.01", y2: "6" }),
+        /* @__PURE__ */ e.createElement("line", { x1: "6", y1: "18", x2: "6.01", y2: "18" })
+      ), t(r, "settings.menu.p2pConnection", "P2P连接"))
     ))
-  ), _.id === "agent" && (u === "agent" || b === "agent") && /* @__PURE__ */ e.createElement(
+  ), k.id === "agent" && (d === "agent" || v === "agent") && /* @__PURE__ */ e.createElement(
     "div",
     {
-      key: `agent-panel-${u === "agent" ? "open" : "closing"}`,
-      className: `live2d-right-toolbar__panel live2d-right-toolbar__panel--agent${b === "agent" && u !== "agent" ? " live2d-right-toolbar__panel--exit" : ""}`,
+      key: `agent-panel-${d === "agent" ? "open" : "closing"}`,
+      className: `live2d-right-toolbar__panel live2d-right-toolbar__panel--agent${v === "agent" && d !== "agent" ? " live2d-right-toolbar__panel--exit" : ""}`,
       role: "menu"
     },
-    /* @__PURE__ */ e.createElement("div", { id: "live2d-agent-status", className: "live2d-right-toolbar__status" }, c.statusText),
-    G.map((N) => /* @__PURE__ */ e.createElement(
+    /* @__PURE__ */ e.createElement("div", { id: "live2d-agent-status", className: "live2d-right-toolbar__status" }, m.statusText),
+    J.map((T) => /* @__PURE__ */ e.createElement(
       "label",
       {
-        key: N.id,
+        key: T.id,
         className: "live2d-right-toolbar__row",
-        "data-disabled": N.disabled ? "true" : "false",
-        title: N.disabled ? t(r, "settings.toggles.checking", "查询中...") : void 0
+        "data-disabled": T.disabled ? "true" : "false",
+        title: T.disabled ? t(r, "settings.toggles.checking", "查询中...") : void 0
       },
       /* @__PURE__ */ e.createElement(
         "input",
         {
           type: "checkbox",
           className: "live2d-right-toolbar__checkbox",
-          checked: N.checked,
-          disabled: N.disabled,
-          onChange: (L) => k(N.id, L.target.checked)
+          checked: T.checked,
+          disabled: T.disabled,
+          onChange: (M) => y(T.id, M.target.checked)
         }
       ),
       /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__indicator", "aria-hidden": "true" }, /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__checkmark" }, "✓")),
-      /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__label" }, N.label)
+      /* @__PURE__ */ e.createElement("span", { className: "live2d-right-toolbar__label" }, T.label)
     ))
   )))) : null;
 }
-function le({
-  src: s,
-  alt: i,
+function ce({
+  src: i,
+  alt: s,
   fallback: l
 }) {
-  const [d, a] = e.useState(!1);
+  const [p, n] = e.useState(!1);
   return e.useEffect(() => {
-    a(!1);
-  }, [s]), d ? /* @__PURE__ */ e.createElement("span", { style: { opacity: 0.6 } }, l) : /* @__PURE__ */ e.createElement(
+    n(!1);
+  }, [i]), p ? /* @__PURE__ */ e.createElement("span", { style: { opacity: 0.6 } }, l) : /* @__PURE__ */ e.createElement(
     "img",
     {
-      src: s,
-      alt: i,
+      src: i,
+      alt: s,
       style: {
         maxWidth: "100%",
         borderRadius: 8,
         display: "block"
       },
-      onError: () => a(!0)
+      onError: () => n(!0)
     }
   );
 }
-function ie({ messages: s }) {
-  const i = A();
+function se({ messages: i }) {
+  const s = S();
   return /* @__PURE__ */ e.createElement(
     "div",
     {
@@ -909,7 +1052,7 @@ function ie({ messages: s }) {
         gap: 12
       }
     },
-    s.map((l) => /* @__PURE__ */ e.createElement(
+    i.map((l) => /* @__PURE__ */ e.createElement(
       "div",
       {
         key: l.id,
@@ -923,53 +1066,53 @@ function ie({ messages: s }) {
         }
       },
       l.image ? /* @__PURE__ */ e.createElement("div", null, /* @__PURE__ */ e.createElement(
-        le,
+        ce,
         {
           src: l.image,
           alt: t(
-            i,
+            s,
             "chat.message.screenshot",
             "截图"
           ),
           fallback: t(
-            i,
+            s,
             "chat.message.imageError",
             "图片加载失败"
           )
         }
-      ), l.content && /* @__PURE__ */ e.createElement("div", { style: { marginTop: 8 } }, l.content)) : l.content ? l.content : /* @__PURE__ */ e.createElement("span", { style: { opacity: 0.5 } }, t(i, "chat.message.empty", "空消息"))
+      ), l.content && /* @__PURE__ */ e.createElement("div", { style: { marginTop: 8 } }, l.content)) : l.content ? l.content : /* @__PURE__ */ e.createElement("span", { style: { opacity: 0.5 } }, t(s, "chat.message.empty", "空消息"))
     ))
   );
 }
-function se() {
+function ie() {
   return typeof navigator > "u" ? !1 : /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     navigator.userAgent
   );
 }
-const $ = 5;
-function ce({
-  onSend: s,
-  onTakePhoto: i,
+const V = 5;
+function ue({
+  onSend: i,
+  onTakePhoto: s,
   pendingScreenshots: l,
-  setPendingScreenshots: d,
-  disabled: a = !1
+  setPendingScreenshots: p,
+  disabled: n = !1
 }) {
-  const n = A(), [g, f] = D("");
-  async function u() {
-    !g.trim() && (!l || l.length === 0) || (s(g), f(""));
+  const a = S(), [f, u] = C("");
+  async function d() {
+    !f.trim() && (!l || l.length === 0) || (i(f), u(""));
   }
-  async function v() {
-    if (l && l.length >= $) {
+  async function b() {
+    if (l && l.length >= V) {
       console.warn(
         t(
-          n,
+          a,
           "chat.screenshot.maxReached",
-          `最多只能添加 ${$} 张截图`
+          `最多只能添加 ${V} 张截图`
         )
       );
       return;
     }
-    await i?.();
+    await s?.();
   }
   return /* @__PURE__ */ e.createElement(
     "div",
@@ -995,15 +1138,15 @@ function ce({
         }
       },
       /* @__PURE__ */ e.createElement("span", null, t(
-        n,
+        a,
         "chat.screenshot.pending",
         `📸 待发送截图 (${l.length})`
       )),
       /* @__PURE__ */ e.createElement(
         "button",
         {
-          onClick: () => d?.([]),
-          "aria-label": t(n, "chat.screenshot.clearAll", "清除全部截图"),
+          onClick: () => p?.([]),
+          "aria-label": t(a, "chat.screenshot.clearAll", "清除全部截图"),
           style: {
             background: "#ff4d4f",
             color: "#fff",
@@ -1013,13 +1156,13 @@ function ce({
             cursor: "pointer"
           }
         },
-        t(n, "chat.screenshot.clearAll", "清除全部")
+        t(a, "chat.screenshot.clearAll", "清除全部")
       )
-    ), /* @__PURE__ */ e.createElement("div", { style: { display: "flex", gap: 8 } }, l.map((m) => /* @__PURE__ */ e.createElement("div", { key: m.id, style: { position: "relative" } }, /* @__PURE__ */ e.createElement(
+    ), /* @__PURE__ */ e.createElement("div", { style: { display: "flex", gap: 8 } }, l.map((c) => /* @__PURE__ */ e.createElement("div", { key: c.id, style: { position: "relative" } }, /* @__PURE__ */ e.createElement(
       "img",
       {
-        src: m.base64,
-        alt: t(n, "chat.screenshot.preview", "截图预览"),
+        src: c.base64,
+        alt: t(a, "chat.screenshot.preview", "截图预览"),
         style: {
           width: 60,
           height: 60,
@@ -1030,10 +1173,10 @@ function ce({
     ), /* @__PURE__ */ e.createElement(
       "button",
       {
-        onClick: () => d?.(
-          (h) => h.filter((c) => c.id !== m.id)
+        onClick: () => p?.(
+          (g) => g.filter((m) => m.id !== c.id)
         ),
-        "aria-label": t(n, "chat.screenshot.remove", "删除截图"),
+        "aria-label": t(a, "chat.screenshot.remove", "删除截图"),
         style: {
           position: "absolute",
           top: -6,
@@ -1064,12 +1207,12 @@ function ce({
       /* @__PURE__ */ e.createElement(
         "textarea",
         {
-          value: g,
-          onChange: (m) => f(m.target.value),
-          disabled: a,
-          "aria-label": t(n, "chat.input.label", "聊天输入框"),
+          value: f,
+          onChange: (c) => u(c.target.value),
+          disabled: n,
+          "aria-label": t(a, "chat.input.label", "聊天输入框"),
           placeholder: t(
-            n,
+            a,
             "chat.input.placeholder",
             "Text chat mode...Press Enter to send, Shift+Enter for new line"
           ),
@@ -1079,7 +1222,7 @@ function ce({
             border: "1px solid rgba(0,0,0,0.1)",
             borderRadius: 6,
             padding: "10px 12px",
-            background: a ? "rgba(240,240,240,0.8)" : "rgba(255,255,255,0.8)",
+            background: n ? "rgba(240,240,240,0.8)" : "rgba(255,255,255,0.8)",
             fontFamily: "inherit",
             fontSize: "0.9rem",
             lineHeight: "1.4",
@@ -1087,11 +1230,11 @@ function ce({
             // ⭐关键
             boxSizing: "border-box",
             // ⭐关键
-            opacity: a ? 0.6 : 1,
-            cursor: a ? "not-allowed" : "text"
+            opacity: n ? 0.6 : 1,
+            cursor: n ? "not-allowed" : "text"
           },
-          onKeyDown: (m) => {
-            m.key === "Enter" && !m.shiftKey && !a && (m.preventDefault(), u());
+          onKeyDown: (c) => {
+            c.key === "Enter" && !c.shiftKey && !n && (c.preventDefault(), d());
           }
         }
       ),
@@ -1109,97 +1252,97 @@ function ce({
         /* @__PURE__ */ e.createElement(
           "button",
           {
-            onClick: u,
-            disabled: a,
+            onClick: d,
+            disabled: n,
             style: {
               flex: 1,
               // ⭐均分高度
-              background: a ? "#a0d4f7" : "#44b7fe",
+              background: n ? "#a0d4f7" : "#44b7fe",
               color: "white",
               border: "none",
               borderRadius: 6,
-              cursor: a ? "not-allowed" : "pointer",
+              cursor: n ? "not-allowed" : "pointer",
               fontSize: "0.9rem",
-              opacity: a ? 0.6 : 1
+              opacity: n ? 0.6 : 1
             }
           },
-          t(n, "chat.send", "发送")
+          t(a, "chat.send", "发送")
         ),
-        i && /* @__PURE__ */ e.createElement(
+        s && /* @__PURE__ */ e.createElement(
           "button",
           {
-            onClick: v,
-            disabled: a,
+            onClick: b,
+            disabled: n,
             style: {
               flex: 1,
               // ⭐均分高度
-              background: a ? "rgba(240,240,240,0.8)" : "rgba(255,255,255,0.8)",
+              background: n ? "rgba(240,240,240,0.8)" : "rgba(255,255,255,0.8)",
               border: "1px solid #44b7fe",
               color: "#44b7fe",
               borderRadius: 6,
-              cursor: a ? "not-allowed" : "pointer",
+              cursor: n ? "not-allowed" : "pointer",
               fontSize: "0.8rem",
-              opacity: a ? 0.6 : 1
+              opacity: n ? 0.6 : 1
             }
           },
-          se() ? t(n, "chat.screenshot.buttonMobile", "拍照") : t(n, "chat.screenshot.button", "截图")
+          ie() ? t(a, "chat.screenshot.buttonMobile", "拍照") : t(a, "chat.screenshot.button", "截图")
         )
       )
     )
   );
 }
-function ue() {
+function me() {
   return typeof navigator > "u" ? !1 : /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     navigator.userAgent
   );
 }
 function H() {
-  return typeof crypto < "u" && "randomUUID" in crypto ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (s) => {
-    const i = Math.random() * 16 | 0;
-    return (s === "x" ? i : i & 3 | 8).toString(16);
+  return typeof crypto < "u" && "randomUUID" in crypto ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (i) => {
+    const s = Math.random() * 16 | 0;
+    return (i === "x" ? s : s & 3 | 8).toString(16);
   });
 }
-function ve({
-  externalMessages: s,
-  onSendMessage: i,
+function ye({
+  externalMessages: i,
+  onSendMessage: s,
   connectionStatus: l = "idle",
-  disabled: d = !1,
-  statusText: a
+  disabled: p = !1,
+  statusText: n
 }) {
-  const n = A(), [g, f] = D(!1), [u, v] = D([
+  const a = S(), [f, u] = C(!1), [d, b] = C([
     {
       id: "sys-1",
       role: "system",
       content: t(
-        n,
+        a,
         "chat.welcome",
         "欢迎来到 React 聊天系统（迁移 Demo）"
       ),
       createdAt: Date.now()
     }
-  ]), m = O(() => {
-    const r = [...u, ...s || []];
-    return r.sort((x, b) => x.createdAt - b.createdAt), r;
-  }, [u, s]), [h, c] = D([]);
-  function k(r) {
-    if (!r.trim() && h.length === 0) return;
-    const x = [], b = [];
+  ]), c = P(() => {
+    const r = [...d, ...i || []];
+    return r.sort((x, v) => x.createdAt - v.createdAt), r;
+  }, [d, i]), [g, m] = C([]);
+  function y(r) {
+    if (!r.trim() && g.length === 0) return;
+    const x = [], v = [];
     let w = Date.now();
-    h.forEach((E) => {
-      x.push(E.base64), i || b.push({
+    g.forEach((_) => {
+      x.push(_.base64), s || v.push({
         id: H(),
         role: "user",
-        image: E.base64,
+        image: _.base64,
         createdAt: w++
       });
-    }), r.trim() && !i && b.push({
+    }), r.trim() && !s && v.push({
       id: H(),
       role: "user",
       content: r,
       createdAt: w
-    }), i && i(r.trim(), x.length > 0 ? x : void 0), b.length > 0 && v((E) => [...E, ...b]), c([]);
+    }), s && s(r.trim(), x.length > 0 ? x : void 0), v.length > 0 && b((_) => [..._, ...v]), m([]);
   }
-  const y = I(async () => {
+  const E = q(async () => {
     const r = [
       {
         label: "rear",
@@ -1214,67 +1357,67 @@ function ve({
       } catch {
       }
     throw new Error(
-      t(n, "chat.cannot_get_camera", "Unable to access camera")
+      t(a, "chat.cannot_get_camera", "Unable to access camera")
     );
-  }, [n]), T = I(
+  }, [a]), I = q(
     (r, x = 0.8) => {
-      const b = document.createElement("canvas"), w = b.getContext("2d");
+      const v = document.createElement("canvas"), w = v.getContext("2d");
       if (!w) return null;
-      let E = r.videoWidth, B = r.videoHeight;
-      const q = 1280, M = 720;
-      if (E > q || B > M) {
-        const U = q / E, V = M / B, P = Math.min(U, V);
-        E = Math.floor(E * P), B = Math.floor(B * P);
+      let _ = r.videoWidth, A = r.videoHeight;
+      const U = 1280, L = 720;
+      if (_ > U || A > L) {
+        const B = U / _, $ = L / A, O = Math.min(B, $);
+        _ = Math.floor(_ * O), A = Math.floor(A * O);
       }
-      return b.width = E, b.height = B, w.drawImage(r, 0, 0, E, B), b.toDataURL("image/jpeg", x);
+      return v.width = _, v.height = A, w.drawImage(r, 0, 0, _, A), v.toDataURL("image/jpeg", x);
     },
     []
   );
   async function o() {
-    const r = ue();
+    const r = me();
     if (r) {
       if (!navigator.mediaDevices?.getUserMedia) {
         alert(
-          t(n, "chat.screenshot.unsupported", "您的浏览器不支持拍照")
+          t(a, "chat.screenshot.unsupported", "您的浏览器不支持拍照")
         );
         return;
       }
     } else if (!navigator.mediaDevices?.getDisplayMedia) {
       alert(
-        t(n, "chat.screenshot.unsupported", "您的浏览器不支持截图")
+        t(a, "chat.screenshot.unsupported", "您的浏览器不支持截图")
       );
       return;
     }
     let x = null;
-    const b = document.createElement("video");
+    const v = document.createElement("video");
     try {
-      r ? x = await y() : x = await navigator.mediaDevices.getDisplayMedia({
+      r ? x = await E() : x = await navigator.mediaDevices.getDisplayMedia({
         video: { cursor: "always" },
         audio: !1
-      }), b.srcObject = x, b.playsInline = !0, b.muted = !0, await b.play(), await new Promise((E) => {
-        b.videoWidth > 0 && b.videoHeight > 0 ? E() : b.onloadedmetadata = () => E();
+      }), v.srcObject = x, v.playsInline = !0, v.muted = !0, await v.play(), await new Promise((_) => {
+        v.videoWidth > 0 && v.videoHeight > 0 ? _() : v.onloadedmetadata = () => _();
       });
-      const w = T(b);
+      const w = I(v);
       if (!w) {
-        alert(t(n, "chat.screenshot.failed", "截图失败"));
+        alert(t(a, "chat.screenshot.failed", "截图失败"));
         return;
       }
-      c((E) => [...E, { id: H(), base64: w }]);
+      m((_) => [..._, { id: H(), base64: w }]);
     } catch (w) {
       if (w?.name === "NotAllowedError" || w?.name === "AbortError")
         return;
       console.error("[ChatContainer] Screenshot error:", w), alert(
         t(
-          n,
+          a,
           "chat.screenshot.failed",
           r ? "拍照失败" : "截图失败"
         )
       );
     } finally {
-      x && x.getTracks().forEach((w) => w.stop()), b.srcObject = null;
+      x && x.getTracks().forEach((w) => w.stop()), v.srcObject = null;
     }
   }
-  function p() {
+  function h() {
     switch (l) {
       case "open":
         return "#52c41a";
@@ -1291,29 +1434,29 @@ function ve({
         return "#d9d9d9";
     }
   }
-  function C() {
-    if (a) return a;
+  function N() {
+    if (n) return n;
     switch (l) {
       case "open":
-        return t(n, "chat.status.connected", "已连接");
+        return t(a, "chat.status.connected", "已连接");
       case "connecting":
-        return t(n, "chat.status.connecting", "连接中...");
+        return t(a, "chat.status.connecting", "连接中...");
       case "reconnecting":
-        return t(n, "chat.status.reconnecting", "重连中...");
+        return t(a, "chat.status.reconnecting", "重连中...");
       case "closing":
-        return t(n, "chat.status.closing", "断开中...");
+        return t(a, "chat.status.closing", "断开中...");
       case "closed":
-        return t(n, "chat.status.disconnected", "已断开");
+        return t(a, "chat.status.disconnected", "已断开");
       default:
-        return t(n, "chat.status.idle", "待连接");
+        return t(a, "chat.status.idle", "待连接");
     }
   }
-  return g ? /* @__PURE__ */ e.createElement(
+  return f ? /* @__PURE__ */ e.createElement(
     "button",
     {
       type: "button",
-      onClick: () => f(!1),
-      "aria-label": t(n, "chat.expand", "打开聊天"),
+      onClick: () => u(!1),
+      "aria-label": t(a, "chat.expand", "打开聊天"),
       style: {
         position: "fixed",
         left: 16,
@@ -1366,7 +1509,7 @@ function ve({
           flexShrink: 0
         }
       },
-      /* @__PURE__ */ e.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ e.createElement("span", { style: { fontWeight: 600 } }, t(n, "chat.title", "💬 Chat")), i && /* @__PURE__ */ e.createElement(
+      /* @__PURE__ */ e.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ e.createElement("span", { style: { fontWeight: 600 } }, t(a, "chat.title", "💬 Chat")), s && /* @__PURE__ */ e.createElement(
         "div",
         {
           style: {
@@ -1384,19 +1527,19 @@ function ve({
               width: 8,
               height: 8,
               borderRadius: "50%",
-              background: p(),
+              background: h(),
               display: "inline-block"
             }
           }
         ),
-        /* @__PURE__ */ e.createElement("span", null, C())
+        /* @__PURE__ */ e.createElement("span", null, N())
       )),
       /* @__PURE__ */ e.createElement(
         "button",
         {
           type: "button",
-          onClick: () => f(!0),
-          "aria-label": t(n, "chat.minimize", "最小化聊天"),
+          onClick: () => u(!0),
+          "aria-label": t(a, "chat.minimize", "最小化聊天"),
           style: {
             width: 28,
             height: 28,
@@ -1412,33 +1555,34 @@ function ve({
         "—"
       )
     ),
-    /* @__PURE__ */ e.createElement("div", { style: { flex: 1, overflowY: "auto" } }, /* @__PURE__ */ e.createElement(ie, { messages: m })),
+    /* @__PURE__ */ e.createElement("div", { style: { flex: 1, overflowY: "auto" } }, /* @__PURE__ */ e.createElement(se, { messages: c })),
     /* @__PURE__ */ e.createElement(
-      ce,
+      ue,
       {
-        onSend: k,
+        onSend: y,
         onTakePhoto: o,
-        pendingScreenshots: h,
-        setPendingScreenshots: c,
-        disabled: d
+        pendingScreenshots: g,
+        setPendingScreenshots: m,
+        disabled: p
       }
     )
   );
 }
 export {
-  re as AlertDialog,
+  ae as AlertDialog,
   j as BaseModal,
-  Z as Button,
-  ve as ChatContainer,
-  ce as ChatInput,
-  ae as ConfirmDialog,
+  Q as Button,
+  ye as ChatContainer,
+  ue as ChatInput,
+  oe as ConfirmDialog,
   ge as I18nProvider,
-  pe as Live2DRightToolbar,
-  ie as MessageList,
-  be as Modal,
-  oe as PromptDialog,
+  Ee as Live2DRightToolbar,
+  se as MessageList,
+  ve as Modal,
+  be as P2pQrMessageBox,
+  le as PromptDialog,
   he as QrMessageBox,
   fe as StatusToast,
   t as tOrDefault,
-  A as useT
+  S as useT
 };

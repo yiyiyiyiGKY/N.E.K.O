@@ -1,6 +1,6 @@
 import "./styles.css";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, StatusToast, Live2DRightToolbar, useT, tOrDefault, Modal, QrMessageBox } from "@project_neko/components";
+import { Button, StatusToast, Live2DRightToolbar, useT, tOrDefault, Modal, QrMessageBox, P2pQrMessageBox } from "@project_neko/components";
 import type {
   StatusToastHandle,
   ModalHandle,
@@ -55,6 +55,8 @@ function App(_props: AppProps) {
   const live2dManagerRef = useRef<Live2DManager | null>(null);
   const live2dPrefsRepoRef = useRef(createLive2DPreferencesRepository(API_BASE));
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isP2pQrModalOpen, setIsP2pQrModalOpen] = useState(false);
+  const [serverAddress, setServerAddress] = useState<string | null>(null);
 
   const handleLive2DReady = useCallback((mgr: Live2DManager) => {
     live2dManagerRef.current = mgr;
@@ -97,6 +99,28 @@ function App(_props: AppProps) {
   const sessionStartedResolverRef = useRef<((value: boolean) => void) | null>(null);
   // Timeout ref for ensureTextSession to prevent leaks on unmount
   const sessionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetch server address for display
+  useEffect(() => {
+    const fetchServerAddress = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/getipqrcode?format=deeplink&path=main`, {
+          method: "HEAD",
+        });
+        const address = res.headers.get("X-Neko-Access-Url");
+        if (address) {
+          setServerAddress(address);
+        } else {
+          // Fallback: extract from API_BASE
+          setServerAddress(API_BASE.replace(/^https?:\/\//, ""));
+        }
+      } catch {
+        // Fallback: extract from API_BASE
+        setServerAddress(API_BASE.replace(/^https?:\/\//, ""));
+      }
+    };
+    fetchServerAddress();
+  }, []);
 
   // Generate unique message ID
   const generateMessageId = useCallback(() => {
@@ -529,7 +553,11 @@ function App(_props: AppProps) {
   }, [cleanupAudio, cleanupRealtime]);
 
   const handleSettingsMenuClick = useCallback((id: Live2DSettingsMenuId) => {
-    const map: Record<Live2DSettingsMenuId, string> = {
+    if (id === "p2pConnection") {
+      setIsP2pQrModalOpen(true);
+      return;
+    }
+    const map: Record<Exclude<Live2DSettingsMenuId, "p2pConnection">, string> = {
       live2dSettings: "/l2d",
       apiKeys: "/api_key",
       characterManage: "/chara_manager",
@@ -606,6 +634,12 @@ function App(_props: AppProps) {
         <Button variant="secondary" onClick={() => setIsQrModalOpen(true)}>
           {tOrDefault(t, "webapp.actions.showQrDrawer", "显示二维码")}
         </Button>
+        {serverAddress && (
+          <div className="server-address" title={tOrDefault(t, "webapp.serverAddress.tooltip", "手机 App 连接地址")}>
+            <span className="server-address-label">{tOrDefault(t, "webapp.serverAddress.label", "连接地址")}</span>
+            <span className="server-address-value">{serverAddress}</span>
+          </div>
+        )}
       </div>
       <div className="chatDemo">
         <ChatContainer
@@ -693,6 +727,12 @@ function App(_props: AppProps) {
         onClose={() => setIsQrModalOpen(false)}
         title={tOrDefault(t, "webapp.qrDrawer.title", "二维码")}
         endpoint="/getipqrcode?format=deeplink&path=main"
+      />
+      <P2pQrMessageBox
+        apiBase={API_BASE}
+        isOpen={isP2pQrModalOpen}
+        onClose={() => setIsP2pQrModalOpen(false)}
+        title={tOrDefault(t, "p2pQr.title", "P2P 连接二维码")}
       />
     </>
   );

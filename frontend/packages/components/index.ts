@@ -7,6 +7,9 @@ export type { StatusToastHandle } from "./src/StatusToast";
 export { QrMessageBox } from "./src/QrMessageBox";
 export type { QrMessageBoxProps } from "./src/QrMessageBox";
 
+export { P2pQrMessageBox } from "./src/P2pQrMessageBox";
+export type { P2pQrMessageBoxProps } from "./src/P2pQrMessageBox";
+
 export { default as Modal } from "./src/Modal";
 export type { ModalHandle } from "./src/Modal";
 export { AlertDialog } from "./src/Modal/AlertDialog";

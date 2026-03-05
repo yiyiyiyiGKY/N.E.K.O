@@ -106,6 +106,97 @@
   user-select: text;
 }
 
+.qr-divider {
+  width: 100%;
+  height: 1px;
+  background: #e5e7eb;
+  margin: 16px 0;
+}
+
+.manual-input-section {
+  padding: 8px 0;
+}
+
+.manual-input-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.manual-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.manual-input-host {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: monospace;
+  color: #111827;
+  background: #f9fafb;
+}
+
+.manual-input-host:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: #ffffff;
+}
+
+.manual-input-port {
+  width: 70px;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: monospace;
+  color: #111827;
+  background: #f9fafb;
+  text-align: center;
+}
+
+.manual-input-port:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: #ffffff;
+}
+
+.manual-input-separator {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.manual-input-result {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.manual-input-address {
+  padding: 6px 12px;
+  background: #1f2937;
+  color: #4ade80;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.manual-input-hint {
+  font-size: 11px;
+  color: #6b7280;
+  text-align: center;
+}
+
 @media (max-width: 600px) {
   .qr-message-box {
     max-width: 100%;

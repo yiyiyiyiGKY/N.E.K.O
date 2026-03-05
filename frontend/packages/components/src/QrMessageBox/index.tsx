@@ -4,6 +4,84 @@ import { BaseModal } from "../Modal/BaseModal";
 import { Button } from "../Button";
 import "./QrMessageBox.css";
 
+interface ManualInputSectionProps {
+  apiBase: string;
+}
+
+function ManualInputSection({ apiBase }: ManualInputSectionProps) {
+  const [host, setHost] = useState("");
+  const [port, setPort] = useState("48911");
+  const [copied, setCopied] = useState(false);
+  const t = useT();
+
+  // Try to extract current host from apiBase
+  useEffect(() => {
+    try {
+      const url = new URL(apiBase);
+      setHost(url.hostname);
+      if (url.port) setPort(url.port);
+    } catch {
+      // fallback: use apiBase as host if it's just a host:port string
+      const parts = apiBase.replace(/^https?:\/\//, "").split(":");
+      if (parts[0]) setHost(parts[0]);
+      if (parts[1]) setPort(parts[1]);
+    }
+  }, [apiBase]);
+
+  const fullAddress = `${host}:${port}`;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(fullAddress);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select text for manual copy
+      const input = document.getElementById("server-address-input") as HTMLInputElement;
+      if (input) {
+        input.select();
+      }
+    }
+  };
+
+  return (
+    <div className="manual-input-section">
+      <div className="manual-input-title">
+        {tOrDefault(t, "webapp.qrDrawer.manualInput", "手动输入地址")}
+      </div>
+      <div className="manual-input-row">
+        <input
+          id="server-address-input"
+          type="text"
+          className="manual-input-host"
+          value={host}
+          onChange={(e) => setHost(e.target.value)}
+          placeholder="192.168.1.100"
+        />
+        <span className="manual-input-separator">:</span>
+        <input
+          type="text"
+          className="manual-input-port"
+          value={port}
+          onChange={(e) => setPort(e.target.value)}
+          placeholder="48911"
+        />
+      </div>
+      <div className="manual-input-result">
+        <code className="manual-input-address">{fullAddress}</code>
+        <Button variant="secondary" size="sm" onClick={handleCopy}>
+          {copied
+            ? tOrDefault(t, "common.copied", "已复制")
+            : tOrDefault(t, "common.copy", "复制")}
+        </Button>
+      </div>
+      <div className="manual-input-hint">
+        {tOrDefault(t, "webapp.qrDrawer.manualInputHint", "在 App 中手动输入以上地址")}
+      </div>
+    </div>
+  );
+}
+
 export interface QrMessageBoxProps {
   apiBase: string;
   isOpen: boolean;
@@ -126,6 +204,8 @@ export function QrMessageBox({
           <>
             <img className="qr-image" src={qrImageUrl} alt={modalTitle} />
             {accessUrl && <div className="qr-url">{accessUrl}</div>}
+            <div className="qr-divider" />
+            <ManualInputSection apiBase={apiBase} />
           </>
         )}
       </div>
