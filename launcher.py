@@ -43,7 +43,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Dict
 from multiprocessing import Process, freeze_support, Event
-from config import APP_NAME, MAIN_SERVER_PORT, MEMORY_SERVER_PORT, TOOL_SERVER_PORT, FRP_BIND_PORT, FRP_PROXY_PORT, FRP_TOKEN
+from config import APP_NAME, MAIN_SERVER_PORT, MEMORY_SERVER_PORT, TOOL_SERVER_PORT, LAN_PROXY_PORT, FRP_BIND_PORT, FRP_PROXY_PORT, FRP_TOKEN
 from utils.port_utils import (
     probe_neko_health,
     acquire_startup_lock,
@@ -81,6 +81,7 @@ MODULE_TO_PORT_KEY: dict[str, str] = {
     "memory_server": "MEMORY_SERVER_PORT",
     "agent_server": "TOOL_SERVER_PORT",
     "main_server": "MAIN_SERVER_PORT",
+    "lan_proxy": "LAN_PROXY_PORT",
 }
 
 
@@ -254,6 +255,13 @@ SERVERS = [
         'process': None,
         'ready_event': None,
     },
+    {
+        'name': 'LAN Proxy',
+        'module': 'lan_proxy',
+        'port': LAN_PROXY_PORT,
+        'process': None,
+        'ready_event': None,
+    },
 ]
 
 # 不再启动主程序，用户自己启动 lanlan_frd.exe
@@ -380,6 +388,7 @@ def run_main_server(ready_event: Event):
         print(f"[Main Server] Starting on port {MAIN_SERVER_PORT}")
         
         # 直接运行 FastAPI app，不依赖 main_server 的 __main__ 块
+        # host="127.0.0.1" 仅本地访问，P2P 连接通过 lan_proxy 转发
         config = uvicorn.Config(
             app=main_server.app,
             host="127.0.0.1",
@@ -416,16 +425,66 @@ def run_main_server(ready_event: Event):
         import traceback
         traceback.print_exc()
 
-def check_port(port: int, timeout: float = 0.5) -> bool:
+def run_lan_proxy(ready_event: Event):
+    """运行 LAN Proxy"""
+    try:
+        # 确保工作目录正确
+        if getattr(sys, 'frozen', False):
+            if hasattr(sys, '_MEIPASS'):
+                os.chdir(sys._MEIPASS)
+            else:
+                os.chdir(os.path.dirname(os.path.abspath(__file__)))
+            # 禁用 typeguard
+            try:
+                import typeguard
+                def dummy_typechecked(func=None, **kwargs):
+                    return func if func else (lambda f: f)
+                typeguard.typechecked = dummy_typechecked
+                if hasattr(typeguard, '_decorators'):
+                    typeguard._decorators.typechecked = dummy_typechecked
+            except: # noqa
+                pass
+
+        import lan_proxy
+        import asyncio
+
+        print(f"[LAN Proxy] Starting on port {LAN_PROXY_PORT}")
+
+        # 直接运行，使用 ready_event 通知父进程
+        # v2: ready_event 作为 start_event 传入，stop_event 为 None（通过进程终止停止）
+        asyncio.run(lan_proxy.run_lan_proxy(stop_event=None, start_event=ready_event))
+    except Exception as e:
+        print(f"LAN Proxy error: {e}")
+        import traceback
+        traceback.print_exc()
+
+def check_port(port: int, timeout: float = 0.5, host: str = '127.0.0.1') -> bool:
     """检查端口是否已开放"""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
-        result = sock.connect_ex(('127.0.0.1', port))
+        result = sock.connect_ex((host, port))
         sock.close()
         return result == 0
     except: # noqa
         return False
+
+
+def get_lan_ip() -> str:
+    """获取局域网IP（用于LAN Proxy检查）"""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(2)
+            try:
+                s.connect(("8.8.8.8", 80))
+                ip = s.getsockname()[0]
+                if ip.startswith(('10.', '172.', '192.168.')):
+                    return ip
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return "127.0.0.1"
 
 
 def get_port_owners(port: int) -> list[int]:
@@ -744,11 +803,22 @@ def start_server(server: Dict) -> bool:
             server['ready_event'].set()  # Mark as ready immediately
             return True
 
-        if isinstance(port, int) and check_port(port):
-            owner_pids = get_port_owners(port)
-            owner_suffix = f", owner_pids={owner_pids}" if owner_pids else ""
-            report_startup_failure(f"Start failed: {server['name']} port {port} already in use{owner_suffix}")
-            return False
+        # 检查端口是否已被占用
+        if isinstance(port, int):
+            # LAN Proxy 特殊处理：检查 LAN IP 上的端口
+            if server['module'] == 'lan_proxy':
+                lan_ip = get_lan_ip()
+                if check_port(port, host=lan_ip):
+                    owner_pids = get_port_owners(port)
+                    owner_suffix = f", owner_pids={owner_pids}" if owner_pids else ""
+                    report_startup_failure(f"Start failed: {server['name']} port {lan_ip}:{port} already in use{owner_suffix}")
+                    return False
+            else:
+                if check_port(port):
+                    owner_pids = get_port_owners(port)
+                    owner_suffix = f", owner_pids={owner_pids}" if owner_pids else ""
+                    report_startup_failure(f"Start failed: {server['name']} port {port} already in use{owner_suffix}")
+                    return False
 
         # 根据模块名选择启动函数
         if server['module'] == 'memory_server':
@@ -757,18 +827,20 @@ def start_server(server: Dict) -> bool:
             target_func = run_agent_server
         elif server['module'] == 'main_server':
             target_func = run_main_server
+        elif server['module'] == 'lan_proxy':
+            target_func = run_lan_proxy
         else:
             report_startup_failure(f"Start failed: {server['name']} has unknown module")
             return False
-        
+
         # 创建进程间同步事件
         server['ready_event'] = Event()
-        
+
         # 使用 multiprocessing 启动服务器
         # 注意：不能设置 daemon=True，因为 main_server 自己会创建子进程
         server['process'] = Process(target=target_func, args=(server['ready_event'],), daemon=False)
         server['process'].start()
-        
+
         print(f"✓ {server['name']} 已启动 (PID: {server['process'].pid})", flush=True)
         return True
     except Exception as e:
@@ -778,22 +850,31 @@ def start_server(server: Dict) -> bool:
 def wait_for_servers(timeout: int = 60) -> bool:
     """等待所有服务器启动完成"""
     print("\n等待服务器准备就绪...", flush=True)
-    
+
     # 启动动画线程
     stop_spinner = threading.Event()
     spinner_thread = threading.Thread(target=show_spinner, args=(stop_spinner, "检查服务器状态"))
     spinner_thread.daemon = True
     spinner_thread.start()
-    
+
     start_time = time.time()
     all_ready = False
-    
+    lan_ip = None
+
     # 第一步：等待所有端口就绪
     while time.time() - start_time < timeout:
         # 若某个子进程提前退出，立即报错而不是等到超时
         for server in SERVERS:
             proc = server.get('process')
-            if proc is not None and not proc.is_alive() and not check_port(server['port']):
+            # LAN Proxy 特殊处理：检查 LAN IP 上的端口
+            if server['module'] == 'lan_proxy':
+                if lan_ip is None:
+                    lan_ip = get_lan_ip()
+                port_ready = check_port(server['port'], host=lan_ip)
+            else:
+                port_ready = check_port(server['port'])
+
+            if proc is not None and not proc.is_alive() and not port_ready:
                 report_startup_failure(
                     f"Startup failed: {server['name']} exited early (exitcode={proc.exitcode})"
                 )
@@ -803,14 +884,21 @@ def wait_for_servers(timeout: int = 60) -> bool:
 
         ready_count = 0
         for server in SERVERS:
-            if check_port(server['port']):
-                ready_count += 1
-        
+            # LAN Proxy 特殊处理：检查 LAN IP 上的端口
+            if server['module'] == 'lan_proxy':
+                if lan_ip is None:
+                    lan_ip = get_lan_ip()
+                if check_port(server['port'], host=lan_ip):
+                    ready_count += 1
+            else:
+                if check_port(server['port']):
+                    ready_count += 1
+
         if ready_count == len(SERVERS):
             break
-        
+
         time.sleep(0.5)
-    
+
     # 第二步：等待所有服务器的 ready_event（同步初始化完成）
     if ready_count == len(SERVERS):
         for server in SERVERS:
@@ -824,11 +912,11 @@ def wait_for_servers(timeout: int = 60) -> bool:
         else:
             # 所有服务器都就绪了
             all_ready = True
-    
+
     # 停止动画
     stop_spinner.set()
     spinner_thread.join()
-    
+
     if all_ready:
         print("\n", flush=True)
         print("=" * 60, flush=True)
@@ -847,8 +935,15 @@ def wait_for_servers(timeout: int = 60) -> bool:
         for server in SERVERS:
             if not server['ready_event'].is_set():
                 print(f"  - {server['name']} 初始化未完成", flush=True)
-            elif not check_port(server['port']):
-                print(f"  - {server['name']} 端口 {server['port']} 未就绪", flush=True)
+            else:
+                # LAN Proxy 特殊处理
+                if server['module'] == 'lan_proxy':
+                    if lan_ip is None:
+                        lan_ip = get_lan_ip()
+                    if not check_port(server['port'], host=lan_ip):
+                        print(f"  - {server['name']} 端口 {lan_ip}:{server['port']} 未就绪", flush=True)
+                elif not check_port(server['port']):
+                    print(f"  - {server['name']} 端口 {server['port']} 未就绪", flush=True)
         return False
 
 

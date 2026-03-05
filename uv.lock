@@ -1453,6 +1453,7 @@ name = "n-e-k-o"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "anthropic" },
     { name = "backoff" },
     { name = "beautifulsoup4" },
@@ -1503,6 +1504,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.9.0" },
     { name = "anthropic" },
     { name = "backoff" },
     { name = "beautifulsoup4", specifier = ">=4.12.0" },

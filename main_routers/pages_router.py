@@ -20,6 +20,88 @@ from .shared_state import get_config_manager, get_templates
 router = APIRouter(tags=["pages"])
 
 
+@router.get("/api/lan-proxy/info")
+async def get_lan_proxy_info():
+    """Return LAN proxy connection info (IP, port, token, character) for P2P connection."""
+    try:
+        from lan_proxy import get_proxy_info_from_file
+        info = get_proxy_info_from_file()
+        if info:
+            return {
+                "enabled": True,
+                "lan_ip": info.get("lan_ip"),
+                "port": info.get("port"),
+                "token": info.get("token"),
+                "character": info.get("character") or _get_default_character_name(),
+            }
+        return {
+            "enabled": False,
+            "message": "LAN proxy not running",
+        }
+    except Exception as e:
+        return {
+            "enabled": False,
+            "message": f"LAN proxy error: {e}",
+        }
+
+
+@router.get("/lanproxyqrcode")
+async def get_lan_proxy_qrcode():
+    """Return QR code image for P2P LAN proxy connection."""
+    try:
+        import qrcode
+    except Exception:
+        return JSONResponse(
+            {
+                "message": "QR code dependency not installed. Run `uv sync` or `pip install qrcode`.",
+            },
+            status_code=200,
+        )
+
+    try:
+        from lan_proxy import get_proxy_info_from_file
+        info = get_proxy_info_from_file()
+        if not info:
+            return JSONResponse(
+                {
+                    "message": "LAN proxy not running. Please start the server first.",
+                },
+                status_code=200,
+            )
+
+        lan_ip = info.get("lan_ip")
+        port = info.get("port")
+        token = info.get("token")
+
+        if not lan_ip or not token:
+            return JSONResponse(
+                {
+                    "message": "LAN proxy info incomplete. Please restart the server.",
+                },
+                status_code=200,
+            )
+
+        # Create P2P connection data (same format as lan_proxy QR)
+        import json
+        # 获取当前角色名
+        character = _get_default_character_name()
+        qr_data = json.dumps({"lan_ip": lan_ip, "port": port, "token": token, "character": character}, separators=(',', ':'))
+
+        # Generate QR code
+        img = qrcode.make(qr_data)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        headers = {
+            "X-Lan-Ip": lan_ip,
+            "X-Port": str(port),
+            "X-Token": token,
+            "Cache-Control": "no-store",
+        }
+        return Response(content=buf.getvalue(), media_type="image/png", headers=headers)
+    except Exception as e:
+        return JSONResponse({"message": f"QR code generation failed: {e}"}, status_code=200)
+
+
 def _get_lan_ip() -> Optional[str]:
     """Best-effort LAN IP discovery (non-loopback IPv4)."""
     try:

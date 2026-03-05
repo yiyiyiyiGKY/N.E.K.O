@@ -118,6 +118,7 @@ TOOL_SERVER_PORT = _read_port_env("TOOL_SERVER_PORT", 48915)
 USER_PLUGIN_SERVER_PORT = _read_port_env("USER_PLUGIN_SERVER_PORT", 48916)
 AGENT_MQ_PORT = _read_port_env("AGENT_MQ_PORT", 48917)
 MAIN_AGENT_EVENT_PORT = _read_port_env("MAIN_AGENT_EVENT_PORT", 48918)
+LAN_PROXY_PORT = _read_port_env("LAN_PROXY_PORT", 48920)  # P2P LAN代理端口
 
 # 实例 ID：同一次启动的所有服务共享。
 # launcher 会在拉起子进程前写入 NEKO_INSTANCE_ID 环境变量。
@@ -621,6 +622,7 @@ __all__ = [
     'USER_PLUGIN_SERVER_PORT',
     'AGENT_MQ_PORT',
     'MAIN_AGENT_EVENT_PORT',
+    'LAN_PROXY_PORT',
     'INSTANCE_ID',
     'FRP_BIND_PORT',
     'FRP_PROXY_PORT',
