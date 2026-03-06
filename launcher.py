@@ -63,6 +63,8 @@ JOB_HANDLE = None
 _cleanup_lock = threading.Lock()
 _cleanup_done = False
 _existing_neko_services: set[str] = set()  # 已有 N.E.K.O 实例占用的端口键
+_last_status_file_warn: float = 0.0  # get_lan_ip 状态文件告警限流时间戳
+_STATUS_FILE_WARN_INTERVAL = 30.0   # 同一错误最多每 30 秒告警一次
 DEFAULT_PORTS = {
     "MAIN_SERVER_PORT": MAIN_SERVER_PORT,
     "MEMORY_SERVER_PORT": MEMORY_SERVER_PORT,
@@ -491,7 +493,13 @@ def get_lan_ip() -> str:
                     except (OSError, ValueError, IndexError) as e:
                         _log.debug("[get_lan_ip] status file IP validation failed for %r: %s", ip, e)
     except (OSError, json.JSONDecodeError, ValueError) as e:
-        _log.warning("[get_lan_ip] failed to read/parse status file: %s", e)
+        global _last_status_file_warn
+        now = time.time()
+        if now - _last_status_file_warn > _STATUS_FILE_WARN_INTERVAL:
+            _log.warning("[get_lan_ip] failed to read/parse status file: %s", e)
+            _last_status_file_warn = now
+        else:
+            _log.debug("[get_lan_ip] failed to read/parse status file (suppressed): %s", e)
     # 备选：UDP socket
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
