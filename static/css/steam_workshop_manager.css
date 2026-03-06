@@ -822,8 +822,8 @@ display: none;
 }
 
 /* Live2D预览占位符文字样式 */
-.preview-placeholder {
-color: #fff !important;
+#live2d-preview-container .preview-placeholder {
+color: #fff;
 font-size: 200%;
 }
 
@@ -835,10 +835,15 @@ font-size: 1em;
 /* Live2D预览容器：占据大部分空间 */
 #live2d-preview-container {
 flex: 3;
-height: auto !important;
-border: none !important;
-border-radius: 0 !important;
+width: 100%;
+height: auto;
+border: none;
+border-radius: 0;
+overflow: hidden;
 background-color: transparent;
+display: flex;
+flex-direction: column;
+position: relative;
 min-height: 400px;
 }
 
@@ -1123,6 +1128,103 @@ height: 16px;
 object-fit: contain;
 }
 
+/* 创意工坊页面：黑夜模式下保持白天按钮样式（覆盖 dark-mode.css 通用 .btn 规则） */
+.layout-container .btn {
+background: #0078d4;
+color: white;
+}
+
+.layout-container .btn:hover:not(:disabled) {
+transform: translateY(-1px);
+box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.layout-container .btn:active:not(:disabled) {
+transform: translateY(0);
+}
+
+.layout-container .btn:disabled {
+background: #e0e0e0;
+cursor: not-allowed;
+opacity: 0.7;
+}
+
+.layout-container .btn-primary {
+background-color: #0078d4;
+color: white;
+}
+
+.layout-container .btn-primary:hover:not(:disabled) {
+background-color: #005a9e;
+}
+
+.layout-container .btn-secondary {
+background: #d5f1ff;
+color: #333;
+}
+
+.layout-container .btn-secondary:hover:not(:disabled) {
+background: #b8e5ff;
+color: #333;
+}
+
+.layout-container .btn-success {
+background: #44b7fe;
+}
+
+.layout-container .btn-success:hover:not(:disabled) {
+background: #2662c8;
+}
+
+.layout-container .btn-danger {
+background: #ff6b6b;
+}
+
+.layout-container .btn-danger:hover:not(:disabled) {
+background: #ff4757;
+}
+
+.layout-container .btn.delete {
+background: #ff6b6b;
+}
+
+.layout-container .btn.delete:hover:not(:disabled) {
+background: #ff4757;
+}
+
+.layout-container .btn.secondary {
+background: #d5f1ff;
+color: #333;
+}
+
+.layout-container .btn.secondary:hover:not(:disabled) {
+background: #b8e5ff;
+color: #333;
+}
+
+/* 创意工坊页面：黑夜模式下图标/图片保持原样（覆盖 dark-mode.css 全局 filter 规则） */
+body .layout-container .btn img,
+body .layout-container button img,
+body .layout-container .search-icon,
+body .layout-container .refresh-icon,
+body .layout-container .select-arrow-icon,
+body .layout-container .cover-image-stack img,
+body .layout-container .card-info-paw,
+body .layout-container .description-paw,
+body .layout-container .tags-paw,
+body .layout-container .card-info-logo,
+body .layout-container .tag-locked-icon,
+body .layout-container .drop-icon,
+body #sidebar img,
+body #sidebar .menu-section img {
+filter: none;
+}
+
+/* Live2D预览控制区域：黑夜模式下保持白色背景 */
+#live2d-preview-controls {
+background-color: #fff;
+}
+
 .action-group {
 display: flex;
 gap: 10px;
@@ -1316,11 +1418,11 @@ margin-bottom: 5px;
 
 #sidebar .btn-secondary {
 margin-bottom: 2px;
-color: #17A7FF !important;
+color: #17A7FF;
 }
 
 #sidebar .btn-secondary:hover:not(:disabled) {
-color: #17A7FF !important;
+color: #17A7FF;
 }
 
 .menu-section {
@@ -2326,13 +2428,13 @@ border-radius: 50px;
 flex-shrink: 0;
 }
 
-.pagination-btn-wrapper .btn {
+.layout-container .pagination-btn-wrapper .btn {
 min-width: 80px;
 padding: 8px 16px;
-background: #17A7FF !important;
+background: #17A7FF;
 border: none;
 border-radius: 50px;
-color: white !important;
+color: white;
 font-size: 14px;
 font-weight: 700;
 letter-spacing: 1px;
@@ -2343,12 +2445,12 @@ white-space: nowrap;
 text-align: center;
 }
 
-.pagination-btn-wrapper .btn:hover:not(:disabled) {
+.layout-container .pagination-btn-wrapper .btn:hover:not(:disabled) {
 filter: brightness(1.05);
 }
 
-.pagination-btn-wrapper .btn:disabled {
-background: #17A7FF !important;
+.layout-container .pagination-btn-wrapper .btn:disabled {
+background: #17A7FF;
 cursor: not-allowed;
 opacity: 1;
 }
@@ -2439,6 +2541,7 @@ outline: none;
 outline: none;
 }
         
+/* !important 用于覆盖 JS 内联 style="display: none" */
 .modal[style*="display: flex"], .modal.show {
 display: flex !important;
 }
@@ -2453,18 +2556,18 @@ overflow: hidden;
 display: flex;
 flex-direction: column;
 animation: modalFadeIn 0.3s ease-out;
-outline: none !important;
-border: none !important;
-box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+outline: none;
+border: none;
+box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
-        
+
 .modal-content:focus {
-outline: none !important;
-box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+outline: none;
+box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
-        
+
 .modal-content:focus-visible {
-outline: none !important;
+outline: none;
 }
 
 @keyframes modalFadeIn {
@@ -2808,14 +2911,14 @@ margin-bottom: 15px;
 justify-content: space-between;
 }
 
-.tab {
+#sidebar .tab {
 padding: 10px 20px;
 border: none;
 background: #E9F9FF;
 cursor: pointer;
 font-size: 18px;
 font-weight: 500;
-color: #18A7FF !important;
+color: #18A7FF;
 border-radius: 999px;
 transition: all 0.3s ease;
 text-align: center;
@@ -2868,14 +2971,14 @@ padding: 10px 20px;
 justify-content: space-between;
 }
 
-.tab:hover {
+#sidebar .tab:hover {
 background: #D4F4FF;
-color: #18A7FF !important;
+color: #18A7FF;
 }
 
-.tab.active {
+#sidebar .tab.active {
 background: linear-gradient(to right, #4BD4FF, #18A7FF);
-color: white !important;
+color: white;
 font-weight: 600;
 border: 1px solid #18A7FF;
 }
@@ -3047,10 +3150,10 @@ margin-top: 10px;
 #character-cards-content .btn-chara-manager-wrapper .btn {
     min-width: 80px;
     padding: 8px 16px;
-    background: #17A7FF !important;
+    background: #17A7FF;
     border: none;
     border-radius: 50px;
-    color: white !important;
+    color: white;
     font-size: 14px;
     font-weight: 700;
     letter-spacing: 1px;
@@ -3079,10 +3182,10 @@ margin-top: 10px;
 #live2d-preview-controls .btn-play-wrapper .btn {
     min-width: 104px;
     padding: 8px 18px;
-    background: #17A7FF !important;
+    background: #17A7FF;
     border: none;
     border-radius: 50px;
-    color: white !important;
+    color: white;
     font-size: 17px;
     font-weight: 700;
     letter-spacing: 1px;
@@ -3098,7 +3201,7 @@ margin-top: 10px;
 }
 
 #live2d-preview-controls .btn-play-wrapper .btn:disabled {
-    background: #17A7FF !important;
+    background: #17A7FF;
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -3107,10 +3210,10 @@ margin-top: 10px;
 #live2d-preview-controls .btn {
     min-width: 104px;
     padding: 8px 18px;
-    background: #17A7FF !important;
+    background: #17A7FF;
     border: none;
     border-radius: 50px;
-    color: white !important;
+    color: white;
     font-size: 17px;
     font-weight: 700;
     letter-spacing: 1px;
@@ -3126,7 +3229,7 @@ margin-top: 10px;
 }
 
 #live2d-preview-controls .btn:disabled {
-    background: #17A7FF !important;
+    background: #17A7FF;
     cursor: not-allowed;
     opacity: 0.6;
 }

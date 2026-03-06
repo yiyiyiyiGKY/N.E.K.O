@@ -1,9 +1,3 @@
-// 统一的暗色模式检测辅助函数
-function getIsDarkTheme() {
-    return (window.nekoTheme && typeof window.nekoTheme.isDark === 'function' && window.nekoTheme.isDark()) ||
-        document.documentElement.getAttribute('data-theme') === 'dark';
-}
-
 // 角色保留字段配置（优先从后端集中配置加载；失败时使用前端兜底）
 // 共用工具由 reserved_fields_utils.js 提供（ReservedFieldsUtils）
 let characterReservedFieldsConfig = ReservedFieldsUtils.emptyConfig();
@@ -956,11 +950,6 @@ function showConfirmModal(message, confirmCallback, cancelCallback = null) {
     modalContainer.appendChild(modalContent);
     modalOverlay.appendChild(modalContainer);
 
-    const isDark = getIsDarkTheme();
-    if (isDark) {
-        modalContent.classList.add('dark-theme');
-    }
-
     // 添加到页面
     document.body.appendChild(modalOverlay);
 
@@ -1003,8 +992,8 @@ function showConfirmModal(message, confirmCallback, cancelCallback = null) {
             }
             
             .confirm-modal-content.dark-theme {
-                background-color: #333;
-                color: #e0e0e0;
+                background-color: white;
+                color: #333;
             }
 
             .confirm-modal-message {
@@ -1094,16 +1083,9 @@ function showMessage(message, type = 'info', duration = 3000) {
     messageElement.style.position = 'relative';
     messageElement.style.zIndex = '1000';
 
-    // 为不同类型设置背景色（区分暗色模式）
-    const isDark = getIsDarkTheme();
-    const bgColors = isDark
-        ? { error: 'rgba(198,40,40,0.2)', warning: 'rgba(255,143,0,0.15)', success: 'rgba(46,125,50,0.2)', info: 'rgba(58,159,216,0.15)' }
-        : { error: '#ffebee', warning: '#fff8e1', success: '#e8f5e9', info: '#e3f2fd' };
-    messageElement.style.backgroundColor = bgColors[type] || (isDark ? '#333' : '#f5f5f5');
-    if (isDark) {
-        const textColors = { error: '#ef9a9a', warning: '#ffd54f', success: '#81c784', info: '#64b5f6' };
-        messageElement.style.color = textColors[type] || '#e0e0e0';
-    }
+    // 为不同类型设置背景色（统一使用白天样式）
+    const bgColors = { error: '#ffebee', warning: '#fff8e1', success: '#e8f5e9', info: '#e3f2fd' };
+    messageElement.style.backgroundColor = bgColors[type] || '#f5f5f5';
 
     // 设置消息显示动画
     setTimeout(() => {
@@ -1180,14 +1162,13 @@ function showToast(message, duration = 3000) {
     const messageElement = document.createElement('div');
     // 使用 textContent 避免 HTML 注入风险 (resolved duplicate innerHTML comment review safely)
     messageElement.textContent = message;
-    const isDark = getIsDarkTheme();
     messageElement.style.cssText = `
         padding: 15px 20px;
         margin-bottom: 10px;
-        background: ${isDark ? 'rgba(46, 125, 50, 0.25)' : '#e8f5e9'};
-        color: ${isDark ? '#81c784' : '#2e7d32'};
+        background: #e8f5e9;
+        color: #2e7d32;
         border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,${isDark ? '0.3' : '0.15'});
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         font-weight: bold;
         opacity: 0;
         transform: translateY(-10px);
@@ -1220,14 +1201,13 @@ function LoadingManager() {
             if (loadingCount.value === 1) {
                 const loadingOverlay = document.createElement('div');
                 loadingOverlay.id = 'loading-overlay';
-                const isDark = getIsDarkTheme();
                 loadingOverlay.style.cssText = `
                     position: fixed;
                     top: 0;
                     left: 0;
                     width: 100%;
                     height: 100%;
-                    background: ${isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.8)'};
+                    background: rgba(255, 255, 255, 0.8);
                     display: flex;
                     flex-direction: column;
                     align-items: center;
@@ -1238,8 +1218,8 @@ function LoadingManager() {
 
                 const loadingSpinner = document.createElement('div');
                 loadingSpinner.style.cssText = `
-                    border: 4px solid ${isDark ? '#444' : '#f3f3f3'};
-                    border-top: 4px solid ${isDark ? '#3a9fd8' : '#3498db'};
+                    border: 4px solid #f3f3f3;
+                    border-top: 4px solid #3498db;
                     border-radius: 50%;
                     width: 40px;
                     height: 40px;
@@ -1250,7 +1230,7 @@ function LoadingManager() {
                 const loadingText = document.createElement('div');
                 loadingText.textContent = message;
                 loadingText.style.fontSize = '16px';
-                loadingText.style.color = isDark ? '#e0e0e0' : '#333';
+                loadingText.style.color = '#333';
 
                 // 添加CSS动画
                 let style = document.getElementById('loading-overlay-style');
@@ -2838,11 +2818,10 @@ function showWorkshopSnapshot() {
     const tagsContainer = document.getElementById('snapshot-tags-container');
     tagsContainer.innerHTML = '';
     if (snapshot.tags && snapshot.tags.length > 0) {
-        const isDark = getIsDarkTheme();
         snapshot.tags.forEach(tag => {
             const tagEl = document.createElement('span');
             tagEl.className = 'tag';
-            tagEl.style.cssText = `background-color: ${isDark ? '#3a3a3a' : '#e0e0e0'}; color: ${isDark ? '#e0e0e0' : 'inherit'}; padding: 4px 8px; border-radius: 4px; font-size: 12px;`;
+            tagEl.style.cssText = `background-color: #e0e0e0; color: inherit; padding: 4px 8px; border-radius: 4px; font-size: 12px;`;
             tagEl.textContent = tag;
             tagsContainer.appendChild(tagEl);
         });
@@ -3753,18 +3732,16 @@ function updateCardPreview() {
     const container = document.getElementById('card-info-dynamic-content');
     if (!container) return;
 
-    const isDark = getIsDarkTheme();
-
     // 从已加载的角色卡列表中获取当前角色卡数据
     if (!currentCharacterCardId || !window.characterCards) {
-        container.innerHTML = `<p style="color: ${isDark ? '#888' : '#999'}; text-align: center;">` +
+        container.innerHTML = `<p style="color: #999; text-align: center;">` +
             (window.t ? window.t('steam.selectCharacterCard') : '请选择一个角色卡') + '</p>';
         return;
     }
 
     const currentCard = window.characterCards.find(card => card.id === currentCharacterCardId);
     if (!currentCard) {
-        container.innerHTML = `<p style="color: ${isDark ? '#888' : '#999'}; text-align: center;">` +
+        container.innerHTML = `<p style="color: #999; text-align: center;">` +
             (window.t ? window.t('steam.characterCardNotFound') : '找不到角色卡数据') + '</p>';
         return;
     }
@@ -3789,7 +3766,7 @@ function updateCardPreview() {
 
         // 创建属性行
         const row = document.createElement('div');
-        row.style.cssText = `color: ${isDark ? '#e0e0e0' : '#000'}; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1.5px solid ${isDark ? 'rgba(64, 197, 241, 0.5)' : '#d5efff'}; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%;`;
+        row.style.cssText = `color: #000; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1.5px solid #d5efff; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%;`;
 
         // 格式化值
         let displayValue = '';
@@ -3814,7 +3791,7 @@ function updateCardPreview() {
 
     // 如果没有任何属性显示，显示提示
     if (container.children.length === 0) {
-        container.innerHTML = `<p style="color: ${isDark ? '#888' : '#999'}; text-align: center;">` +
+        container.innerHTML = `<p style="color: #999; text-align: center;">` +
             (window.t ? window.t('steam.noCardProperties') : '暂无属性信息') + '</p>';
     }
 }
@@ -4347,7 +4324,7 @@ function selectPreviewImage() {
             } else {
                 // 文件大小符合要求，将提示文字恢复为默认色
                 if (hintElement) {
-                    hintElement.style.color = getIsDarkTheme() ? '#b0b0b0' : '#333';
+                    hintElement.style.color = '#333';
                 }
             }
 
