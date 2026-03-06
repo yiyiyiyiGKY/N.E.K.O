@@ -2045,7 +2045,7 @@ function viewItemDetails(itemId) {
             const authorInitial = escapeHtml(String(formattedItem.rawAuthor).substring(0, 2).toUpperCase());
 
             // 更新模态框内容
-            document.getElementById('modalTitle').textContent = formattedItem.rawName;
+            document.getElementById('modalTitle').textContent = formattedItem.name;
 
             const detailContent = document.getElementById('itemDetailContent');
             detailContent.innerHTML = `
@@ -2450,16 +2450,14 @@ window.addEventListener('load', function () {
     autoScanAndAddWorkshopCharacterCards();
 
     // 监听语言变化事件，刷新当前页面显示
-    if (window.i18n) {
-        window.i18n.on('languageChanged', () => {
-            loadSubscriptions();
-            syncTitleDataText();
-        });
-    }
-    window.addEventListener('localechange', () => {
+    function updateLocaleDependent() {
         loadSubscriptions();
         syncTitleDataText();
-    });
+    }
+    if (window.i18n) {
+        window.i18n.on('languageChanged', updateLocaleDependent);
+    }
+    window.addEventListener('localechange', updateLocaleDependent);
 
 });
 
