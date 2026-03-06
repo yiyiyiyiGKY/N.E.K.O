@@ -1083,9 +1083,11 @@ function showMessage(message, type = 'info', duration = 3000) {
     messageElement.style.position = 'relative';
     messageElement.style.zIndex = '1000';
 
-    // 为不同类型设置背景色（统一使用白天样式）
+    // 为不同类型设置背景色和前景色
     const bgColors = { error: '#ffebee', warning: '#fff8e1', success: '#e8f5e9', info: '#e3f2fd' };
+    const fgColors = { error: '#c62828', warning: '#e65100', success: '#2e7d32', info: '#1565c0' };
     messageElement.style.backgroundColor = bgColors[type] || '#f5f5f5';
+    messageElement.style.color = fgColors[type] || '#333';
 
     // 设置消息显示动画
     setTimeout(() => {
@@ -3911,7 +3913,7 @@ async function initLive2DPreview() {
 
             // 取较小值确保完整显示
             let defaultScale = Math.min(scaleX, scaleY);
-            defaultScale = Math.max(0.01, Math.min(defaultScale, 0.5));
+            defaultScale = Math.max(0.01, Math.min(defaultScale, 1.0));
 
             model.scale.set(defaultScale);
 

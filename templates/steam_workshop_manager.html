@@ -17,7 +17,7 @@
 <body>
     <!-- 页面标题栏 - 支持拖动窗口 -->
     <div class="page-title-bar">
-        <h2 data-i18n="steam.workshopManager" data-text="Steam 创意工坊管理";>Steam 创意工坊管理 - Project N.E.K.O.</h2>
+        <h2 data-i18n="steam.workshopManager" data-text="Steam 创意工坊管理">Steam 创意工坊管理 - Project N.E.K.O.</h2>
         <button class="close-btn" onclick="window.close(); window.history.back();" data-i18n-title="common.close" title="关闭">
             <img src="/static/icons/close_button.png" data-i18n-alt="common.close">
         </button>
@@ -55,9 +55,9 @@
 <div id="character-card-cover" class="character-card-cover">
 <!-- 三张图片组合模块 -->
 <div class="cover-image-stack">
-<img class="cover-bg-bottom" src="/static/icons/sidebar_logo2.png" alt="背景底层">
-<img id="character-card-cover-img" src="/static/icons/default_character_card.png" alt="角色卡封面">
-<img class="cover-bg-top" src="/static/icons/sidebar_logo1.png" alt="背景顶层">
+<img class="cover-bg-bottom" src="/static/icons/sidebar_logo2.png" alt="背景底层" data-i18n-alt="steam.coverBgBottom">
+<img id="character-card-cover-img" src="/static/icons/default_character_card.png" alt="角色卡封面" data-i18n-alt="steam.characterCardCover">
+<img class="cover-bg-top" src="/static/icons/sidebar_logo1.png" alt="背景顶层" data-i18n-alt="steam.coverBgTop">
 </div>
 <div id="character-card-cover-placeholder" class="cover-placeholder">
 <p data-i18n="steam.selectCharacterForCover">请选择角色查看封面</p>
@@ -199,7 +199,7 @@
 <div class="character-card-top-row">
 <!-- 左上：角色卡信息 -->
 <div class="character-card-info-section">
-<img src="static/icons/logo_show.png" class="card-info-logo" alt="">
+<img src="/static/icons/logo_show.png" class="card-info-logo" alt="">
 <div class="card-info-header-row">
 
 <!-- 标题区六边形装饰（被clip-path裁剪到可见白色区域） -->
@@ -221,7 +221,7 @@
 <div class="card-info-header-text">
 <svg width="15" height="15" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" stroke="#7EC8E3" stroke-width="2" stroke-linejoin="round" fill="white"/></svg>
 <span data-i18n="steam.cardInfoPreview">角色卡信息</span>
-<img src="static/icons/paw_ui.png" class="card-info-paw" alt="">
+<img src="/static/icons/paw_ui.png" class="card-info-paw" alt="">
 </div>
 </div>
 </div>
@@ -332,7 +332,7 @@
 <div class="description-header-text">
 <svg width="15" height="15" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" stroke="#7EC8E3" stroke-width="2" stroke-linejoin="round" fill="white"/></svg>
 <span data-i18n="steam.characterCardDescription">描述</span>
-<img src="static/icons/paw_ui.png" class="description-paw" alt="">
+<img src="/static/icons/paw_ui.png" class="description-paw" alt="">
 </div>
 </div>
 </div>
@@ -371,14 +371,14 @@
 <div class="character-card-tags-buttons-section">
 <!-- 标签区域 -->
 <div class="character-card-tags-area">
-<img src="static/icons/logo_show.png" class="card-info-logo" alt="">
+<img src="/static/icons/logo_show.png" class="card-info-logo" alt="">
 <!-- 标签区域标题栏 -->
 <div class="tags-header-row">
 <div class="tags-title-area">
 <div class="tags-header-text">
 <svg width="15" height="15" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z" stroke="#7EC8E3" stroke-width="2" stroke-linejoin="round" fill="white"/></svg>
 <span data-i18n="steam.characterCardTags">角色卡标签</span>
-<img src="static/icons/paw_ui.png" class="tags-paw" alt="">
+<img src="/static/icons/paw_ui.png" class="tags-paw" alt="">
 </div>
 </div>
 </div>
@@ -400,7 +400,7 @@
 <div class="character-card-buttons-row">
 <div class="btn-wrapper">
 <button id="upload-to-workshop-btn" class="btn" onclick="handleUploadToWorkshop()" style="display: flex; align-items: center; justify-content: center; gap: 6px;">
-<img src="static/icons/upload_icon.png" style="width: 34px; height: 34px;">
+<img src="/static/icons/upload_icon.png" style="width: 34px; height: 34px;">
 <span id="upload-btn-text" data-i18n="steam.uploadToWorkshop">上传到创意工坊</span>
 </button>
 </div>

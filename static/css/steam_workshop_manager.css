@@ -787,20 +787,17 @@ z-index: 1;
 
 #card-info-dynamic-content {
 padding: 15px;
-word-wrap: break-word;
 overflow-wrap: break-word;
 min-width: 0;
 }
 
 #card-info-dynamic-content > div {
-word-wrap: break-word;
 overflow-wrap: break-word;
 max-width: 100%;
 }
 
 #card-info-dynamic-content strong,
 #card-info-dynamic-content span {
-word-wrap: break-word;
 overflow-wrap: break-word;
 }
 
