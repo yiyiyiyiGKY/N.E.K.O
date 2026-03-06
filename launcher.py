@@ -63,8 +63,8 @@ JOB_HANDLE = None
 _cleanup_lock = threading.Lock()
 _cleanup_done = False
 _existing_neko_services: set[str] = set()  # 已有 N.E.K.O 实例占用的端口键
-_last_status_file_warn: float = 0.0  # get_lan_ip 状态文件告警限流时间戳
-_STATUS_FILE_WARN_INTERVAL = 30.0   # 同一错误最多每 30 秒告警一次
+_last_status_file_warn_by_signature: dict[str, float] = {}  # get_lan_ip 状态文件告警限流（按异常类型）
+_STATUS_FILE_WARN_INTERVAL = 30.0   # 同一异常类型最多每 30 秒告警一次
 DEFAULT_PORTS = {
     "MAIN_SERVER_PORT": MAIN_SERVER_PORT,
     "MEMORY_SERVER_PORT": MEMORY_SERVER_PORT,
@@ -471,6 +471,16 @@ def check_port(port: int, timeout: float = 0.5, host: str = '127.0.0.1') -> bool
         return False
 
 
+def _is_local_interface_ip(ip: str) -> bool:
+    """通过 socket.bind 验证 IP 是否绑定在本机网卡上，防止 .lan_proxy_status.json 过期时返回非本机地址。"""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.bind((ip, 0))
+        return True
+    except OSError:
+        return False
+
+
 def get_lan_ip() -> str:
     """获取局域网IP（用于LAN Proxy检查）"""
     _log = logging.getLogger(__name__)
@@ -486,18 +496,20 @@ def get_lan_ip() -> str:
                         socket.inet_aton(ip)  # IPv4 형식 검증
                         parts = ip.split('.')
                         first, second = int(parts[0]), int(parts[1])
-                        if (first == 10 or
+                        if ((first == 10 or
                                 (first == 172 and 16 <= second <= 31) or
-                                (first == 192 and second == 168)):
+                                (first == 192 and second == 168)) and
+                                _is_local_interface_ip(ip)):
                             return ip
                     except (OSError, ValueError, IndexError) as e:
                         _log.debug("[get_lan_ip] status file IP validation failed for %r: %s", ip, e)
     except (OSError, json.JSONDecodeError, ValueError) as e:
-        global _last_status_file_warn
+        global _last_status_file_warn_by_signature
+        sig = type(e).__name__
         now = time.time()
-        if now - _last_status_file_warn > _STATUS_FILE_WARN_INTERVAL:
+        if now - _last_status_file_warn_by_signature.get(sig, 0.0) > _STATUS_FILE_WARN_INTERVAL:
             _log.warning("[get_lan_ip] failed to read/parse status file: %s", e)
-            _last_status_file_warn = now
+            _last_status_file_warn_by_signature[sig] = now
         else:
             _log.debug("[get_lan_ip] failed to read/parse status file (suppressed): %s", e)
     # 备选：UDP socket
