@@ -115,24 +115,6 @@ elif sys.platform == 'win32':
 
 # 注意：lanlan_frd.exe 不打包进去，应该和 Xiao8.exe 放在同一目录
 
-# FRP 二进制文件
-frp_dir = os.path.join(PROJECT_ROOT, 'vendor', 'frp')
-if sys.platform == 'darwin':
-    frp_arch = 'darwin_arm64' if platform.machine() == 'arm64' else 'darwin_amd64'
-elif sys.platform == 'win32':
-    frp_arch = 'windows_amd64'
-else:
-    frp_arch = 'linux_arm64' if platform.machine() == 'aarch64' else 'linux_amd64'
-frp_platform_dir = os.path.join(frp_dir, frp_arch)
-if os.path.isdir(frp_platform_dir):
-    for frp_file in os.listdir(frp_platform_dir):
-        frp_path = os.path.join(frp_platform_dir, frp_file)
-        if os.path.isfile(frp_path):
-            binaries.append((frp_path, 'frp'))
-            print(f"[Build] Packing FRP binary: {frp_path}")
-else:
-    print(f"[Build] Warning: FRP binaries not found at {frp_platform_dir}, run scripts/download_frp.py first")
-
 # 重要的隐藏导入（只保留实际需要的）
 hiddenimports += [
     # Uvicorn 相关
@@ -200,7 +182,6 @@ hiddenimports += [
     'main_server',
     'memory_server',
     'agent_server',
-    'frp_manager',
     'monitor',
     
     # config 子模块

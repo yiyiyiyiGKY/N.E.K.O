@@ -234,11 +234,6 @@ LAN_PROXY_PORT = _read_port_env("LAN_PROXY_PORT", 48920)  # P2P LAN代理端口
 # 始终返回有效 id。
 INSTANCE_ID = os.getenv("NEKO_INSTANCE_ID") or uuid.uuid4().hex
 
-# FRP 反向代理配置
-FRP_BIND_PORT = _read_port_env("FRP_BIND_PORT", 7000)        # frps 内部绑定端口
-FRP_PROXY_PORT = _read_port_env("FRP_PROXY_PORT", 48920)     # 对外代理端口（手机连这个）
-FRP_TOKEN = os.getenv("NEKO_FRP_TOKEN", "neko-frp-default")  # FRP 认证 token
-
 # MCP Router配置
 MCP_ROUTER_URL = 'http://localhost:3282'
 
@@ -732,9 +727,6 @@ __all__ = [
     'MAIN_AGENT_EVENT_PORT',
     'LAN_PROXY_PORT',
     'INSTANCE_ID',
-    'FRP_BIND_PORT',
-    'FRP_PROXY_PORT',
-    'FRP_TOKEN',
     'MCP_ROUTER_URL',
     'TFLINK_UPLOAD_URL',
     'TFLINK_ALLOWED_HOSTS',
