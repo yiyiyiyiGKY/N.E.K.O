@@ -499,7 +499,10 @@ def get_lan_ip() -> str:
             try:
                 s.connect(("8.8.8.8", 80))
                 ip = s.getsockname()[0]
-                if ip.startswith(('10.', '172.', '192.168.')):
+                parts = ip.split('.', 2)
+                if (ip.startswith('10.') or
+                        (ip.startswith('172.') and 16 <= int(parts[1]) <= 31) or
+                        ip.startswith('192.168.')):
                     return ip
             except OSError as e:
                 _log.debug("[get_lan_ip] UDP probe failed: %s", e)
