@@ -471,6 +471,7 @@ def check_port(port: int, timeout: float = 0.5, host: str = '127.0.0.1') -> bool
 
 def get_lan_ip() -> str:
     """获取局域网IP（用于LAN Proxy检查）"""
+    _log = logging.getLogger(__name__)
     # 优先从 LAN Proxy 状态文件读取（最准确，与实际绑定地址一致）
     try:
         status_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".lan_proxy_status.json")
@@ -487,10 +488,10 @@ def get_lan_ip() -> str:
                                 (first == 172 and 16 <= second <= 31) or
                                 (first == 192 and second == 168)):
                             return ip
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+                    except (OSError, ValueError, IndexError) as e:
+                        _log.debug("[get_lan_ip] status file IP validation failed for %r: %s", ip, e)
+    except (OSError, json.JSONDecodeError, ValueError) as e:
+        _log.warning("[get_lan_ip] failed to read/parse status file: %s", e)
     # 备选：UDP socket
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -500,10 +501,10 @@ def get_lan_ip() -> str:
                 ip = s.getsockname()[0]
                 if ip.startswith(('10.', '172.', '192.168.')):
                     return ip
-            except Exception:
-                pass
-    except Exception:
-        pass
+            except OSError as e:
+                _log.debug("[get_lan_ip] UDP probe failed: %s", e)
+    except OSError as e:
+        _log.warning("[get_lan_ip] failed to create UDP socket: %s", e)
     return "127.0.0.1"
 
 
@@ -856,12 +857,13 @@ def wait_for_servers(timeout: int = 60) -> bool:
 
     # 第一步：等待所有端口就绪
     while time.time() - start_time < timeout:
+        lan_ip = get_lan_ip()
         # 若某个子进程提前退出，立即报错而不是等到超时
         for server in SERVERS:
             proc = server.get('process')
             # LAN Proxy 特殊处理：检查 LAN IP 上的端口（每次迭代重新获取，等待状态文件写入）
             if server['module'] == 'lan_proxy':
-                port_ready = check_port(server['port'], host=get_lan_ip())
+                port_ready = check_port(server['port'], host=lan_ip)
             else:
                 port_ready = check_port(server['port'])
 
@@ -877,7 +879,7 @@ def wait_for_servers(timeout: int = 60) -> bool:
         for server in SERVERS:
             # LAN Proxy 特殊处理：检查 LAN IP 上的端口
             if server['module'] == 'lan_proxy':
-                if check_port(server['port'], host=get_lan_ip()):
+                if check_port(server['port'], host=lan_ip):
                     ready_count += 1
             else:
                 if check_port(server['port']):
