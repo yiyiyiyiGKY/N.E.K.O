@@ -1792,8 +1792,8 @@ function updatePagination() {
     const pagination = document.querySelector('.pagination');
     if (!pagination) return;
 
-    const prevBtn = pagination.querySelector('button:first-child');
-    const nextBtn = pagination.querySelector('button:last-child');
+    const prevBtn = pagination.querySelector('.pagination-btn-wrapper:first-child button');
+    const nextBtn = pagination.querySelector('.pagination-btn-wrapper:last-child button');
     const pageInfo = pagination.querySelector('span');
 
     // 更新页码信息

@@ -221,7 +221,8 @@ min-height: 100vh;
     display: none;
 }
 
-.cover-image-stack #character-card-cover-img[src=""] ~ .cover-placeholder {
+/* 当封面图为空时显示占位符 */
+.character-card-cover:has(#character-card-cover-img[src=""]) .cover-placeholder {
     display: flex;
 }
 
@@ -1144,6 +1145,12 @@ transform: translateY(0);
 background: #e0e0e0;
 cursor: not-allowed;
 opacity: 0.7;
+}
+
+/* 上传到创意工坊按钮禁用时保持原始样式 */
+#upload-to-workshop-btn:disabled {
+background: #0078d4;
+opacity: 1;
 }
 
 .layout-container .btn-primary {
@@ -2449,7 +2456,7 @@ filter: brightness(1.05);
 .layout-container .pagination-btn-wrapper .btn:disabled {
 background: #17A7FF;
 cursor: not-allowed;
-opacity: 1;
+opacity: 0.6;
 }
 
 .pagination span {
