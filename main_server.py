@@ -1074,9 +1074,8 @@ if __name__ == "__main__":
     # 使用 os.path.abspath 输出更清晰的完整路径
     logger.info(f"Serving static files from: {os.path.abspath('static')}")
     logger.info(f"Serving index.html from: {os.path.abspath('templates/index.html')}")
-    logger.info(f"Server mode: {'DEV' if DEV_MODE else 'PROD'}; bind host: {MAIN_SERVER_HOST}; port: {MAIN_SERVER_PORT}")
-    display_host = MAIN_SERVER_HOST if MAIN_SERVER_HOST != "0.0.0.0" else "localhost/your-network-ip"
-    logger.info(f"Access UI at: http://{display_host}:{MAIN_SERVER_PORT}")
+    logger.info(f"Access UI at: http://localhost:{MAIN_SERVER_PORT}")
+    logger.info(f"P2P LAN Proxy available for mobile/LAN access")
     logger.info("-----------------------------")
 
     # 使用统一的速率限制日志过滤器
@@ -1098,7 +1097,7 @@ if __name__ == "__main__":
     # 1) 配置 UVicorn
     config = uvicorn.Config(
         app=app,
-        host="0.0.0.0",  # 监听所有接口，允许局域网访问
+        host="127.0.0.1",  # 仅本地访问，P2P 连接通过 lan_proxy 转发
         port=MAIN_SERVER_PORT,
         log_level="info",
         loop="asyncio",

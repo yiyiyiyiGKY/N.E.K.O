@@ -99,24 +99,6 @@ def _get_env_int(name: str, default: int) -> int:
         return default
 
 
-# --- Runtime mode (dev/prod) ---
-# Supported env switches:
-# - NEKO_DEV_MODE=1 / true
-# - NEKO_DEV=1 / true
-# - NEKO_ENV=dev / development / local
-# - DEBUG=1 / true
-DEV_MODE = (
-    _get_env_bool("NEKO_DEV_MODE", False)
-    or _get_env_bool("NEKO_DEV", False)
-    or (os.environ.get("NEKO_ENV", "").strip().lower() in ("dev", "development", "local"))
-    or _get_env_bool("DEBUG", False)
-)
-
-# Main server bind host:
-# - dev: 0.0.0.0 (方便局域网/容器访问)
-# - prod/default: 127.0.0.1（保持原有安全默认值）
-MAIN_SERVER_HOST = "0.0.0.0" if DEV_MODE else "127.0.0.1"
-
 # 应用程序名称配置
 APP_NAME = "N.E.K.O"
 logger = logging.getLogger(f"{APP_NAME}.{__name__}")
