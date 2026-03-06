@@ -371,6 +371,89 @@ function init_app() {
         );
     }
 
+    /**
+     * 等待 WebSocket 连接就绪（OPEN 状态）。
+     * - 已 OPEN → 立即返回
+     * - CONNECTING → 通过 addEventListener('open') 等待（不覆盖 onopen）
+     * - CLOSED/CLOSING 或 socket 不存在 → 取消排队的自动重连，触发 connectWebSocket() 后等待
+     * @param {number} timeoutMs 超时毫秒数，默认 5000
+     * @returns {Promise<void>}
+     */
+    function ensureWebSocketOpen(timeoutMs = 5000) {
+        return new Promise((resolve, reject) => {
+            // 已 OPEN，直接返回
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                return resolve();
+            }
+
+            let settled = false;
+            let timer = null;
+
+            const settle = (fn, arg) => {
+                if (settled) return;
+                settled = true;
+                if (timer) { clearTimeout(timer); timer = null; }
+                fn(arg);
+            };
+
+            // 超时处理
+            timer = setTimeout(() => {
+                settle(reject, new Error(window.t ? window.t('app.websocketNotConnectedError') : 'WebSocket未连接'));
+            }, timeoutMs);
+
+            // 监听当前或即将创建的 socket 的 open 事件
+            const attachOpenListener = (ws) => {
+                if (!ws || settled) return;
+                if (ws.readyState === WebSocket.OPEN) {
+                    settle(resolve); return;
+                }
+                if (ws.readyState === WebSocket.CONNECTING) {
+                    // 用 addEventListener 而非覆写 onopen，不干扰 connectWebSocket 的 onopen handler
+                    ws.addEventListener('open', () => settle(resolve), { once: true });
+                    ws.addEventListener('error', () => {
+                        // socket 连接失败，等新的 connectWebSocket 重建
+                    }, { once: true });
+                    return;
+                }
+                // CLOSING/CLOSED — 等待新 socket 被创建后重新挂载
+            };
+
+            if (socket && socket.readyState === WebSocket.CONNECTING) {
+                // 乐观路径：直接挂 listener，不触发重连
+                attachOpenListener(socket);
+                // 不 return — 下方轮询兜底：若此 socket 失败被替换，轮询自动挂到新 socket
+            } else {
+                // socket 不存在或已 CLOSED/CLOSING → 触发重建
+                // ★ 先取消排队的自动重连定时器，避免 3 秒后再多建一个重复连接
+                if (autoReconnectTimeoutId) {
+                    clearTimeout(autoReconnectTimeoutId);
+                    autoReconnectTimeoutId = null;
+                }
+                connectWebSocket();
+            }
+
+            // 轮询兜底：追踪 socket 引用，在 socket 被替换后自动重挂 listener
+            // 初始化为 null：确保首次轮询时一定会对当前 socket 调用 attachOpenListener
+            // （若初始化为 socket，connectWebSocket() 刚创建的 socket 会被跳过）
+            let lastAttachedWs = null;
+            const waitForNewSocket = () => {
+                if (settled) return;
+                if (socket) {
+                    if (socket !== lastAttachedWs) {
+                        lastAttachedWs = socket;
+                        attachOpenListener(socket);
+                    }
+                    if (!settled) {
+                        setTimeout(waitForNewSocket, socket.readyState === WebSocket.CONNECTING ? 200 : 50);
+                    }
+                } else {
+                    setTimeout(waitForNewSocket, 50);
+                }
+            };
+            setTimeout(waitForNewSocket, 10);
+        });
+    }
+
     // 建立WebSocket连接
     function connectWebSocket() {
         const currentLanlanName = (window.lanlan_config && window.lanlan_config.lanlan_name)
@@ -689,7 +772,8 @@ function init_app() {
                                         }
                                     });
 
-                                    // 发送start session事件
+                                    // 发送start session事件（确保 WebSocket 已连接）
+                                    await ensureWebSocketOpen();
                                     socket.send(JSON.stringify({
                                         action: 'start_session',
                                         input_type: 'audio'
@@ -704,7 +788,7 @@ function init_app() {
                                             window.sessionTimeoutId = null;
 
                                             // 超时时向后端发送 end_session 消息
-                                            if (socket.readyState === WebSocket.OPEN) {
+                                            if (socket && socket.readyState === WebSocket.OPEN) {
                                                 socket.send(JSON.stringify({
                                                     action: 'end_session'
                                                 }));
@@ -739,8 +823,16 @@ function init_app() {
                                 } catch (error) {
                                     console.error(window.t('console.restartError'), error);
 
+                                    // 清除超时定时器和 Promise 状态（与 mic button catch 对齐）
+                                    if (window.sessionTimeoutId) {
+                                        clearTimeout(window.sessionTimeoutId);
+                                        window.sessionTimeoutId = null;
+                                    }
+                                    sessionStartedResolver = null;
+                                    sessionStartedRejecter = null;
+
                                     // 重启失败时向后端发送 end_session 消息
-                                    if (socket.readyState === WebSocket.OPEN) {
+                                    if (socket && socket.readyState === WebSocket.OPEN) {
                                         socket.send(JSON.stringify({
                                             action: 'end_session'
                                         }));
@@ -825,7 +917,7 @@ function init_app() {
                                 if (t && t.id) window._agentTaskMap.set(t.id, t);
                             });
                             const tasks = Array.from(window._agentTaskMap.values());
-                            if (window.live2dManager && typeof window.AgentHUD.updateAgentTaskHUD === 'function') {
+                            if (window.AgentHUD && typeof window.AgentHUD.updateAgentTaskHUD === 'function') {
                                 window.AgentHUD.updateAgentTaskHUD({
                                     success: true,
                                     tasks,
@@ -850,12 +942,30 @@ function init_app() {
                 } else if (response.type === 'agent_task_update') {
                     try {
                         if (!window._agentTaskMap) window._agentTaskMap = new Map();
+                        if (!window._agentTaskRemoveTimers) window._agentTaskRemoveTimers = new Map();
                         const task = response.task || {};
                         if (task.id) {
                             window._agentTaskMap.set(task.id, task);
+                            if (['completed', 'failed', 'cancelled'].includes(task.status)) {
+                                if (window._agentTaskRemoveTimers.has(task.id)) clearTimeout(window._agentTaskRemoveTimers.get(task.id));
+                                window._agentTaskRemoveTimers.set(task.id, setTimeout(() => {
+                                    const current = window._agentTaskMap.get(task.id);
+                                    if (current && ['completed', 'failed', 'cancelled'].includes(current.status)) {
+                                        window._agentTaskMap.delete(task.id);
+                                    }
+                                    window._agentTaskRemoveTimers.delete(task.id);
+                                    const remaining = Array.from(window._agentTaskMap.values());
+                                    if (window.AgentHUD && typeof window.AgentHUD.updateAgentTaskHUD === 'function') {
+                                        window.AgentHUD.updateAgentTaskHUD({ success: true, tasks: remaining, total_count: remaining.length, running_count: remaining.filter(t => t.status === 'running').length, queued_count: remaining.filter(t => t.status === 'queued').length, completed_count: remaining.filter(t => t.status === 'completed').length, failed_count: remaining.filter(t => t.status === 'failed').length, timestamp: new Date().toISOString() });
+                                    }
+                                }, 8000));
+                            } else if (window._agentTaskRemoveTimers.has(task.id)) {
+                                clearTimeout(window._agentTaskRemoveTimers.get(task.id));
+                                window._agentTaskRemoveTimers.delete(task.id);
+                            }
                         }
                         const tasks = Array.from(window._agentTaskMap.values());
-                        if (window.live2dManager && typeof window.AgentHUD.updateAgentTaskHUD === 'function') {
+                        if (window.AgentHUD && typeof window.AgentHUD.updateAgentTaskHUD === 'function') {
                             window.AgentHUD.updateAgentTaskHUD({
                                 success: true,
                                 tasks,
@@ -3346,50 +3456,36 @@ function init_app() {
                 }
             });
 
-            // 发送start session事件
-            if (socket.readyState === WebSocket.OPEN) {
-                socket.send(JSON.stringify({
-                    action: 'start_session',
-                    input_type: 'audio'
-                }));
+            // 发送start session事件（确保 WebSocket 已连接）
+            await ensureWebSocketOpen();
+            socket.send(JSON.stringify({
+                action: 'start_session',
+                input_type: 'audio'
+            }));
 
-                // 设置超时（15秒，略大于后端12秒以对冲网络延迟）
-                window.sessionTimeoutId = setTimeout(() => {
-                    if (sessionStartedRejecter) {
-                        const rejecter = sessionStartedRejecter;
-                        sessionStartedResolver = null; // 先清除，防止重复触发
-                        sessionStartedRejecter = null; // 同时清理 rejecter
-                        window.sessionTimeoutId = null; // 清除全局定时器ID
-
-                        // 超时时向后端发送 end_session 消息
-                        if (socket.readyState === WebSocket.OPEN) {
-                            socket.send(JSON.stringify({
-                                action: 'end_session'
-                            }));
-                            console.log(window.t('console.sessionTimeoutEndSession'));
-                        }
-
-                        // 更新提示信息，显示超时
-                        showVoicePreparingToast(window.t ? window.t('app.sessionTimeout') || '连接超时' : '连接超时，请检查网络连接');
-                        rejecter(new Error(window.t ? window.t('app.sessionTimeout') : 'Session启动超时'));
-                    } else {
-                        window.sessionTimeoutId = null; // 即使 rejecter 不存在也清除
-                    }
-                }, 15000);
-            } else {
-                // WebSocket未连接，清除超时定时器和状态
-                if (window.sessionTimeoutId) {
-                    clearTimeout(window.sessionTimeoutId);
-                    window.sessionTimeoutId = null;
-                }
-                if (sessionStartedResolver) {
-                    sessionStartedResolver = null;
-                }
+            // 设置超时（15秒，略大于后端12秒以对冲网络延迟）
+            window.sessionTimeoutId = setTimeout(() => {
                 if (sessionStartedRejecter) {
-                    sessionStartedRejecter = null; //  同时清理 rejecter
+                    const rejecter = sessionStartedRejecter;
+                    sessionStartedResolver = null; // 先清除，防止重复触发
+                    sessionStartedRejecter = null; // 同时清理 rejecter
+                    window.sessionTimeoutId = null; // 清除全局定时器ID
+
+                    // 超时时向后端发送 end_session 消息
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send(JSON.stringify({
+                            action: 'end_session'
+                        }));
+                        console.log(window.t('console.sessionTimeoutEndSession'));
+                    }
+
+                    // 更新提示信息，显示超时
+                    showVoicePreparingToast(window.t ? window.t('app.sessionTimeout') || '连接超时' : '连接超时，请检查网络连接');
+                    rejecter(new Error(window.t ? window.t('app.sessionTimeout') : 'Session启动超时'));
+                } else {
+                    window.sessionTimeoutId = null; // 即使 rejecter 不存在也清除
                 }
-                throw new Error(window.t ? window.t('app.websocketNotConnectedError') : 'WebSocket未连接');
-            }
+            }, 15000);
 
             // 等待session真正启动成功 AND 麦克风初始化完成（并行执行以减少等待时间）
             // 并行执行：
@@ -3461,7 +3557,7 @@ function init_app() {
             }
 
             // 确保后端清理资源，避免前后端状态不一致
-            if (socket.readyState === WebSocket.OPEN) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
                 socket.send(JSON.stringify({
                     action: 'end_session'
                 }));
@@ -3672,7 +3768,7 @@ function init_app() {
                         window.sessionTimeoutId = null; // 清除全局定时器ID
 
                         // 超时时向后端发送 end_session 消息
-                        if (socket.readyState === WebSocket.OPEN) {
+                        if (socket && socket.readyState === WebSocket.OPEN) {
                             socket.send(JSON.stringify({
                                 action: 'end_session'
                             }));
@@ -3684,28 +3780,13 @@ function init_app() {
                 }, 15000);
             });
 
-            // 启动文本session
-            if (socket.readyState === WebSocket.OPEN) {
-                socket.send(JSON.stringify({
-                    action: 'start_session',
-                    input_type: 'text',
-                    new_session: true
-                }));
-            } else {
-                // WebSocket未连接，清除超时定时器和状态
-                if (window.sessionTimeoutId) {
-                    clearTimeout(window.sessionTimeoutId);
-                    window.sessionTimeoutId = null;
-                }
-                if (sessionStartedResolver) {
-                    sessionStartedResolver = null;
-                }
-                if (sessionStartedRejecter) {
-                    sessionStartedRejecter = null; // 同时清理 rejecter
-                }
-                hideVoicePreparingToast();
-                throw new Error(window.t ? window.t('app.websocketNotConnectedError') : 'WebSocket未连接');
-            }
+            // 启动文本session（确保 WebSocket 已连接）
+            await ensureWebSocketOpen();
+            socket.send(JSON.stringify({
+                action: 'start_session',
+                input_type: 'text',
+                new_session: true
+            }));
 
             // 等待session真正启动成功
             await sessionStartPromise;
@@ -3825,29 +3906,39 @@ function init_app() {
                 // 创建一个 Promise 来等待 session_started 消息
                 const sessionStartPromise = new Promise((resolve, reject) => {
                     sessionStartedResolver = resolve;
-                    sessionStartedRejecter = reject; // 保存 reject 函数
+                    sessionStartedRejecter = reject;
 
-                    // 设置超时（15秒，略大于后端12秒以对冲网络延迟）
-                    setTimeout(() => {
-                        if (sessionStartedRejecter) {
-                            const rejecter = sessionStartedRejecter;
-                            sessionStartedResolver = null;
-                            sessionStartedRejecter = null; // 同时清理 rejecter
-                            rejecter(new Error(window.t ? window.t('app.sessionTimeout') : 'Session启动超时'));
-                        }
-                    }, 15000);
+                    // 清除之前的超时定时器（如果存在），防止旧 attempt 的 rejecter 影响新 attempt
+                    if (window.sessionTimeoutId) {
+                        clearTimeout(window.sessionTimeoutId);
+                        window.sessionTimeoutId = null;
+                    }
                 });
 
-                // 启动文本session
-                if (socket.readyState === WebSocket.OPEN) {
-                    socket.send(JSON.stringify({
-                        action: 'start_session',
-                        input_type: 'text',
-                        new_session: false
-                    }));
-                } else {
-                    throw new Error(window.t ? window.t('app.websocketNotConnectedError') : 'WebSocket未连接');
-                }
+                // 启动文本session（确保 WebSocket 已连接）
+                await ensureWebSocketOpen();
+                socket.send(JSON.stringify({
+                    action: 'start_session',
+                    input_type: 'text',
+                    new_session: false
+                }));
+
+                // 在 WebSocket 确认连接后才开始超时计时（与 mic button 流程对齐）
+                window.sessionTimeoutId = setTimeout(() => {
+                    if (sessionStartedRejecter) {
+                        const rejecter = sessionStartedRejecter;
+                        sessionStartedResolver = null;
+                        sessionStartedRejecter = null;
+                        window.sessionTimeoutId = null;
+
+                        if (socket && socket.readyState === WebSocket.OPEN) {
+                            socket.send(JSON.stringify({ action: 'end_session' }));
+                            console.log('[TextSession] timeout → sent end_session');
+                        }
+
+                        rejecter(new Error(window.t ? window.t('app.sessionTimeout') : 'Session启动超时'));
+                    }
+                }, 15000);
 
                 // 等待session真正启动成功
                 await sessionStartPromise;
@@ -3865,6 +3956,14 @@ function init_app() {
                 console.error(window.t('console.startTextSessionFailed'), error);
                 hideVoicePreparingToast(); // 确保失败时隐藏准备提示
                 showStatusToast(window.t ? window.t('app.startFailed', { error: error.message }) : `启动失败: ${error.message}`, 5000);
+
+                // 清除超时定时器和 Promise 状态，防止跨 attempt 污染
+                if (window.sessionTimeoutId) {
+                    clearTimeout(window.sessionTimeoutId);
+                    window.sessionTimeoutId = null;
+                }
+                sessionStartedResolver = null;
+                sessionStartedRejecter = null;
 
                 // 重新启用按钮，允许用户重试
                 textSendButton.disabled = false;
@@ -5940,7 +6039,7 @@ function init_app() {
         _updateUI() {
             const master = document.getElementById('live2d-agent-master');
             const keyboard = document.getElementById('live2d-agent-keyboard');
-
+            const browser = document.getElementById('live2d-agent-browser');
             const userPlugin = document.getElementById('live2d-agent-user-plugin');
             const status = document.getElementById('live2d-agent-status');
 
@@ -5953,7 +6052,7 @@ function init_app() {
                     // 空闲：所有按钮禁用
                     if (master) { master.disabled = true; master.title = ''; syncUI(master); }
                     if (keyboard) { keyboard.disabled = true; keyboard.checked = false; keyboard.title = ''; syncUI(keyboard); }
-
+                    if (browser) { browser.disabled = true; browser.checked = false; browser.title = ''; syncUI(browser); }
                     if (userPlugin) { userPlugin.disabled = true; userPlugin.checked = false; userPlugin.title = ''; syncUI(userPlugin); }
                     break;
 
@@ -5969,7 +6068,11 @@ function init_app() {
                         keyboard.title = window.t ? window.t('settings.toggles.checking') : '查询中...';
                         syncUI(keyboard);
                     }
-
+                    if (browser) {
+                        browser.disabled = true;
+                        browser.title = window.t ? window.t('settings.toggles.checking') : '查询中...';
+                        syncUI(browser);
+                    }
                     if (userPlugin) {
                         userPlugin.disabled = true;
                         userPlugin.title = window.t ? window.t('settings.toggles.checking') : '查询中...';
@@ -5997,7 +6100,7 @@ function init_app() {
                         syncUI(master);
                     }
                     if (keyboard) { keyboard.disabled = true; keyboard.checked = false; syncUI(keyboard); }
-
+                    if (browser) { browser.disabled = true; browser.checked = false; syncUI(browser); }
                     if (status) status.textContent = window.t ? window.t('settings.toggles.serverOffline') : 'Agent服务器未启动';
                     if (userPlugin) { userPlugin.disabled = true; userPlugin.checked = false; syncUI(userPlugin); }
                     break;
@@ -6006,7 +6109,7 @@ function init_app() {
                     // 处理中：所有按钮禁用，防止重复操作
                     if (master) { master.disabled = true; syncUI(master); }
                     if (keyboard) { keyboard.disabled = true; syncUI(keyboard); }
-
+                    if (browser) { browser.disabled = true; syncUI(browser); }
                     if (userPlugin) { userPlugin.disabled = true; syncUI(userPlugin); }
                     break;
             }
@@ -6030,7 +6133,7 @@ function init_app() {
     const checkAgentCapabilities = async () => {
         const agentMasterCheckbox = document.getElementById('live2d-agent-master');
         const agentKeyboardCheckbox = document.getElementById('live2d-agent-keyboard');
-
+        const agentBrowserCheckbox = document.getElementById('live2d-agent-browser');
         const agentUserPluginCheckbox = document.getElementById('live2d-agent-user-plugin');
 
         // 【状态机控制】如果正在处理用户操作，跳过轮询
@@ -6104,7 +6207,7 @@ function init_app() {
         // 【减少能力检查频率】只在必要时检查子功能可用性
         const checks = [
             { id: 'live2d-agent-keyboard', capability: 'computer_use', flagKey: 'computer_use_enabled', nameKey: 'keyboardControl' },
-
+            { id: 'live2d-agent-browser', capability: 'browser_use', flagKey: 'browser_use_enabled', nameKey: 'browserUse' },
             { id: 'live2d-agent-user-plugin', capability: 'user_plugin', flagKey: 'user_plugin_enabled', nameKey: 'userPlugin' }
         ];
         for (const { id, capability, flagKey, nameKey } of checks) {
@@ -6207,7 +6310,7 @@ function init_app() {
                             agentMasterCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
                             agentMasterCheckbox._autoDisabled = false;
                             if (typeof agentMasterCheckbox._updateStyle === 'function') agentMasterCheckbox._updateStyle();
-                            [agentKeyboardCheckbox, agentUserPluginCheckbox].forEach(cb => {
+                            [agentKeyboardCheckbox, agentBrowserCheckbox, agentUserPluginCheckbox].forEach(cb => {
                                 if (cb) {
                                     cb.checked = false;
                                     cb.disabled = true;
@@ -6257,6 +6360,31 @@ function init_app() {
 
 
 
+                        // 浏览器控制 flag 同步
+                        if (agentBrowserCheckbox && !agentBrowserCheckbox._processing) {
+                            const flagEnabled = flags.browser_use_enabled || false;
+                            const isAvailable = capabilityCheckFailed
+                                ? agentBrowserCheckbox.checked
+                                : (capabilityResults['browser_use_enabled'] !== false);
+                            const shouldBeChecked = flagEnabled && isAvailable;
+
+                            if (agentBrowserCheckbox.checked !== shouldBeChecked) {
+                                if (shouldBeChecked) {
+                                    agentBrowserCheckbox.checked = true;
+                                    agentBrowserCheckbox._autoDisabled = true;
+                                    agentBrowserCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+                                    agentBrowserCheckbox._autoDisabled = false;
+                                    if (typeof agentBrowserCheckbox._updateStyle === 'function') agentBrowserCheckbox._updateStyle();
+                                } else if (!flagEnabled) {
+                                    agentBrowserCheckbox.checked = false;
+                                    agentBrowserCheckbox._autoDisabled = true;
+                                    agentBrowserCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+                                    agentBrowserCheckbox._autoDisabled = false;
+                                    if (typeof agentBrowserCheckbox._updateStyle === 'function') agentBrowserCheckbox._updateStyle();
+                                }
+                            }
+                        }
+
                         // 用户插件 flag 同步独立处理，避免依赖 MCP 分支
                         if (agentUserPluginCheckbox && !agentUserPluginCheckbox._processing) {
                             const flagEnabled = flags.user_plugin_enabled || false;
@@ -6302,7 +6430,7 @@ function init_app() {
                 agentMasterCheckbox._autoDisabled = false;
                 if (typeof agentMasterCheckbox._updateStyle === 'function') agentMasterCheckbox._updateStyle();
 
-                [agentKeyboardCheckbox, agentUserPluginCheckbox].forEach(cb => {
+                [agentKeyboardCheckbox, agentBrowserCheckbox, agentUserPluginCheckbox].forEach(cb => {
                     if (cb) {
                         cb.checked = false;
                         cb.disabled = true;
@@ -6469,6 +6597,7 @@ function init_app() {
     async function checkCapability(kind, showError = true) {
         const apis = {
             computer_use: { url: '/api/agent/computer_use/availability', nameKey: 'keyboardControl' },
+            browser_use: { url: '/api/agent/browser_use/availability', nameKey: 'browserUse' },
             user_plugin: { url: '/api/agent/user_plugin/availability', nameKey: 'userPlugin' }
         };
         const config = apis[kind];
@@ -6507,7 +6636,7 @@ function init_app() {
 
         const agentMasterCheckbox = document.getElementById('live2d-agent-master');
         const agentKeyboardCheckbox = document.getElementById('live2d-agent-keyboard');
-
+        const agentBrowserCheckbox = document.getElementById('live2d-agent-browser');
         const agentUserPluginCheckbox = document.getElementById('live2d-agent-user-plugin');
 
         if (!agentMasterCheckbox) {
@@ -6519,13 +6648,13 @@ function init_app() {
 
         // 【状态机】操作序列号由状态机管理，子开关保留独立序列号
         let keyboardOperationSeq = 0;
-
+        let browserOperationSeq = 0;
         let userPluginOperationSeq = 0;
 
         // 标记这些 checkbox 有外部处理器
         agentMasterCheckbox._hasExternalHandler = true;
         if (agentKeyboardCheckbox) agentKeyboardCheckbox._hasExternalHandler = true;
-
+        if (agentBrowserCheckbox) agentBrowserCheckbox._hasExternalHandler = true;
         if (agentUserPluginCheckbox) agentUserPluginCheckbox._hasExternalHandler = true;
 
 
@@ -6593,6 +6722,13 @@ function init_app() {
             );
 
             applySub(
+                agentBrowserCheckbox,
+                flags.browser_use_enabled,
+                caps.browser_use_ready,
+                window.t ? window.t('settings.toggles.browserUse') : 'Browser Control'
+            );
+
+            applySub(
                 agentUserPluginCheckbox,
                 flags.user_plugin_enabled,
                 caps.user_plugin_ready,
@@ -6606,10 +6742,10 @@ function init_app() {
         const resetSubCheckboxes = () => {
             const names = {
                 'live2d-agent-keyboard': window.t ? window.t('settings.toggles.keyboardControl') : '键鼠控制',
-
+                'live2d-agent-browser': window.t ? window.t('settings.toggles.browserUse') : 'Browser Control',
                 'live2d-agent-user-plugin': window.t ? window.t('settings.toggles.userPlugin') : '用户插件'
             };
-            [agentKeyboardCheckbox, agentUserPluginCheckbox].forEach(cb => {
+            [agentKeyboardCheckbox, agentBrowserCheckbox, agentUserPluginCheckbox].forEach(cb => {
                 if (cb) {
                     cb.disabled = true;
                     cb.checked = false;
@@ -6683,6 +6819,12 @@ function init_app() {
                         syncCheckboxUI(agentKeyboardCheckbox);
                     }
 
+                    if (agentBrowserCheckbox) {
+                        agentBrowserCheckbox.disabled = true;
+                        agentBrowserCheckbox.title = window.t ? window.t('settings.toggles.checking') : '检查中...';
+                        syncCheckboxUI(agentBrowserCheckbox);
+                    }
+
                     if (agentUserPluginCheckbox) {
                         agentUserPluginCheckbox.disabled = true;
                         agentUserPluginCheckbox.title = window.t ? window.t('settings.toggles.checking') : '检查中...';
@@ -6703,6 +6845,20 @@ function init_app() {
                             agentKeyboardCheckbox.disabled = !available;
                             agentKeyboardCheckbox.title = available ? (window.t ? window.t('settings.toggles.keyboardControl') : '键鼠控制') : (window.t ? window.t('settings.toggles.unavailable', { name: window.t('settings.toggles.keyboardControl') }) : '键鼠控制不可用');
                             syncCheckboxUI(agentKeyboardCheckbox);
+                        })(),
+
+                        (async () => {
+                            if (!agentBrowserCheckbox) return;
+                            const available = await checkCapability('browser_use', false);
+                            if (isExpired() || !agentMasterCheckbox.checked) {
+                                agentBrowserCheckbox.disabled = true;
+                                agentBrowserCheckbox.checked = false;
+                                syncCheckboxUI(agentBrowserCheckbox);
+                                return;
+                            }
+                            agentBrowserCheckbox.disabled = !available;
+                            agentBrowserCheckbox.title = available ? (window.t ? window.t('settings.toggles.browserUse') : 'Browser Control') : (window.t ? window.t('settings.toggles.unavailable', { name: window.t('settings.toggles.browserUse') }) : 'Browser Control不可用');
+                            syncCheckboxUI(agentBrowserCheckbox);
                         })(),
 
                         (async () => {
@@ -6729,7 +6885,7 @@ function init_app() {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 lanlan_name: lanlan_config.lanlan_name,
-                                flags: { agent_enabled: true, computer_use_enabled: false, user_plugin_enabled: false }
+                                flags: { agent_enabled: true, computer_use_enabled: false, browser_use_enabled: false, user_plugin_enabled: false }
                             })
                         });
                         if (!r.ok) throw new Error('main_server rejected');
@@ -6795,7 +6951,7 @@ function init_app() {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 lanlan_name: lanlan_config.lanlan_name,
-                                flags: { agent_enabled: false, computer_use_enabled: false, user_plugin_enabled: false }
+                                flags: { agent_enabled: false, computer_use_enabled: false, browser_use_enabled: false, user_plugin_enabled: false }
                             })
                         });
 
@@ -6939,6 +7095,15 @@ function init_app() {
             () => ++keyboardOperationSeq
         );
 
+        // 浏览器控制开关逻辑（传入序列号的getter和setter）
+        setupSubCheckbox(
+            agentBrowserCheckbox,
+            'browser_use',
+            'browser_use_enabled',
+            'browserUse',
+            () => browserOperationSeq,
+            () => ++browserOperationSeq
+        );
 
         // 用户插件开关逻辑（传入序列号的getter和setter）
         setupSubCheckbox(
@@ -7024,12 +7189,26 @@ function init_app() {
                     }
                     syncCheckboxUI(agentKeyboardCheckbox);
                 }
+                // 同步 浏览器控制子开关
+                if (agentBrowserCheckbox) {
+                    if (analyzerEnabled) {
+                        // Agent 已开启，但子开关保持禁用等待能力检查
+                        agentBrowserCheckbox.checked = false;
+                        agentBrowserCheckbox.disabled = true;
+                        agentBrowserCheckbox.title = window.t ? window.t('settings.toggles.checking') : '检查中...';
+                    } else {
+                        agentBrowserCheckbox.checked = false;
+                        agentBrowserCheckbox.disabled = true;
+                        agentBrowserCheckbox.title = window.t ? window.t('settings.toggles.masterRequired', { name: window.t ? window.t('settings.toggles.browserUse') : 'Browser Control' }) : '请先开启Agent总开关';
+                    }
+                    syncCheckboxUI(agentBrowserCheckbox);
+                }
                 // 同步 用户插件子开关
                 if (agentUserPluginCheckbox) {
                     if (analyzerEnabled) {
-                        // Agent 已开启，根据后端状态设置
-                        agentUserPluginCheckbox.checked = flags.user_plugin_enabled || false;
-                        agentUserPluginCheckbox.disabled = true; // 先设为可用，后续可用性检查会更新
+                        // Agent 已开启，但子开关保持禁用等待能力检查
+                        agentUserPluginCheckbox.checked = false;
+                        agentUserPluginCheckbox.disabled = true;
                         agentUserPluginCheckbox.title = window.t ? window.t('settings.toggles.checking') : '检查中...';
                     } else {
                         // Agent 未开启，复位子开关
@@ -7089,7 +7268,7 @@ function init_app() {
                 agentMasterCheckbox.title = window.t ? window.t('settings.toggles.checking') : '查询中...';
                 syncCheckboxUI(agentMasterCheckbox);
             }
-            [agentKeyboardCheckbox, agentUserPluginCheckbox].forEach(cb => {
+            [agentKeyboardCheckbox, agentBrowserCheckbox, agentUserPluginCheckbox].forEach(cb => {
                 if (cb) {
                     cb.disabled = true;
                     cb.title = window.t ? window.t('settings.toggles.checking') : '查询中...';
@@ -7102,11 +7281,11 @@ function init_app() {
                 agentStateMachine.recordCheck();
 
                 // 并行请求所有状态
-                const [healthOk, flagsData, keyboardAvailable, mcpAvailable, userPluginAvailable] = await Promise.all([
+                const [healthOk, flagsData, keyboardAvailable, browserAvailable, userPluginAvailable] = await Promise.all([
                     checkToolServerHealth(),
                     fetch('/api/agent/flags').then(r => r.ok ? r.json() : { success: false }),
                     checkCapability('computer_use', false),
-
+                    checkCapability('browser_use', false),
                     checkCapability('user_plugin', false)
                 ]);
 
@@ -7152,7 +7331,14 @@ function init_app() {
                             syncCheckboxUI(agentKeyboardCheckbox);
                         }
 
-
+                        // 浏览器控制
+                        if (agentBrowserCheckbox) {
+                            const shouldEnable = flags.browser_use_enabled && browserAvailable;
+                            agentBrowserCheckbox.checked = shouldEnable;
+                            agentBrowserCheckbox.disabled = !browserAvailable;
+                            agentBrowserCheckbox.title = browserAvailable ? (window.t ? window.t('settings.toggles.browserUse') : 'Browser Control') : (window.t ? window.t('settings.toggles.unavailable', { name: window.t('settings.toggles.browserUse') }) : 'Browser Control不可用');
+                            syncCheckboxUI(agentBrowserCheckbox);
+                        }
 
                         // 用户插件
                         if (agentUserPluginCheckbox) {
@@ -8872,16 +9058,46 @@ function init_app() {
         }
     }
 
-    // 主动搭话截图函数（前端 getDisplayMedia → 后端 pyautogui 兜底）
+    // 主动搭话截图函数（优先后端 pyautogui 静默截图 → 前端 getDisplayMedia 缓存流复用）
     async function captureProactiveChatScreenshot() {
-        // 策略1: 前端 getDisplayMedia
+        // 策略1: 后端 pyautogui 优先（本地运行时完全静默，无弹窗）
+        const backendDataUrl = await fetchBackendScreenshot();
+        if (backendDataUrl) {
+            console.log('[主动搭话截图] 后端截图成功');
+            return backendDataUrl;
+        }
+
+        // 策略2: 前端 getDisplayMedia（远程服务器等后端不可用时的备选）
+        // 复用缓存的 screenCaptureStream，仅在无有效流时才请求新流
         if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-            let captureStream = null;
             try {
-                captureStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: { cursor: 'always' },
-                    audio: false,
-                });
+                let captureStream = screenCaptureStream;
+
+                if (!captureStream || !captureStream.active) {
+                    captureStream = await navigator.mediaDevices.getDisplayMedia({
+                        video: { cursor: 'always', frameRate: { max: 1 } },
+                        audio: false,
+                    });
+
+                    screenCaptureStream = captureStream;
+
+                    captureStream.getVideoTracks().forEach(track => {
+                        track.addEventListener('ended', () => {
+                            console.log('[ProactiveVision] 屏幕共享流被用户终止');
+                            if (screenCaptureStream === captureStream) {
+                                screenCaptureStream = null;
+                                screenCaptureStreamLastUsed = null;
+                                if (screenCaptureStreamIdleTimer) {
+                                    clearTimeout(screenCaptureStreamIdleTimer);
+                                    screenCaptureStreamIdleTimer = null;
+                                }
+                            }
+                        });
+                    });
+                }
+
+                screenCaptureStreamLastUsed = Date.now();
+                scheduleScreenCaptureIdleCheck();
 
                 const video = document.createElement('video');
                 video.srcObject = captureStream;
@@ -8893,22 +9109,11 @@ function init_app() {
                 video.srcObject = null;
                 video.remove();
 
-                console.log(`主动搭话截图成功，尺寸: ${width}x${height}`);
+                console.log(`[主动搭话截图] 前端截图成功（流已缓存），尺寸: ${width}x${height}`);
                 return dataUrl;
             } catch (err) {
-                console.warn('[主动搭话截图] getDisplayMedia 失败，尝试后端兜底:', err);
-            } finally {
-                if (captureStream) {
-                    captureStream.getTracks().forEach(track => track.stop());
-                }
+                console.warn('[主动搭话截图] getDisplayMedia 失败:', err);
             }
-        }
-
-        // 策略2: 后端 pyautogui 兜底
-        const backendDataUrl = await fetchBackendScreenshot();
-        if (backendDataUrl) {
-            console.log('[主动搭话截图] 后端兜底截图成功');
-            return backendDataUrl;
         }
 
         console.warn('[主动搭话截图] 所有截图方式均失败');
