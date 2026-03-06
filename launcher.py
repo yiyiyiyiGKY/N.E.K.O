@@ -506,7 +506,7 @@ def get_lan_ip() -> str:
     except (OSError, json.JSONDecodeError, ValueError) as e:
         global _last_status_file_warn_by_signature
         sig = type(e).__name__
-        now = time.time()
+        now = time.monotonic()
         if now - _last_status_file_warn_by_signature.get(sig, 0.0) > _STATUS_FILE_WARN_INTERVAL:
             _log.warning("[get_lan_ip] failed to read/parse status file: %s", e)
             _last_status_file_warn_by_signature[sig] = now
