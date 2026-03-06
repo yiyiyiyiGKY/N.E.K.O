@@ -478,8 +478,17 @@ def get_lan_ip() -> str:
             with open(status_file, 'r') as f:
                 info = json.load(f)
                 ip = info.get('lan_ip')
-                if ip and ip != '127.0.0.1':
-                    return ip
+                if isinstance(ip, str):
+                    try:
+                        socket.inet_aton(ip)  # IPv4 형식 검증
+                        parts = ip.split('.')
+                        first, second = int(parts[0]), int(parts[1])
+                        if (first == 10 or
+                                (first == 172 and 16 <= second <= 31) or
+                                (first == 192 and second == 168)):
+                            return ip
+                    except Exception:
+                        pass
     except Exception:
         pass
     # 备选：UDP socket
