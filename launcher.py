@@ -520,9 +520,15 @@ def get_lan_ip() -> str:
                 s.connect(("8.8.8.8", 80))
                 ip = s.getsockname()[0]
                 parts = ip.split('.', 2)
-                if (ip.startswith('10.') or
-                        (ip.startswith('172.') and 16 <= int(parts[1]) <= 31) or
-                        ip.startswith('192.168.')):
+                try:
+                    is_private = (
+                        ip.startswith('10.') or
+                        (ip.startswith('172.') and len(parts) >= 2 and 16 <= int(parts[1]) <= 31) or
+                        ip.startswith('192.168.')
+                    )
+                except (ValueError, IndexError):
+                    is_private = False
+                if is_private:
                     return ip
             except OSError as e:
                 _log.debug("[get_lan_ip] UDP probe failed: %s", e)
