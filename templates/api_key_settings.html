@@ -753,6 +753,11 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data.enabled) {
+                        const img = document.getElementById('p2p-qr-image');
+                        const errorDiv = document.getElementById('p2p-qr-error');
+                        img.style.display = 'block';
+                        errorDiv.style.display = 'none';
+                        img.src = '/lanproxyqrcode?t=' + Date.now();
                         document.getElementById('p2p-lan-ip').textContent = data.lan_ip || '--';
                         document.getElementById('p2p-port').textContent = data.port || '--';
                         document.getElementById('p2p-token').textContent = data.token ? (data.token.slice(0, 8) + '...' + data.token.slice(-8)) : '--';
@@ -761,6 +766,7 @@
                         document.getElementById('p2p-lan-ip').textContent = t('未启动');
                         document.getElementById('p2p-port').textContent = '--';
                         document.getElementById('p2p-token').textContent = data.message || t('LAN 代理未运行');
+                        document.getElementById('p2p-token').dataset.fullToken = '';
                     }
                 })
                 .catch(err => {
@@ -768,6 +774,7 @@
                     document.getElementById('p2p-lan-ip').textContent = t('加载失败');
                     document.getElementById('p2p-port').textContent = '--';
                     document.getElementById('p2p-token').textContent = t('请刷新重试');
+                    document.getElementById('p2p-token').dataset.fullToken = '';
                 });
         }
 
