@@ -1202,17 +1202,203 @@ font-size: 0.8em;
 
 
 .save-button-box{
-    position: fixed;      
-    bottom: 0;            
+    position: fixed;
+    bottom: 0;
     left: 0;
     right: 0;
     z-index: 999;
-    display: flex;        
-    justify-content: center; 
-    padding: 20px 0;      
-    pointer-events: none; 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 0 20px;
+    pointer-events: none;
+    background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.92) 40%, #fff);
 }
-.save-button-box > div {
-    pointer-events: auto; 
-    padding: 0 24px;      
+.save-button-box > * {
+    pointer-events: auto;
+}
+
+.save-btn-row {
+    margin-top: 12px;
+    padding: 0 24px;
+    display: flex;
+    justify-content: center;
+}
+
+#status.status {
+    width: calc(100% - 48px);
+    max-width: 480px;
+    margin-top: 0;
+    box-sizing: border-box;
+}
+
+/* ─── P2P 连接区块 ─── */
+
+#p2p-connection-section {
+    padding: 20px;
+    background: #e8f4f8;
+    border-radius: 24px;
+    border: 1px solid #b3e5fc;
+}
+
+#p2p-connection-section h3 {
+    margin: 0 0 16px 0;
+    color: #40C5F1;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#p2p-connection-section h3 svg {
+    flex-shrink: 0;
+    color: #40C5F1;
+}
+
+#p2p-connection-section > p {
+    margin: 0 0 16px 0;
+    color: rgba(64, 197, 241, 0.75);
+    font-size: 0.9rem;
+}
+
+.p2p-content-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.p2p-qr-col {
+    flex: 0 0 auto;
+    text-align: center;
+}
+
+#p2p-qr-container {
+    background: white;
+    padding: 12px;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(64, 197, 241, 0.12);
+    border: 1px solid #e3f4ff;
+    display: inline-block;
+}
+
+#p2p-qr-image {
+    width: 180px;
+    height: 180px;
+    display: block;
+}
+
+#p2p-qr-error {
+    display: none;
+    width: 180px;
+    height: 180px;
+    align-items: center;
+    justify-content: center;
+    color: rgba(64, 197, 241, 0.5);
+    font-size: 14px;
+    text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.p2p-refresh-btn {
+    margin-top: 12px;
+    padding: 8px 20px;
+    background: #40C5F1;
+    color: white;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    margin-right: auto;
+    transition: all 0.2s ease;
+}
+
+.p2p-refresh-btn:hover {
+    background: #22b3ff;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(64, 197, 241, 0.3);
+}
+
+.p2p-refresh-btn:active {
+    transform: translateY(1px) scale(0.98);
+    opacity: 0.95;
+}
+
+.p2p-info-col {
+    flex: 1;
+    min-width: 200px;
+}
+
+.p2p-info-card {
+    background: white;
+    border-radius: 16px;
+    padding: 16px;
+    border: 1px solid #b3e5fc;
+}
+
+.p2p-info-field {
+    margin-bottom: 12px;
+}
+
+.p2p-info-label {
+    color: #40C5F1;
+    font-size: 0.85rem;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.p2p-info-card code {
+    background: #f0f9ff;
+    border: 1px solid #e3f4ff;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    display: block;
+    word-break: break-all;
+    color: #40C5F1;
+    font-family: 'Courier New', monospace;
+}
+
+.p2p-copy-btn {
+    width: 100%;
+    padding: 10px;
+    background: #e8f4f8;
+    color: #40C5F1;
+    border: 1px solid #b3e5fc;
+    border-radius: 50px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    margin-top: 16px;
+}
+
+.p2p-copy-btn:hover {
+    background: #40C5F1;
+    color: white;
+    border-color: #40C5F1;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(64, 197, 241, 0.25);
+}
+
+.p2p-copy-btn:active {
+    transform: translateY(1px) scale(0.98);
+    opacity: 0.95;
+}
+
+.p2p-manual-hint {
+    margin: 12px 0 0 0;
+    color: rgba(64, 197, 241, 0.6);
+    font-size: 0.8rem;
+    line-height: 1.4;
 }

@@ -2199,5 +2199,15 @@
             "active": "● Ready",
             "inactive": "○ Not configured"
         }
-    }   
+    },
+    "P2P 手机连接": "P2P Mobile Connection",
+    "使用手机 App 扫码，同 WiFi 下直接连接桌面端": "Scan QR code with the mobile app to connect directly over Wi-Fi",
+    "二维码加载失败": "Failed to load QR code<br>Please ensure the service is running",
+    "刷新二维码": "Refresh QR Code",
+    "局域网 IP": "LAN IP",
+    "端口": "Port",
+    "连接 Token": "Connection Token",
+    "复制连接信息": "Copy Connection Info",
+    "如果扫码失败，请在手机端手动输入以上信息": "If scanning fails, enter the info above manually on your phone",
+    "已复制": "Copied"
 }
