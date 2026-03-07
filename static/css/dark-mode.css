@@ -1369,7 +1369,7 @@ html #chat-container {
 }
 
 [data-theme="dark"] #p2p-connection-section > p {
-  color: rgba(74, 163, 223, 0.65);
+  color: #7ab8d4;
 }
 
 [data-theme="dark"] #p2p-qr-container {
@@ -1379,7 +1379,7 @@ html #chat-container {
 }
 
 [data-theme="dark"] #p2p-qr-error {
-  color: #888;
+  color: #aaa;
 }
 
 [data-theme="dark"] .p2p-refresh-btn {
@@ -1420,5 +1420,5 @@ html #chat-container {
 }
 
 [data-theme="dark"] .p2p-manual-hint {
-  color: #666;
+  color: #aaa;
 }

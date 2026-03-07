@@ -785,9 +785,10 @@
             const token = document.getElementById('p2p-token').dataset.fullToken;
             const ip = document.getElementById('p2p-lan-ip').textContent;
             const port = document.getElementById('p2p-port').textContent;
+            const t = typeof window.t === 'function' ? window.t : (k) => k;
 
             if (!token || token === '--') {
-                alert('连接信息不可用');
+                alert(t('连接信息不可用'));
                 return;
             }
 
@@ -795,11 +796,11 @@
             navigator.clipboard.writeText(info).then(() => {
                 const btn = document.querySelector('#p2p-connection-section button[onclick="copyP2pConnectionInfo()"]');
                 const originalText = btn.innerHTML;
-                btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> <span data-i18n="已复制">已复制</span>';
+                btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>' + t('已复制') + '</span>';
                 setTimeout(() => btn.innerHTML = originalText, 2000);
             }).catch(err => {
                 console.error('Copy failed:', err);
-                alert('复制失败，请手动复制');
+                alert(t('复制失败，请手动复制'));
             });
         }
 

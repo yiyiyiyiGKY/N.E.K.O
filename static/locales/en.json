@@ -2209,5 +2209,7 @@
     "连接 Token": "Connection Token",
     "复制连接信息": "Copy Connection Info",
     "如果扫码失败，请在手机端手动输入以上信息": "If scanning fails, enter the info above manually on your phone",
-    "已复制": "Copied"
+    "已复制": "Copied",
+    "连接信息不可用": "Connection info unavailable",
+    "复制失败，请手动复制": "Copy failed, please copy manually"
 }
