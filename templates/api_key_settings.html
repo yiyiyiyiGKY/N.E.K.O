@@ -748,6 +748,7 @@
     <script>
         // 加载 P2P 连接信息
         function loadP2pConnectionInfo() {
+            const t = typeof window.t === 'function' ? window.t : (k) => k;
             fetch('/api/lan-proxy/info')
                 .then(res => res.json())
                 .then(data => {
@@ -757,16 +758,16 @@
                         document.getElementById('p2p-token').textContent = data.token ? (data.token.slice(0, 8) + '...' + data.token.slice(-8)) : '--';
                         document.getElementById('p2p-token').dataset.fullToken = data.token || '';
                     } else {
-                        document.getElementById('p2p-lan-ip').textContent = '未启动';
+                        document.getElementById('p2p-lan-ip').textContent = t('未启动');
                         document.getElementById('p2p-port').textContent = '--';
-                        document.getElementById('p2p-token').textContent = data.message || 'LAN proxy not running';
+                        document.getElementById('p2p-token').textContent = data.message || t('LAN 代理未运行');
                     }
                 })
                 .catch(err => {
                     console.error('Failed to load P2P info:', err);
-                    document.getElementById('p2p-lan-ip').textContent = '加载失败';
+                    document.getElementById('p2p-lan-ip').textContent = t('加载失败');
                     document.getElementById('p2p-port').textContent = '--';
-                    document.getElementById('p2p-token').textContent = '请刷新重试';
+                    document.getElementById('p2p-token').textContent = t('请刷新重试');
                 });
         }
 
