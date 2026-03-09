@@ -652,13 +652,14 @@
             var placeholder = container.closest('.preview-placeholder');
             var availH = placeholder ? placeholder.clientHeight : 0;
             var availW = placeholder ? placeholder.clientWidth : 0;
-            // 目标弧长间距 50px（42px 字号 + 适当间距），最小半径 230px
-            var nominalRadius = Math.max(230, Math.ceil(totalSlots * 50 / (2 * Math.PI)));
-            // 高度上限：0.65×availH；宽度上限：(availW - fontSize) / 2，取二者较小值
-            var maxFromH = availH > 80 ? availH * 0.65 : 230;
-            var maxFromW = availW > 80 ? (availW - 42) / 2 : 230;
-            var containerMax = Math.max(230, Math.min(maxFromH, maxFromW));
-            var radius = Math.min(nominalRadius, containerMax);
+            // 上限：基于字符数量的名义半径（防止长文本圆环过大）
+            var nominalRadius = Math.ceil(totalSlots * 50 / (2 * Math.PI));
+            // 容器尺寸驱动：宽高各留 50px 边距后再计算，取较小值，最小 200px
+            var limits = [];
+            if (availH > 80) limits.push((availH - 50) * 0.65);
+            if (availW > 80) limits.push((availW - 50 - 42) / 2);
+            var containerDriven = limits.length ? Math.max(200, Math.min.apply(null, limits)) : 200;
+            var radius = Math.min(nominalRadius, containerDriven);
 
             // 若半径被压缩（如英/俄等长文本），同步缩小字号防止重叠
             var arcPerSlot = radius * 2 * Math.PI / totalSlots;
