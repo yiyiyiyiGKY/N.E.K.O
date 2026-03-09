@@ -21,6 +21,8 @@ from pathlib import Path
 import json
 import sys
 
+from utils.file_utils import atomic_write_json
+
 logger = get_module_logger(__name__)
 
 
@@ -110,8 +112,7 @@ def _fix_bilibili_api_env():
             file_path = data_dir / file_name
             if not file_path.exists():
                 try:
-                    with open(file_path, "w", encoding="utf-8") as f:
-                        json.dump(default_content, f)
+                    atomic_write_json(file_path, default_content)
                     logger.info(f"✅ 已强制补全缺失配置文件: {file_name}")
                     fixed_count += 1
                 except Exception as e:
@@ -120,8 +121,7 @@ def _fix_bilibili_api_env():
                 # 检查文件是否为空或损坏 (可选)
                 try:
                     if file_path.stat().st_size == 0:
-                        with open(file_path, "w", encoding="utf-8") as f:
-                            json.dump(default_content, f)
+                        atomic_write_json(file_path, default_content)
                         logger.info(f"⚠️ 发现空文件 {file_name}，已重置为默认值")
                 except Exception as e:
                     logger.warning(f"重置空文件 {file_name} 失败: {e}")

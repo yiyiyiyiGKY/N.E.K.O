@@ -27,6 +27,7 @@ from dashscope.audio.tts_v2 import VoiceEnrollmentService, SpeechSynthesizer
 from .shared_state import get_config_manager, get_session_manager, get_initialize_character_data
 from main_logic.tts_client import get_custom_tts_voices, CustomTTSVoiceFetchError
 from utils.config_manager import get_reserved, set_reserved, flatten_reserved
+from utils.file_utils import atomic_write_json
 from utils.frontend_utils import find_models, find_model_directory, is_user_imported_model
 from utils.language_utils import normalize_language_code
 from utils.logger_config import get_module_logger
@@ -2291,8 +2292,7 @@ async def save_catgirl_to_model_folder(request: Request):
             
         # 保存角色卡到模型文件夹
         file_path = os.path.join(model_folder_path, safe_name)
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(chara_data, f, ensure_ascii=False, indent=2)
+        atomic_write_json(file_path, chara_data, ensure_ascii=False, indent=2)
         
         logger.info(f"角色卡已成功保存到模型文件夹: {file_path}")
         return {"success": True, "path": file_path, "modelFolderPath": model_folder_path}

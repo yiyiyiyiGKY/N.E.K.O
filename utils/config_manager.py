@@ -25,6 +25,7 @@ from utils.api_config_loader import (
     get_assist_api_key_fields,
 )
 from utils.custom_tts_adapter import check_custom_tts_voice_allowed
+from utils.file_utils import atomic_write_json
 from utils.logger_config import get_module_logger
 
 # Workshop配置相关常量 - 将在ConfigManager实例化时使用self.workshop_dir
@@ -853,8 +854,7 @@ class ConfigManager:
         # 确保config目录存在
         self.ensure_config_directory()
 
-        with open(character_json_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        atomic_write_json(character_json_path, data, ensure_ascii=False, indent=2)
 
     # --- Voice storage helpers ---
 
@@ -1723,8 +1723,7 @@ class ConfigManager:
             used += units
             data = {"date": today, "used": used}
             try:
-                with open(quota_path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
+                atomic_write_json(quota_path, data, ensure_ascii=False, indent=2)
             except Exception as e:
                 logger.warning("保存 Agent 配额计数失败: %s", e)
 
@@ -1777,9 +1776,7 @@ class ConfigManager:
         config_path = self.config_dir / filename
         
         try:
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-                f.flush()  # 强制刷新缓冲区
+            atomic_write_json(config_path, data, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"Error saving {filename}: {e}", file=sys.stderr)
             raise
@@ -1974,8 +1971,7 @@ class ConfigManager:
             os.makedirs(os.path.dirname(config_path), exist_ok=True)
             
             # 保存配置
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(config_data, f, indent=4, ensure_ascii=False)
+            atomic_write_json(config_path, config_data, indent=4, ensure_ascii=False)
             
             logger.info(f"成功保存workshop配置: {config_data}")
         except Exception as e:
