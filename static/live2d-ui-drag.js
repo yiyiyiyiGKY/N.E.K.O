@@ -126,6 +126,8 @@ Live2DManager.prototype.closePopupById = function (buttonId) {
             panel.style.transition = 'none';
             panel.style.opacity = '0';
             panel.style.display = 'none';
+            // 清除 inline transition，让 CSS 定义的 transition 在下次 _expand() 时生效
+            panel.style.transition = '';
         });
     }
 

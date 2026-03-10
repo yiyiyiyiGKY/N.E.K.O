@@ -659,7 +659,7 @@ class Live2DManager {
 
         // 更新图标
         if (buttonData.imgOff) {
-            buttonData.imgOff.style.opacity = active ? '0' : '1';
+            buttonData.imgOff.style.opacity = active ? '0' : '0.75';
         }
         if (buttonData.imgOn) {
             buttonData.imgOn.style.opacity = active ? '1' : '0';

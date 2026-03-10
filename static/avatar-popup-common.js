@@ -51,6 +51,8 @@
             panel.style.right = '';
             panel.style.top = '';
             panel.style.transform = '';
+            // 清除 inline transition，让 CSS 定义的 transition 在下次 _expand() 时生效
+            panel.style.transition = '';
             // 恢复原始 maxWidth
             if (panel._originalMaxWidth !== undefined) {
                 panel.style.maxWidth = panel._originalMaxWidth;

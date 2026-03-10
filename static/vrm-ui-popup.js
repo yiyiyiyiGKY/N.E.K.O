@@ -1369,6 +1369,7 @@ VRMManager.prototype._createSettingsMenuItems = function (popup) {
 
             // 鼠标悬停展开/收缩：增加缓冲，避免主项和子项之间小缝隙导致抖动
             let submenuCollapseTimer = null;
+            let overflowTimer = null;
             const clearSubmenuCollapseTimer = () => {
                 if (submenuCollapseTimer) {
                     clearTimeout(submenuCollapseTimer);
@@ -1377,9 +1378,12 @@ VRMManager.prototype._createSettingsMenuItems = function (popup) {
             };
             const expandSubmenu = () => {
                 clearSubmenuCollapseTimer();
+                if (overflowTimer) { clearTimeout(overflowTimer); overflowTimer = null; }
                 submenuContainer._expand();
                 // 展开动画完成后修正父 popup 垂直溢出
-                setTimeout(() => {
+                overflowTimer = setTimeout(() => {
+                    overflowTimer = null;
+                    if (!popup.isConnected || popup.style.display === 'none') return;
                     const rect = popup.getBoundingClientRect();
                     const bottomMargin = 60;
                     const topMargin = 8;
@@ -1609,6 +1613,8 @@ VRMManager.prototype.closePopupById = function (buttonId) {
             panel.style.transition = 'none';
             panel.style.opacity = '0';
             panel.style.display = 'none';
+            // 清除 inline transition，让 CSS 定义的 transition 在下次 _expand() 时生效
+            panel.style.transition = '';
         });
     }
 
@@ -1732,6 +1738,8 @@ VRMManager.prototype.showPopup = function (buttonId, popup) {
                 panel.style.transition = 'none';
                 panel.style.opacity = '0';
                 panel.style.display = 'none';
+                // 清除 inline transition，让 CSS 定义的 transition 在下次 _expand() 时生效
+                panel.style.transition = '';
             });
         }
 
