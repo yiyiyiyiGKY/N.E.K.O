@@ -692,8 +692,8 @@ Live2DManager.prototype.setupTouchZoom = function (model) {
             const scaleChange = currentDistance / initialDistance;
             let newScale = initialScale * scaleChange;
 
-            // 限制缩放范围，避免过大或过小
-            newScale = Math.max(0.1, Math.min(2.0, newScale));
+            // 限制缩放范围，与滚轮缩放保持一致
+            newScale = Math.max(SCALE_LIMITS.MIN, Math.min(SCALE_LIMITS.MAX, newScale));
 
             this.currentModel.scale.set(newScale);
         }
@@ -1572,6 +1572,12 @@ Live2DManager.prototype.cleanupEventListeners = function () {
     if (this._savePositionDebounceTimer) {
         clearTimeout(this._savePositionDebounceTimer);
         this._savePositionDebounceTimer = null;
+    }
+
+    // 清理缩放后吸附检测定时器
+    if (this._snapCheckTimer) {
+        clearTimeout(this._snapCheckTimer);
+        this._snapCheckTimer = null;
     }
 
     // 清理点击效果恢复定时器和 ID
