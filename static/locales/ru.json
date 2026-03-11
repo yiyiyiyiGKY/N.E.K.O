@@ -627,6 +627,7 @@
         "siliconAssist": "SiliconFlow: Выгодно, поддерживает Агента",
         "openaiAssist": "OpenAI: Мощное управление памятью",
         "geminiAssist": "Gemini: Отличный интеллект, недоступен в Китае",
+        "kimiAssist": "Kimi: Доступен в Китае, поддерживает длинный контекст и визуализацию",
         "assistApiNote": "Примечание: Только Alibaba поддерживает пользовательский голос. GLM и StepFun не рекомендуются.",
         "assistApiKeyQwen": "Вспомогательный API Key — Alibaba",
         "assistApiKeyOpenai": "Вспомогательный API Key — OpenAI",
@@ -634,6 +635,7 @@
         "assistApiKeyStep": "Вспомогательный API Key — StepFun",
         "assistApiKeySilicon": "Вспомогательный API Key — SiliconFlow",
         "assistApiKeyGemini": "Вспомогательный API Key — Gemini",
+        "assistApiKeyKimi": "Вспомогательный API Key — Kimi",
         "assistApiKeyHint": "(Требуется только когда вспомогательный API — {{provider}})",
         "assistApiKeyPlaceholder": "Необязательно, по умолчанию основной API Key",
         "providerNames": {
@@ -802,9 +804,7 @@
         },
         "loadConfigFailed": "Не удалось загрузить конфигурацию, обновите страницу",
         "errorGettingCurrentApiKey": "Ошибка получения текущего API Key",
-        "getCurrentApiKeyFailed": "Не удалось получить текущий API Key",
-        "assistApiKeyKimi": "Вспомогательный API Key - Kimi",
-        "kimiAssist": "Kimi: доступен в Китае, поддерживает длинный контекст и визуальные функции"
+        "getCurrentApiKeyFailed": "Не удалось получить текущий API Key"
     },
     "live2d": {
         "manager": "Менеджер моделей Live2D",
@@ -1304,7 +1304,7 @@
     "buttons": {
         "voiceControl": "Голосовое управление",
         "screenShare": "Демонстрация экрана",
-        "agentTools": "Инструменты Агента",
+        "agentTools": "Лапка Неко",
         "settings": "Настройки",
         "leave": "Уйти",
         "return": "Вернуться"
@@ -1433,7 +1433,11 @@
             "statusFailed": "Ошибка",
             "minimize": "Свернуть/Развернуть",
             "cancelAll": "Отменить все задачи",
-            "cancelConfirm": "Отменить все выполняемые задачи?"
+            "cancelConfirm": "Отменить все задачи (включая ожидающие)?",
+            "typeUserPlugin": "Пользовательский плагин",
+            "typeComputerUse": "Управление клавиатурой/мышью",
+            "typeBrowserUse": "Управление браузером",
+            "typeMCP": "Инструмент MCP"
         },
         "quotaExceeded": "Бесплатная квота Agent на сегодня исчерпана ({{limit}} раз), попробуйте завтра.",
         "contentFilterError": "Содержимое веб-страницы, просмотренной Agent, было отклонено фильтром безопасности модели ИИ, задача прервана. Обычно это происходит, когда страница содержит чувствительные темы. Попробуйте другие ключевые слова или сайты."
@@ -1736,8 +1740,8 @@
             "desc": "Покажите экран вашему Neko~"
         },
         "step8": {
-            "title": "🔨 Инструменты Агента",
-            "desc": "Панель инструментов Агента~"
+            "title": "🔨 Лапка Неко",
+            "desc": "Откройте панель «Лапка Неко»: computer use, browser use, plugin и другие функции~"
         },
         "step9": {
             "title": "💤 Попросить уйти",
@@ -2179,7 +2183,7 @@
         "noCookies": "Пожалуйста, сначала настройте Cookies",
         "statusLoadFailed": "Ошибка загрузки статуса",
         "thisPlatform": "Эта платформа",
-         "instructions": {
+        "instructions": {
             "bilibili": "📌 <b>Цель:</b> Перейдите на <b>bilibili.com</b>, чтобы получить эти файлы cookie.",
             "douyin": "📌 <b>Цель:</b> Перейдите на <b>douyin.com</b>, чтобы получить эти файлы cookie.",
             "kuaishou": "📌 <b>Цель:</b> Перейдите на <b>kuaishou.com</b>, чтобы получить эти файлы cookie.",

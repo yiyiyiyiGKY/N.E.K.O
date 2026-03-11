@@ -1304,7 +1304,7 @@
     "buttons": {
         "voiceControl": "語音控製",
         "screenShare": "屏幕分享",
-        "agentTools": "Agent工具",
+        "agentTools": "喵爪",
         "settings": "設置",
         "leave": "請她離開",
         "return": "請她迴來"
@@ -1435,7 +1435,11 @@
             "statusFailed": "失敗",
             "minimize": "摺疊/展開",
             "cancelAll": "終止所有任務",
-            "cancelConfirm": "確定要終止所有正在進行的任務嗎？"
+            "cancelConfirm": "確定要終止所有正在進行的任務嗎？",
+            "typeUserPlugin": "使用者插件",
+            "typeComputerUse": "鍵鼠控制",
+            "typeBrowserUse": "瀏覽器控制",
+            "typeMCP": "MCP工具"
         }
     },
     "vrm": {
@@ -1620,8 +1624,8 @@
             "desc": "分享屏幕/窗口/標籤頁，讓貓娘看到妳的畫面~"
         },
         "step8": {
-            "title": "🔨 Agent工具",
-            "desc": "打開 Agent 工具面板，使用各類輔助功能~"
+            "title": "🔨 喵爪",
+            "desc": "打開喵爪面板，使用 computer use、browser use 和 plugin 等功能~"
         },
         "step9": {
             "title": "💤 請她離開",
