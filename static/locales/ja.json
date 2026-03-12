@@ -1957,7 +1957,8 @@
             "next": "次へ",
             "prev": "前へ",
             "done": "完了",
-            "close": "閉じる"
+            "close": "閉じる",
+            "skip": "スキップ"
         },
         "fullscreenPrompt": {
             "title": "🎓 チュートリアルを開始",

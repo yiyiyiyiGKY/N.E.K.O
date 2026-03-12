@@ -1957,7 +1957,8 @@
             "next": "Next",
             "prev": "Previous",
             "done": "Done",
-            "close": "Close"
+            "close": "Close",
+            "skip": "Skip"
         },
         "fullscreenPrompt": {
             "title": "🎓 Start Tutorial",

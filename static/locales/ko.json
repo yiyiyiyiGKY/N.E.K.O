@@ -1957,7 +1957,8 @@
             "next": "다음",
             "prev": "이전",
             "done": "완료",
-            "close": "닫기"
+            "close": "닫기",
+            "skip": "건너뛰기"
         },
         "fullscreenPrompt": {
             "title": "🎓 튜토리얼 시작",
