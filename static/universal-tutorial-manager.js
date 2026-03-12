@@ -1769,8 +1769,7 @@ class UniversalTutorialManager {
     }
 
     /**
-     * 在右上角显示「跳过」按钮，点击后直接跳到最后一步
-     * @param {number} totalSteps - 引导总步骤数
+     * 在右上角显示「跳过」按钮，点击后结束引导
      */
     showSkipButton() {
         // 避免重复创建
