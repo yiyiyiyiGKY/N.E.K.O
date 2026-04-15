@@ -174,6 +174,7 @@
     // ─── 内部：弹层工具 ──────────────────────────────────────
 
     var POPUP_OPEN_ANIMATION_MS = 250;
+    var _popupsOpenedByTutorial = {};
 
     function getPrefix() {
         if (typeof window.UniversalTutorialManager === 'function' &&
@@ -393,6 +394,7 @@
 
         dispatchSyntheticPress(button);
         manager.showPopup('settings', popup);
+        _popupsOpenedByTutorial['settings'] = true;
 
         return new Promise(function (resolve) {
             setTimeout(function () {
@@ -412,6 +414,7 @@
             return Promise.resolve(false);
         }
         manager.closePopupById('settings');
+        delete _popupsOpenedByTutorial['settings'];
         var popup = getPopup('settings');
         var closed = !popup || popup.style.display !== 'flex';
         return Promise.resolve(closed);
@@ -440,6 +443,7 @@
 
         dispatchSyntheticPress(button);
         manager.showPopup('agent', popup);
+        _popupsOpenedByTutorial['agent'] = true;
 
         return new Promise(function (resolve) {
             setTimeout(function () {
@@ -738,13 +742,58 @@
         );
     }
 
+    // ─── M2: "请她离开/回来" 包装 ────────────────────────────
+
+    /**
+     * 触发 Yui 离开流程。
+     * 包装现有的 ${prefix}-goodbye-click 事件，不重复实现逻辑。
+     *
+     * @param {string} [reason] - 可选离开原因，用于日志
+     */
+    function triggerGoodbye(reason) {
+        var prefix = getPrefix();
+        if (reason) {
+            console.log('[YuiGuideHandoff] triggerGoodbye, reason:', reason);
+        }
+        window.dispatchEvent(new CustomEvent(prefix + '-goodbye-click'));
+    }
+
+    /**
+     * 触发 Yui 回来流程。
+     * 包装现有的 ${prefix}-return-click 事件。
+     */
+    function triggerReturn() {
+        var prefix = getPrefix();
+        window.dispatchEvent(new CustomEvent(prefix + '-return-click'));
+    }
+
+    // ─── M2: 教程结束清理 ────────────────────────────────────
+
+    /**
+     * 关闭教程期间打开的所有弹层，恢复页面干净状态。
+     */
+    function cleanupTutorialPopups() {
+        var manager = getManager();
+        if (!manager || typeof manager.closePopupById !== 'function') return;
+
+        Object.keys(_popupsOpenedByTutorial).forEach(function (buttonId) {
+            manager.closePopupById(buttonId);
+        });
+        _popupsOpenedByTutorial = {};
+    }
+
+    window.addEventListener('neko:yui-guide:tutorial-end', function () {
+        cleanupTutorialPopups();
+    });
+
+    // ─── 导出 ─────────────────────────────────────────────────
     var handoff = Object.freeze({
         // M1
         openPage: openPage,
         isWindowOpen: isWindowOpen,
         resumeOnReturn: resumeOnReturn,
         normalizeWindowName: normalizeWindowName,
-        // M2
+        // M2 — 弹层
         openSettingsPanel: openSettingsPanel,
         closeSettingsPanel: closeSettingsPanel,
         openAgentPanel: openAgentPanel,
@@ -759,7 +808,12 @@
         openPluginDashboard: openPluginDashboard,
         openModelManagerPage: openModelManagerPage,
         waitForWindowOpen: waitForWindowOpen,
-        closeWindow: closeWindow
+        closeWindow: closeWindow,
+        // M2 — 离开/回来
+        triggerGoodbye: triggerGoodbye,
+        triggerReturn: triggerReturn,
+        // M2 — 清理
+        cleanupTutorialPopups: cleanupTutorialPopups
     });
 
     function getHomeInteractionApi() {
