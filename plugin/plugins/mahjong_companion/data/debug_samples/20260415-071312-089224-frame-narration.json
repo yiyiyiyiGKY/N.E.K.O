@@ -1,0 +1,75 @@
+{
+  "frame_path": "/Users/tonnodoubt/N.E.K.O/plugin/plugins/mahjong_companion/data/debug_samples/20260415-071312-089224-frame.png",
+  "narration_event": {
+    "event_type": "scene_update",
+    "channel": "silent_ui",
+    "delivery": "silent_ui",
+    "priority": 20,
+    "summary": "当前局面没有新的关键提醒。",
+    "detail": "可以继续观察画面变化，暂时不用主动提醒。 当前识别置信度还不高，最好再看一眼确认。",
+    "risk_level": "low",
+    "scene": "unknown",
+    "buttons": [
+      "skip"
+    ],
+    "text": "局面在推进，我先安静陪你看着。",
+    "speakable": false,
+    "dedupe_key": "scene_update|unknown|low|skip"
+  },
+  "companion_view_model": {
+    "headline": "当前局面没有新的关键提醒。",
+    "subline": "先继续观察牌桌变化。",
+    "mood": "calm",
+    "suggestion_level": "silent",
+    "speakable": false,
+    "delivery": "silent_ui",
+    "text": "局面在推进，我先安静陪你看着。",
+    "detail_collapsed": true
+  },
+  "debug": {
+    "decision_result": {
+      "decision_type": "scene_update",
+      "priority": 20,
+      "risk_level": "low",
+      "action_required": false,
+      "speakable": false,
+      "summary": "当前局面没有新的关键提醒。",
+      "detail": "可以继续观察画面变化，暂时不用主动提醒。 当前识别置信度还不高，最好再看一眼确认。",
+      "suggestion": "先继续观察牌桌变化。",
+      "recommended_focus": "observe",
+      "scene": "unknown",
+      "buttons": [
+        "skip"
+      ],
+      "reason_codes": [
+        "scene.unknown",
+        "perception.low_confidence"
+      ],
+      "review_tags": [
+        "low_confidence"
+      ],
+      "engine_meta": {
+        "engine": "rule_based_v2",
+        "confidence": 0.22,
+        "focus_area": "observe",
+        "button_groups": {
+          "win": [],
+          "declaration": [],
+          "call": [],
+          "passive": [
+            "skip"
+          ]
+        },
+        "review_candidate": false
+      }
+    },
+    "selected_template": "局面在推进，我先安静陪你看着。",
+    "event_type": "scene_update",
+    "mood": "calm",
+    "suggestion_level": "silent",
+    "recommended_focus": "observe",
+    "review_tags": [
+      "low_confidence"
+    ]
+  }
+}

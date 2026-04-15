@@ -1,0 +1,49 @@
+{
+  "frame_path": "/Users/tonnodoubt/N.E.K.O/plugin/plugins/mahjong_companion/data/debug_samples/20260415-071909-778800-frame.png",
+  "decision_result": {
+    "decision_type": "uncertain_state",
+    "priority": 20,
+    "risk_level": "low",
+    "action_required": false,
+    "speakable": false,
+    "summary": "当前局面还不够清晰。",
+    "detail": "这一帧暂时没看清楚，可以继续抓下一张图确认。 当前识别置信度还不高，最好再看一眼确认。",
+    "suggestion": "先等下一张清晰帧，再决定是否提醒。",
+    "recommended_focus": "need_clearer_frame",
+    "scene": "unknown",
+    "buttons": [],
+    "reason_codes": [
+      "scene.unknown",
+      "perception.low_confidence"
+    ],
+    "review_tags": [
+      "low_confidence"
+    ],
+    "engine_meta": {
+      "engine": "rule_based_v2",
+      "confidence": 0.22,
+      "focus_area": "need_clearer_frame",
+      "button_groups": {
+        "win": [],
+        "declaration": [],
+        "call": [],
+        "passive": []
+      },
+      "review_candidate": false
+    }
+  },
+  "debug": {
+    "source_scene": "unknown",
+    "source_confidence": 0.22,
+    "source_buttons": [],
+    "source_is_user_turn": false,
+    "source_notes": [
+      "insufficient scene evidence",
+      "insufficient action evidence"
+    ],
+    "decision_reason_codes": [
+      "scene.unknown",
+      "perception.low_confidence"
+    ]
+  }
+}

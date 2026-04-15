@@ -1,0 +1,64 @@
+{
+  "frame_path": "/Users/tonnodoubt/N.E.K.O/plugin/plugins/mahjong_companion/data/debug_samples/20260415-071052-371263-frame.png",
+  "narration_event": {
+    "event_type": "waiting_state",
+    "channel": "silent_ui",
+    "delivery": "silent_ui",
+    "priority": 25,
+    "summary": "当前更像是非对局操作阶段。",
+    "detail": "这是菜单、大厅、对话框或结算一类状态，通常不需要高频播报。",
+    "risk_level": "low",
+    "scene": "lobby",
+    "buttons": [],
+    "text": "这一段不用急，我先陪你盯着画面。",
+    "speakable": false,
+    "dedupe_key": "waiting_state|lobby|low|"
+  },
+  "companion_view_model": {
+    "headline": "当前更像是非对局操作阶段。",
+    "subline": "更适合静默展示状态，不需要持续提醒。",
+    "mood": "calm",
+    "suggestion_level": "silent",
+    "speakable": false,
+    "delivery": "silent_ui",
+    "text": "这一段不用急，我先陪你盯着画面。",
+    "detail_collapsed": true
+  },
+  "debug": {
+    "decision_result": {
+      "decision_type": "waiting_state",
+      "priority": 25,
+      "risk_level": "low",
+      "action_required": false,
+      "speakable": false,
+      "summary": "当前更像是非对局操作阶段。",
+      "detail": "这是菜单、大厅、对话框或结算一类状态，通常不需要高频播报。",
+      "suggestion": "更适合静默展示状态，不需要持续提醒。",
+      "recommended_focus": "scene_lobby",
+      "scene": "lobby",
+      "buttons": [],
+      "reason_codes": [
+        "scene.lobby"
+      ],
+      "review_tags": [],
+      "engine_meta": {
+        "engine": "rule_based_v2",
+        "confidence": 0.7,
+        "focus_area": "scene_lobby",
+        "button_groups": {
+          "win": [],
+          "declaration": [],
+          "call": [],
+          "passive": []
+        },
+        "review_candidate": false
+      }
+    },
+    "selected_template": "这一段不用急，我先陪你盯着画面。",
+    "event_type": "waiting_state",
+    "mood": "calm",
+    "suggestion_level": "silent",
+    "recommended_focus": "scene_lobby",
+    "review_tags": []
+  }
+}

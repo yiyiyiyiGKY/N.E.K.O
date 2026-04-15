@@ -1,0 +1,50 @@
+{
+  "frame_path": "/Users/tonnodoubt/N.E.K.O/plugin/plugins/mahjong_companion/data/debug_samples/20260415-050617-492831-frame.png",
+  "roi_boxes": {
+    "top_banner": {
+      "name": "top_banner",
+      "left": 128,
+      "top": 43,
+      "width": 2304,
+      "height": 172
+    },
+    "center_dialog": {
+      "name": "center_dialog",
+      "left": 640,
+      "top": 288,
+      "width": 1280,
+      "height": 432
+    },
+    "bottom_action_bar": {
+      "name": "bottom_action_bar",
+      "left": 460,
+      "top": 1094,
+      "width": 1638,
+      "height": 230
+    },
+    "bottom_hand_area": {
+      "name": "bottom_hand_area",
+      "left": 307,
+      "top": 979,
+      "width": 1945,
+      "height": 374
+    },
+    "right_replay_panel": {
+      "name": "right_replay_panel",
+      "left": 1996,
+      "top": 144,
+      "width": 460,
+      "height": 1007
+    }
+  },
+  "roi_hits": {
+    "top_banner": false,
+    "center_dialog": false,
+    "bottom_action_bar": false,
+    "right_replay_panel": false
+  },
+  "notes": [
+    "insufficient scene evidence",
+    "insufficient action evidence"
+  ]
+}

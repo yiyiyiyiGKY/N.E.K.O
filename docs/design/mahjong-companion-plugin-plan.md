@@ -3,12 +3,53 @@
 > 目标：把“雀魂相关能力”落成一个贴合当前仓库的长期插件方案，优先复用现有 `plugin/`、`agent_server.py`、`main_logic/`、TTS 与 Avatar 基座。
 >
 > 这份文档不以“伪装外挂”或“规避检测”为目标，而是收敛为屏幕感知、局内讲解、情绪陪伴、赛后复盘，以及在用户显式开启后的有限辅助操作。
+>
+> 参考基线以当前宿主插件管理页 `http://127.0.0.1:48916/ui/plugins`、`frontend/plugin-manager/` 前端实现，以及 `plugin/plugins/` 中已经落地的长生命周期插件为准，而不是假设存在一个名为 `48916/ui/plugins` 的仓库目录。
+
+## 阶段文档索引
+
+- 第一版：`docs/design/mahjong-companion-plugin-detailed-design.md`
+- 第二版：`docs/design/mahjong-companion-plugin-v2-capture-and-window-binding.md`
+- 第三版：`docs/design/mahjong-companion-plugin-v3-minimum-perception-loop.md`
+- 第四版：`docs/design/mahjong-companion-plugin-v4-narration-and-companion-output.md`
+- 第五版：`docs/design/mahjong-companion-plugin-v5-enhanced-rules-and-review-bridge.md`
+- 第六版：`docs/design/mahjong-companion-plugin-v6-tile-efficiency-and-review-summary.md`
+- 第七版：`docs/design/mahjong-companion-plugin-v7-assisted-actions-and-safe-execution.md`
+- 第八版：`docs/design/mahjong-companion-plugin-v8-complete-mahjong-analysis-and-calibrated-perception.md`
+- 第九版：`docs/design/mahjong-companion-plugin-v9-host-memory-sync-and-cross-session-coaching.md`
+- 第十版：`docs/design/mahjong-companion-plugin-v10-generalized-game-companion-framework.md`
+
+## 当前实现快照
+
+以下内容基于当前仓库 `plugin/plugins/mahjong_companion/` 的实际实现，而不是阶段文档的原始设想：
+
+- 第一版到第五版主线已经都落到代码里，不再只是方案草图。
+- 当前已经具备：
+  - 窗口绑定与真实截图
+  - `capture/` 截图 provider 层
+  - `gates/` 帧变化门控层
+  - `perception/` 感知管线
+  - `decision/` 最小决策层
+  - `narration/` 讲解、陪伴视图、播报策略与消息投递 adapter
+  - `action/human_override_guard.py` 输入安全守卫层
+  - `review/bridge.py` 复盘候选沉淀
+  - `review/memory_bridge.py` 长期记忆桥分流层
+  - 调试 UI
+  - `run_companion_pipeline` 一键总链路入口，可从图片或当前截图直接跑到猫娘主动回话
+- 当前还没有具备：
+  - 牌效率、向听、打点等完整麻将算法
+  - 真正写入宿主长期记忆的插件侧 SDK 接口
+
+这个快照的意义是：
+
+- 后面所有“是否符合设计”的判断，都以当前实际代码为准。
+- 文档里的“建议拆分”要和现状分开写，避免把“已经分离”和“仍在 `orchestrator.py` 内”混成一件事。
 
 ---
 
 ## 1. 文档目标
 
-本文只做五件事：
+本文只做六件事：
 
 - 明确当前仓库里已经存在、可以直接复用的能力边界。
 - 把原始方案里不贴合现有项目的部分，改写成真实可落地的模块拆分。
@@ -26,9 +67,11 @@
 ### 2.1 插件基线
 
 - 项目已经有完整的插件系统，插件运行在独立进程中，通过 `plugin/server/` 管理。
+- 项目当前是 SDK v2 形态，标准独立插件应放在 `plugin/plugins/<plugin_id>/` 下，走 `plugin.sdk.plugin` 范式，而不是 Adapter 或 Extension。
 - 插件可以通过 `@plugin_entry` 暴露入口，通过 `@lifecycle` 启停，通过 `register_static_ui()` 提供独立控制面板。
 - 插件可以用 `push_message(message_type="proactive_notification")` 主动把内容注入 N.E.K.O. 的主交互链路。
 - 插件可以通过 `finish(reply=True)` 让宿主走正常说话链路，也可以 `reply=False` 做静默更新。
+- 插件已经可以直接使用 `self.config`、`PluginStore`、`report_status()`、动态入口、生命周期事件和文件日志，不需要为会话态、配置态、状态上报另起一套基础设施。
 
 ### 2.2 Agent 与电脑控制基线
 
@@ -47,9 +90,27 @@
 
 - 当前项目不是纯 Vue 3 单体前端。
 - 实际结构是：主站页面以 `templates/` 为主，另有 `frontend/plugin-manager/` 的 Vue 面板和 `frontend/react-neko-chat/` 的 React 聊天组件。
+- `frontend/plugin-manager/` 以 `/ui/` 为 base 挂载，`/ui/plugins` 是当前插件管理页，按 `plugin / adapter / extension` 分组展示插件卡片。
+- 当前插件详情页已经有 `基础信息 / 入口 / 性能 / 配置 / 日志` 这些宿主级面板；Adapter 还可以通过 `PluginUIFrame` 在 `/ui/adapter/:id/ui` 内嵌插件 UI。
+- 插件静态 UI 的真实访问契约是 `/plugin/{plugin_id}/ui/` 与 `/plugin/{plugin_id}/ui-info`，而不是新增一个独立 BFF。
 - 因此本插件的 v1 面板更适合走“插件静态 UI”或宿主已有页面能力，而不是预设成必须新起一个 Vue 3 BFF 子系统。
 
-### 2.5 对本方案最重要的现实约束
+### 2.5 现有插件参考样式
+
+当前最值得参考的不是抽象接口，而是已经跑在插件管理页里的几类真实插件：
+
+- `mijia`：标准独立插件，`startup` 时初始化客户端、注册 `static/` UI，并实现 `config_change` 响应配置变化。
+- `bilibili_danmaku`：标准长生命周期插件，内部维护监听任务、队列、推送冷却和主动消息上行，最接近“长期后台运行的会话型插件”。
+- `memo_reminder`：使用 `PluginStore`、后台线程、文件日志、配置读取的持久型插件，适合参考“低频事件驱动 + 长状态保持”的运行方式。
+- `mcp_adapter`：展示了 `register_static_ui()`、动态入口注册和复杂状态管理，但它的插件类型是 Adapter，不能直接拿来当雀魂插件的目录或类型模板。
+
+对雀魂方案最有价值的借鉴不是照搬功能，而是照搬这些实践：
+
+- 把长生命周期状态留在插件进程内管理。
+- 让插件在 `/ui/plugins` 中有清晰的名称、描述、版本、状态和入口预览。
+- 优先复用宿主已有的配置、日志、状态、静态 UI 和生命周期能力。
+
+### 2.6 对本方案最重要的现实约束
 
 - `TaskExecutor` 和现有 Agent 评估链路偏“按用户请求触发”，并不适合承担一局麻将期间持续运行的主循环。
 - 真正适合这个插件的运行模型，不是“把它塞进一次次 Agent task”，而是“做成一个可启停的长生命周期插件会话”。
@@ -128,11 +189,44 @@ v1 应定位为：
 ### 5.1 总体原则
 
 - 核心实现应优先作为一个独立插件落在 `plugin/plugins/` 下。
+- 插件类型应明确为标准 `Plugin`，让它自然出现在当前的 `/ui/plugins` 列表与详情页里；不要为了“更像前端应用”误做成 Adapter。
 - 感知、决策、表达做契约解耦，但 v1 不必先拆成多个 FastAPI 微服务。
 - 新增优化应优先做成通用策略模块，例如 `FrameChangeGate`、`SpeechPolicy`、`HumanOverrideGuard`、`CompanionViewModel`、`MemoryBridge`，避免写死成雀魂专属逻辑。
 - 只有当性能或依赖隔离真的成为瓶颈时，再把某些重模块拆为本地 sidecar worker。
 
-### 5.2 推荐分层
+### 5.1.1 仓库组织建议：先整合在主项目内
+
+基于当前项目的既有插件形态，雀魂插件更适合：
+
+- 代码继续放在主仓库内，目录落在 `plugin/plugins/mahjong_companion/`。
+- 运行时继续享受“插件独立进程”带来的隔离性，而不是额外拆成一个独立 Git 项目。
+- UI、配置、日志、生命周期、插件管理页接入都直接复用现有宿主能力。
+
+这样做的主要原因：
+
+- 当前仓库里的现有插件本身就是“同仓库维护、运行时独立进程”的模式。
+- 雀魂插件会强依赖当前宿主的 `push_message()`、`finish()`、`report_status()`、配置系统、静态 UI 路由和插件管理页。
+- 如果过早拆成独立项目，会立刻增加版本同步、SDK 兼容、调试联调、文档同步和发布流程成本。
+- v1 的主要难点在识别正确率和讲解体验，不在仓库边界管理。
+
+只有在以下情况同时变强时，才值得再评估拆独立项目：
+
+- 插件已经演进成跨多个宿主复用的通用产品。
+- 需要独立发布节奏和独立依赖树。
+- 视觉 / 算法依赖已经明显拖累主仓库开发体验。
+- 团队希望把插件作为单独产品线维护。
+
+### 5.2 先对齐当前插件管理页的宿主能力
+
+这个插件的 v1 设计，建议直接对齐当前宿主已经提供的展示与运维面：
+
+- `/ui/plugins` 列表页负责展示名称、描述、版本、运行状态、入口数量与可选性能指标。
+- `/ui/plugins/:id` 详情页负责展示入口、配置、日志和宿主侧状态，不必把这些能力重新做一遍。
+- `/plugin/{plugin_id}/ui/` 只承担雀魂专属的控制台，例如截图调试、局面预览、标注和会话控制。
+- 插件运行态应通过 `report_status()` 输出，例如 `idle / scanning / in_match / replay / error`，这样宿主页能直接看到高价值状态，而不是只有“running”。
+- 配置优先走现有配置系统与 profile 叠加能力，必要时再在静态 UI 上包一层更友好的交互。
+
+### 5.3 推荐分层
 
 ```text
 Mahjong Companion Plugin
@@ -148,7 +242,30 @@ Mahjong Companion Plugin
 └── Plugin UI                   # 控制面板、调试页、标注页
 ```
 
-### 5.3 为什么不建议一开始就做“三个网络微服务”
+### 5.3.1 当前实现与推荐分层核对
+
+基于当前代码，模块分离达成情况如下：
+
+| 设计层 | 当前状态 | 实际落点 | 结论 |
+| --- | --- | --- | --- |
+| `Session Orchestrator` | 已实现 | `orchestrator.py` | 符合设计 |
+| `Capture Provider` | 已实现 | `capture/provider.py` + `window_binding.py` | 符合设计 |
+| `FrameChangeGate` | 已实现 | `gates/frame_change.py` | 符合设计 |
+| `Perception Pipeline` | 已实现 | `perception/` | 符合设计 |
+| `Decision Engine Adapter` | 已实现 | `decision/adapter.py` + `decision/generator.py` | 基本符合设计 |
+| `Companion ViewModel` | 已实现 | `narration/view_model.py` | 符合设计 |
+| `Narration Adapter` | 已实现 | `narration/generator.py` + `narration/speech_policy.py` + `narration/dispatcher.py` | 符合设计 |
+| `Input Safety Guard` | 已实现 | `action/human_override_guard.py` | 已独立成安全层，等待后续输入执行层接入 |
+| `Review & Memory Bridge` | 已实现 | `review/bridge.py` + `review/memory_bridge.py` | 已完成 review candidate 和记忆摘要分流；宿主写入仍受 SDK 能力限制 |
+| `Plugin UI` | 已实现 | `static/` | 符合设计 |
+
+结论可以直接写成三句话：
+
+- 当前插件已经完成了“截图 / 门控 / 感知 / 决策 / 讲解 / 消息投递 / 复盘桥接 / UI”这些主线的目录级分离。
+- 当前插件已经完成“输入安全守卫”“长期记忆桥”这两条横切安全与记忆层分离。
+- 因此它现在已经达到总方案文档里要求的目录级多层拆分，剩下主要是更强算法和宿主记忆写入能力，而不是继续把逻辑堆回 `orchestrator.py`。
+
+### 5.4 为什么不建议一开始就做“三个网络微服务”
 
 - 当前仓库已经有插件进程隔离，先天就是一个比较好的边界。
 - 这个功能的第一阶段主要难点是识别正确率、讲解时机、文案体验，不是服务编排。
@@ -177,7 +294,15 @@ Mahjong Companion Plugin
   - `stop_session`
   - `set_mode`
   - `capture_debug_frame`
-  - `run_replay_review`
+  - `analyze_debug_frame`
+  - `generate_decision`
+  - `generate_narration`
+  - `run_companion_pipeline`
+- 额外建议保留一个 `get_session_status` 或 `get_debug_snapshot` 入口，方便宿主页、脚本调用和后续测试。
+- 每次模式切换、会话启动、错误恢复后都建议同步 `report_status()`，让 `/ui/plugins` 和 `/ui/plugins/:id` 能看到更细粒度的宿主状态。
+- 当前实际还新增了 `analyze_frame_path`、`get_last_perception`、`get_last_decision`、`get_last_narration`、`preview_companion_view`、`speak_last_narration`、`cycle_voice_mode` 等调试与状态入口。
+- 当前还没有独立的 `run_replay_review` 入口；赛后复盘摘要仍属于下一阶段要补的能力。
+- 当前实际的 `run_companion_pipeline` 总入口，用来把“选帧 / 截图 -> 感知 -> 决策 -> 讲解 -> 主动回话”收敛成单次可测试链路。这一入口对调试和宿主联调很有帮助，但它也说明当前 `orchestrator.py` 仍承担了一部分原本可继续拆出的调试编排职责。
 
 建议在这一层内置通用 `SpeechPolicy`：
 
@@ -453,6 +578,7 @@ class DecisionEngine(Protocol):
 
 - `Review Logger`：保存局内关键节点、建议、用户实际操作与结果。
 - `MemoryBridge`：把跨局有价值的摘要标签注入 N.E.K.O. 主记忆系统。
+- 局内样本、校准参数、回放摘要和最近一次会话快照建议优先落在插件自己的 `data/` 与 `PluginStore` 中，只有真正高价值的摘要才上送宿主长期记忆。
 
 适合注入长期记忆的内容：
 
@@ -488,7 +614,13 @@ class DecisionEngine(Protocol):
 | 需求 | 当前可复用模块 | 建议做法 | 注意点 |
 | --- | --- | --- | --- |
 | 插件生命周期 | `plugin/` | 直接做独立插件 | 不要走一次性 Agent task |
+| 插件管理页接入 | `/ui/plugins`、`/ui/plugins/:id` | 复用宿主列表、详情、日志、性能、配置页面 | 雀魂插件应以标准 `Plugin` 形态出现 |
 | 控制面板 | `register_static_ui()` | 插件自带静态 UI | 不必预设 Vue 3 |
+| 插件 UI 路由 | `/plugin/{plugin_id}/ui/`、`/ui-info` | 雀魂专属调试台走静态 UI | 当前宿主默认不是所有普通插件都内嵌 iframe |
+| 配置管理 | `self.config`、`/plugin/{id}/config`、profiles、hot-update | 参数、模式、校准、讲解策略统一接入现有配置系统 | 需要明确哪些配置支持热更新，哪些需要重启会话 |
+| 配置变更通知 | `@lifecycle(id="config_change")` | 配置落地后刷新会话参数或重载局部资源 | 不要把所有改动都做成整插件重启 |
+| 持久化与样本 | `PluginStore`、`data/` 目录 | 存局部状态、样本索引、最近会话摘要 | 长期记忆不要和原始流水混放 |
+| 运行态可观测性 | `report_status()`、日志面板、性能页 | 上报会话模式、扫描状态、最近错误、帧分析计数 | 避免只显示笼统的 `running` |
 | 感知前节流 | 插件内轻量模块 | 新增 `FrameChangeGate` | 应做成 profile 驱动，不绑雀魂 |
 | 主动讲话 | `push_message()` / `finish(reply=True)` | 用现有说话链路 | 需要节流，避免刷屏 |
 | 说话策略 | 插件内策略层 | 新增 `SpeechPolicy` | 要和业务决策解耦 |
@@ -508,45 +640,54 @@ class DecisionEngine(Protocol):
 plugin/plugins/mahjong_companion/
 ├── __init__.py
 ├── plugin.toml
+├── README.md
 ├── contracts.py
+├── config_defaults.py
 ├── orchestrator.py
 ├── session_state.py
+├── window_binding.py
 ├── capture/
-│   ├── base.py
-│   ├── pyautogui_capture.py
-│   └── dxcam_capture.py          # 可选，后续再加
-├── gating/
-│   └── frame_change_gate.py
+│   └── provider.py
+├── gates/
+│   └── frame_change.py
 ├── perception/
 │   ├── pipeline.py
-│   ├── roi_specs.py
-│   ├── tile_classifier.py
-│   └── scene_detector.py
+│   ├── roi.py
+│   ├── scene_classifier.py
+│   ├── action_detector.py
+│   └── debug_dump.py
 ├── decision/
-│   ├── base.py
-│   ├── rule_engine.py
-│   └── local_model_adapter.py
+│   ├── adapter.py
+│   ├── generator.py
+│   └── debug_dump.py
 ├── narration/
-│   ├── companion_view_model.py
+│   ├── dispatcher.py
+│   ├── events.py
+│   ├── generator.py
 │   ├── speech_policy.py
-│   ├── templates.py
-│   └── formatter.py
+│   ├── view_model.py
+│   └── debug_dump.py
 ├── action/
-│   ├── input_adapter.py
 │   └── human_override_guard.py
 ├── review/
-│   ├── logger.py
-│   ├── memory_bridge.py
-│   └── summarizer.py
+│   ├── bridge.py
+│   └── memory_bridge.py
 ├── static/
 │   ├── index.html
 │   ├── main.js
 │   └── style.css
 └── data/
-    ├── config.json
-    ├── calibration.json
-    └── fixtures/
+    ├── debug_samples/
+    └── session_cache/
 ```
+
+当前这个目录结构已经是代码实况，而不是纯建议草图。
+
+如果后续继续进入第六版和更后面的实现，再按需要补充：
+
+- `decision/tile_efficiency.py` 或等价的牌效率模块
+- `review/summarizer.py` 一类的赛后复盘摘要模块
+- `action/input_adapter.py` 一类的有限辅助操作执行层
 
 ---
 
@@ -557,11 +698,12 @@ plugin/plugins/mahjong_companion/
 - 先把“不做反检测、不承诺不封”写进产品与技术文档。
 - 定义 `FramePacket`、`PerceivedGameState`、`DecisionResult` 三套契约。
 - 定义输入辅助分级：`off / assist / semi_auto`。
-- 搭插件骨架、控制面板和日志面板。
+- 搭插件骨架、`plugin.toml`、基础 `plugin_entry`、状态上报和控制面板。
 
 完成标志：
 
 - 插件能启动。
+- `/ui/plugins` 里能正常看到该插件卡片、状态和基础描述。
 - UI 能开关会话与模式。
 - 能保存基础配置与校准信息。
 
@@ -570,6 +712,7 @@ plugin/plugins/mahjong_companion/
 - 用现有 `pyautogui` 依赖跑通窗口定位、截图、裁切和调试保存。
 - 同时接入 `FrameChangeGate`，先用最小可行的 ROI 哈希门控降低空转功耗。
 - 做“手动抓一帧并分析”的 debug 页面。
+- 接通基础 `report_status()` 与调试计数，让宿主页可见当前是否在扫描、最近一次截图是否成功。
 - 不急着上高帧率。
 
 完成标志：
@@ -631,7 +774,7 @@ plugin/plugins/mahjong_companion/
 
 - 沉淀局内关键节点日志。
 - 输出复盘摘要、高光时刻、风险回顾。
-- 将低频高价值的打法标签通过 `MemoryBridge` 注入宿主长期记忆。
+- 先通过 `MemoryBridge` 在本地筛选和暂存低频高价值摘要；待宿主 SDK 提供插件侧写入接口后，再同步宿主长期记忆。
 - 先把回放 / 教学模式做强，再考虑更激进的实时能力。
 
 完成标志：
@@ -644,6 +787,11 @@ plugin/plugins/mahjong_companion/
 
 - 把与雀魂无关的部分抽成 `CaptureProfile`、`PerceptionProfile`、`NarrationProfile`。
 - 未来拓展到其他游戏时，只替换 profile、识别器和决策引擎。
+
+补充说明：
+
+- 当前 `v6-v10` 版本文档已经把“牌效率建议”“有限辅助操作”“完整麻将分析”“宿主记忆同步”“通用框架化”继续拆成更细的后续阶段。
+- 因此这里的“阶段 5 / 阶段 6”应理解为高层路线归并，而不是和 `v6-v10` 一一同粒度对应。
 
 ---
 
@@ -662,6 +810,7 @@ plugin/plugins/mahjong_companion/
 - 插件入口契约测试。
 - 静态 UI 可用性测试。
 - 会话启停、配置保存、日志导出测试。
+- `/ui/plugins` 列表展示与插件详情页基础可见性测试。
 - 输入辅助开关、场景白名单、风险提示与操作日志测试。
 - `HumanOverrideGuard` 的物理输入中断测试。
 - `MemoryBridge` 的写入频控与摘要质量测试。

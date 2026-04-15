@@ -1,0 +1,69 @@
+{
+  "frame_path": "/Users/tonnodoubt/N.E.K.O/plugin/plugins/mahjong_companion/data/debug_samples/20260415-071909-778800-frame.png",
+  "narration_event": {
+    "event_type": "uncertain_state",
+    "channel": "silent_ui",
+    "delivery": "silent_ui",
+    "priority": 20,
+    "summary": "当前局面还不够清晰。",
+    "detail": "这一帧暂时没看清楚，可以继续抓下一张图确认。 当前识别置信度还不高，最好再看一眼确认。",
+    "risk_level": "low",
+    "scene": "unknown",
+    "buttons": [],
+    "text": "这一刻画面信息不够完整，我先继续观察。",
+    "speakable": false,
+    "dedupe_key": "uncertain_state|unknown|low|"
+  },
+  "companion_view_model": {
+    "headline": "当前局面还不够清晰。",
+    "subline": "先等下一张清晰帧，再决定是否提醒。",
+    "mood": "curious",
+    "suggestion_level": "silent",
+    "speakable": false,
+    "delivery": "silent_ui",
+    "text": "这一刻画面信息不够完整，我先继续观察。",
+    "detail_collapsed": true
+  },
+  "debug": {
+    "decision_result": {
+      "decision_type": "uncertain_state",
+      "priority": 20,
+      "risk_level": "low",
+      "action_required": false,
+      "speakable": false,
+      "summary": "当前局面还不够清晰。",
+      "detail": "这一帧暂时没看清楚，可以继续抓下一张图确认。 当前识别置信度还不高，最好再看一眼确认。",
+      "suggestion": "先等下一张清晰帧，再决定是否提醒。",
+      "recommended_focus": "need_clearer_frame",
+      "scene": "unknown",
+      "buttons": [],
+      "reason_codes": [
+        "scene.unknown",
+        "perception.low_confidence"
+      ],
+      "review_tags": [
+        "low_confidence"
+      ],
+      "engine_meta": {
+        "engine": "rule_based_v2",
+        "confidence": 0.22,
+        "focus_area": "need_clearer_frame",
+        "button_groups": {
+          "win": [],
+          "declaration": [],
+          "call": [],
+          "passive": []
+        },
+        "review_candidate": false
+      }
+    },
+    "selected_template": "这一刻画面信息不够完整，我先继续观察。",
+    "event_type": "uncertain_state",
+    "mood": "curious",
+    "suggestion_level": "silent",
+    "recommended_focus": "need_clearer_frame",
+    "review_tags": [
+      "low_confidence"
+    ]
+  }
+}

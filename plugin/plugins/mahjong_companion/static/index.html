@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mahjong Companion</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="hero">
+      <p class="eyebrow">Mahjong Companion</p>
+      <h1>雀魂陪伴插件</h1>
+      <p class="summary">当前调试台。现在可验证窗口绑定、真实抓帧、基础感知、最小决策、讲解生成、状态上报与猫娘播报入口。</p>
+    </header>
+
+    <section class="panel">
+      <h2>会话状态</h2>
+      <div class="status-grid">
+        <div><strong>宿主状态</strong><span id="host-status">-</span></div>
+        <div><strong>运行态</strong><span id="runtime-status">-</span></div>
+        <div><strong>当前模式</strong><span id="current-mode">-</span></div>
+        <div><strong>窗口绑定</strong><span id="window-bound">-</span></div>
+        <div><strong>窗口标题</strong><span id="window-title">-</span></div>
+        <div><strong>最近抓图</strong><span id="capture-ok">-</span></div>
+        <div><strong>截图来源</strong><span id="capture-source">-</span></div>
+        <div><strong>截图路径</strong><span id="frame-path">-</span></div>
+        <div><strong>当前场景</strong><span id="scene">-</span></div>
+        <div><strong>场景置信度</strong><span id="scene-confidence">-</span></div>
+        <div><strong>轮到用户</strong><span id="user-turn">-</span></div>
+        <div><strong>按钮候选</strong><span id="buttons">-</span></div>
+        <div><strong>感知成功</strong><span id="perception-ok">-</span></div>
+        <div><strong>感知时间</strong><span id="perception-at">-</span></div>
+        <div><strong>决策类型</strong><span id="decision-type">-</span></div>
+        <div><strong>风险等级</strong><span id="decision-risk">-</span></div>
+        <div><strong>建议焦点</strong><span id="decision-focus">-</span></div>
+        <div><strong>决策时间</strong><span id="decision-at">-</span></div>
+        <div><strong>讲解类型</strong><span id="narration-type">-</span></div>
+        <div><strong>输出通道</strong><span id="narration-channel">-</span></div>
+        <div><strong>输出方式</strong><span id="narration-delivery">-</span></div>
+        <div><strong>陪伴情绪</strong><span id="companion-mood">-</span></div>
+        <div><strong>建议强度</strong><span id="suggestion-level">-</span></div>
+        <div><strong>当前建议</strong><span id="decision-suggestion">-</span></div>
+        <div><strong>讲解文本</strong><span id="narration-text">-</span></div>
+        <div><strong>语音模式</strong><span id="voice-mode">-</span></div>
+        <div><strong>最近通知</strong><span id="notification-at">-</span></div>
+        <div><strong>最近已播报</strong><span id="spoken-at">-</span></div>
+        <div><strong>最近错误</strong><span id="last-error">-</span></div>
+      </div>
+      <pre id="status">状态加载中...</pre>
+    </section>
+
+    <section class="panel">
+      <h2>操作</h2>
+      <div class="actions">
+        <button id="refresh-btn" type="button">刷新状态</button>
+        <button id="bind-btn" type="button">尝试绑定窗口</button>
+        <button id="unbind-btn" type="button">解除窗口绑定</button>
+        <button id="start-btn" type="button">启动会话</button>
+        <button id="stop-btn" type="button">停止会话</button>
+        <label class="inline-select" for="mode-select">模式</label>
+        <select id="mode-select">
+          <option value="teaching">teaching</option>
+          <option value="spectate">spectate</option>
+          <option value="replay">replay</option>
+          <option value="silent">silent</option>
+        </select>
+        <button id="set-mode-btn" type="button">设置模式</button>
+        <button id="capture-btn" type="button">抓取调试帧</button>
+        <button id="analyze-btn" type="button">分析最近截图</button>
+        <button id="decision-btn" type="button">生成决策</button>
+        <button id="narration-btn" type="button">生成讲解</button>
+        <button id="pipeline-btn" type="button">一键跑到猫娘回话</button>
+        <button id="preview-btn" type="button">刷新陪伴视图</button>
+        <button id="speak-btn" type="button">播报当前讲解</button>
+        <button id="voice-mode-btn" type="button">切换语音模式</button>
+      </div>
+      <label class="toggle">
+        <input id="auto-refresh-toggle" type="checkbox" />
+        <span>自动刷新（3 秒）</span>
+      </label>
+    </section>
+
+    <section class="panel">
+      <h2>最近响应</h2>
+      <pre id="output">暂无输出</pre>
+    </section>
+  </main>
+  <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+{
+  "frame_path": "/Users/tonnodoubt/N.E.K.O/plugin/plugins/mahjong_companion/data/debug_samples/20260415-071312-089224-frame.png",
+  "roi_boxes": {
+    "top_banner": {
+      "name": "top_banner",
+      "left": 67,
+      "top": 23,
+      "width": 1207,
+      "height": 95
+    },
+    "center_dialog": {
+      "name": "center_dialog",
+      "left": 335,
+      "top": 159,
+      "width": 671,
+      "height": 238
+    },
+    "bottom_action_bar": {
+      "name": "bottom_action_bar",
+      "left": 241,
+      "top": 604,
+      "width": 858,
+      "height": 127
+    },
+    "bottom_hand_area": {
+      "name": "bottom_hand_area",
+      "left": 161,
+      "top": 541,
+      "width": 1019,
+      "height": 206
+    },
+    "right_replay_panel": {
+      "name": "right_replay_panel",
+      "left": 1046,
+      "top": 79,
+      "width": 241,
+      "height": 557
+    }
+  },
+  "roi_hits": {
+    "top_banner": true,
+    "center_dialog": false,
+    "bottom_action_bar": true,
+    "right_replay_panel": false
+  },
+  "notes": [
+    "insufficient scene evidence",
+    "orange accent in bottom action bar"
+  ]
+}

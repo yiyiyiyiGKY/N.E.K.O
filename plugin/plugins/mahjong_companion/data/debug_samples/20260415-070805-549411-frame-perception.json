@@ -1,0 +1,234 @@
+{
+  "frame_path": "/Users/tonnodoubt/N.E.K.O/plugin/plugins/mahjong_companion/data/debug_samples/20260415-070805-549411-frame.png",
+  "perceived_state": {
+    "scene": "lobby",
+    "confidence": 0.7,
+    "is_user_turn": false,
+    "buttons": [],
+    "notes": [
+      "bright lobby-style frame detected",
+      "non-match scene suppresses bottom action bar inference",
+      "insufficient action evidence"
+    ],
+    "roi_hits": {
+      "top_banner": true,
+      "center_dialog": true,
+      "bottom_action_bar": true,
+      "right_replay_panel": false
+    }
+  },
+  "debug": {
+    "image_path": "/Users/tonnodoubt/N.E.K.O/plugin/plugins/mahjong_companion/data/debug_samples/20260415-070805-549411-frame.png",
+    "image_size": {
+      "width": 1342,
+      "height": 796
+    },
+    "roi_boxes": {
+      "top_banner": {
+        "name": "top_banner",
+        "left": 67,
+        "top": 23,
+        "width": 1207,
+        "height": 95
+      },
+      "center_dialog": {
+        "name": "center_dialog",
+        "left": 335,
+        "top": 159,
+        "width": 671,
+        "height": 238
+      },
+      "bottom_action_bar": {
+        "name": "bottom_action_bar",
+        "left": 241,
+        "top": 604,
+        "width": 858,
+        "height": 127
+      },
+      "bottom_hand_area": {
+        "name": "bottom_hand_area",
+        "left": 161,
+        "top": 541,
+        "width": 1019,
+        "height": 206
+      },
+      "right_replay_panel": {
+        "name": "right_replay_panel",
+        "left": 1046,
+        "top": 79,
+        "width": 241,
+        "height": 557
+      }
+    },
+    "roi_metrics": {
+      "full_frame": {
+        "box": null,
+        "size": {
+          "width": 1342,
+          "height": 796
+        },
+        "avg_rgb": {
+          "r": 145.02,
+          "g": 116.59,
+          "b": 133.9
+        },
+        "mean_luma": 127.07,
+        "stddev": 64.19,
+        "bright_ratio": 0.1497,
+        "dark_ratio": 0.1739,
+        "white_ratio": 0.0392,
+        "colorful_ratio": 0.5013,
+        "gold_ratio": 0.0358,
+        "orange_ratio": 0.0593,
+        "red_ratio": 0.044,
+        "green_ratio": 0.0136,
+        "sample_count": 29792
+      },
+      "top_banner": {
+        "box": {
+          "name": "top_banner",
+          "left": 67,
+          "top": 23,
+          "width": 1207,
+          "height": 95
+        },
+        "size": {
+          "width": 1207,
+          "height": 95
+        },
+        "avg_rgb": {
+          "r": 132.09,
+          "g": 125.46,
+          "b": 142.52
+        },
+        "mean_luma": 129.4,
+        "stddev": 67.67,
+        "bright_ratio": 0.0888,
+        "dark_ratio": 0.189,
+        "white_ratio": 0.0241,
+        "colorful_ratio": 0.6074,
+        "gold_ratio": 0.1108,
+        "orange_ratio": 0.1154,
+        "red_ratio": 0.013,
+        "green_ratio": 0.0,
+        "sample_count": 3232
+      },
+      "center_dialog": {
+        "box": {
+          "name": "center_dialog",
+          "left": 335,
+          "top": 159,
+          "width": 671,
+          "height": 238
+        },
+        "size": {
+          "width": 671,
+          "height": 238
+        },
+        "avg_rgb": {
+          "r": 161.24,
+          "g": 135.25,
+          "b": 174.25
+        },
+        "mean_luma": 147.46,
+        "stddev": 62.93,
+        "bright_ratio": 0.2922,
+        "dark_ratio": 0.1016,
+        "white_ratio": 0.0699,
+        "colorful_ratio": 0.6134,
+        "gold_ratio": 0.0196,
+        "orange_ratio": 0.0295,
+        "red_ratio": 0.0118,
+        "green_ratio": 0.0,
+        "sample_count": 4480
+      },
+      "bottom_action_bar": {
+        "box": {
+          "name": "bottom_action_bar",
+          "left": 241,
+          "top": 604,
+          "width": 858,
+          "height": 127
+        },
+        "size": {
+          "width": 858,
+          "height": 127
+        },
+        "avg_rgb": {
+          "r": 122.56,
+          "g": 93.39,
+          "b": 110.87
+        },
+        "mean_luma": 104.11,
+        "stddev": 57.89,
+        "bright_ratio": 0.082,
+        "dark_ratio": 0.3191,
+        "white_ratio": 0.0153,
+        "colorful_ratio": 0.2559,
+        "gold_ratio": 0.0238,
+        "orange_ratio": 0.0397,
+        "red_ratio": 0.0242,
+        "green_ratio": 0.0229,
+        "sample_count": 3146
+      },
+      "bottom_hand_area": {
+        "box": {
+          "name": "bottom_hand_area",
+          "left": 161,
+          "top": 541,
+          "width": 1019,
+          "height": 206
+        },
+        "size": {
+          "width": 1019,
+          "height": 206
+        },
+        "avg_rgb": {
+          "r": 135.06,
+          "g": 99.19,
+          "b": 109.82
+        },
+        "mean_luma": 111.13,
+        "stddev": 59.76,
+        "bright_ratio": 0.0889,
+        "dark_ratio": 0.2842,
+        "white_ratio": 0.0218,
+        "colorful_ratio": 0.3618,
+        "gold_ratio": 0.0316,
+        "orange_ratio": 0.0655,
+        "red_ratio": 0.0551,
+        "green_ratio": 0.0247,
+        "sample_count": 5950
+      },
+      "right_replay_panel": {
+        "box": {
+          "name": "right_replay_panel",
+          "left": 1046,
+          "top": 79,
+          "width": 241,
+          "height": 557
+        },
+        "size": {
+          "width": 241,
+          "height": 557
+        },
+        "avg_rgb": {
+          "r": 167.19,
+          "g": 125.34,
+          "b": 143.07
+        },
+        "mean_luma": 139.87,
+        "stddev": 59.76,
+        "bright_ratio": 0.2043,
+        "dark_ratio": 0.0873,
+        "white_ratio": 0.0472,
+        "colorful_ratio": 0.6496,
+        "gold_ratio": 0.0795,
+        "orange_ratio": 0.0968,
+        "red_ratio": 0.0349,
+        "green_ratio": 0.0134,
+        "sample_count": 3813
+      }
+    }
+  }
+}

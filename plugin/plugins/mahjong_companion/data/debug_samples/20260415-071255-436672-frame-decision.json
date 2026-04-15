@@ -1,0 +1,55 @@
+{
+  "frame_path": "/Users/tonnodoubt/N.E.K.O/plugin/plugins/mahjong_companion/data/debug_samples/20260415-071255-436672-frame.png",
+  "decision_result": {
+    "decision_type": "scene_update",
+    "priority": 20,
+    "risk_level": "low",
+    "action_required": false,
+    "speakable": false,
+    "summary": "当前局面没有新的关键提醒。",
+    "detail": "可以继续观察画面变化，暂时不用主动提醒。 当前识别置信度还不高，最好再看一眼确认。",
+    "suggestion": "先继续观察牌桌变化。",
+    "recommended_focus": "observe",
+    "scene": "unknown",
+    "buttons": [
+      "skip"
+    ],
+    "reason_codes": [
+      "scene.unknown",
+      "perception.low_confidence"
+    ],
+    "review_tags": [
+      "low_confidence"
+    ],
+    "engine_meta": {
+      "engine": "rule_based_v2",
+      "confidence": 0.22,
+      "focus_area": "observe",
+      "button_groups": {
+        "win": [],
+        "declaration": [],
+        "call": [],
+        "passive": [
+          "skip"
+        ]
+      },
+      "review_candidate": false
+    }
+  },
+  "debug": {
+    "source_scene": "unknown",
+    "source_confidence": 0.22,
+    "source_buttons": [
+      "skip"
+    ],
+    "source_is_user_turn": false,
+    "source_notes": [
+      "insufficient scene evidence",
+      "orange accent in bottom action bar"
+    ],
+    "decision_reason_codes": [
+      "scene.unknown",
+      "perception.low_confidence"
+    ]
+  }
+}
