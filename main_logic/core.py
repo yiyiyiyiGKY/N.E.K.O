@@ -13,7 +13,7 @@ from datetime import datetime
 from websockets import exceptions as web_exceptions
 from fastapi import WebSocket, WebSocketDisconnect
 from utils.frontend_utils import contains_chinese, replace_blank, replace_corner_mark, remove_bracket, \
-    is_only_punctuation
+    is_only_punctuation, TtsStreamNormalizer
 from utils.screenshot_utils import process_screen_data
 from main_logic.omni_realtime_client import OmniRealtimeClient
 from main_logic.omni_offline_client import OmniOfflineClient
@@ -153,6 +153,11 @@ class LLMSessionManager:
         self.tts_request_queue = Queue()  # TTS request (线程队列)
         self.tts_response_queue = Queue()  # TTS response (线程队列)
         self.tts_thread = None  # TTS线程
+        # 跨 chunk 规范化器：Gemini Live 输出转录会在中文 token 之间插入 ASCII
+        # 空格，让 MiniMax / CosyVoice 等 streaming TTS 把中文读断。normalizer
+        # 按 replace_blank 的语义剔除空格，同时延后处理 chunk 尾部空格以保证边界正确。
+        self._tts_stream_normalizer = TtsStreamNormalizer()
+        self._tts_norm_speech_id: Optional[str] = None
         # 流式音频重采样器（24kHz→48kHz）- 维护内部状态避免 chunk 边界不连续
         self.audio_resampler = soxr.ResampleStream(24000, 48000, 1, dtype='float32')
         self.lock = asyncio.Lock()  # 使用异步锁替代同步锁
@@ -314,6 +319,28 @@ class LLMSessionManager:
         except Exception:
             return 350
 
+    def _enqueue_tts_text_chunk(self, speech_id, text: str) -> None:
+        """通过 stream normalizer 把一段文本 chunk 入 TTS 队列。
+
+        调用方必须已持有 ``self.tts_cache_lock``（与现有 put 调用点一致）。
+        speech_id 变化会触发 normalizer 重置；规范化后若 chunk 为空则不入队，
+        避免给 TTS worker 发无意义的空串。控制信号（``__interrupt__`` /
+        ``(None, None)``）请继续用 ``tts_request_queue.put`` 直接发送，
+        并在合适时机调用 ``_reset_tts_stream_normalizer``。
+        """
+        if speech_id != self._tts_norm_speech_id:
+            self._tts_stream_normalizer.reset()
+            self._tts_norm_speech_id = speech_id
+        normalized = self._tts_stream_normalizer.feed(text)
+        if not normalized:
+            return
+        self.tts_request_queue.put((speech_id, normalized))
+
+    def _reset_tts_stream_normalizer(self) -> None:
+        """清空 normalizer 状态。中断 / 轮次结束 / session 重建时调用。"""
+        self._tts_stream_normalizer.reset()
+        self._tts_norm_speech_id = None
+
     async def _clear_tts_pipeline(self):
         """清空 TTS 请求/响应队列和待处理缓存，停止当前合成。"""
         if self.use_tts and self.tts_thread and self.tts_thread.is_alive():
@@ -326,6 +353,7 @@ class LLMSessionManager:
                 self.tts_request_queue.put(("__interrupt__", None))
             except Exception as e:
                 logger.warning(f"⚠️ 发送TTS中断信号失败: {e}")
+            self._reset_tts_stream_normalizer()
             # 等待 TTS worker 处理 __interrupt__ 并 mute 回调（worker 轮询间隔 ~10ms）
             # 然后再次清空响应队列，确保旧 synthesizer 泄漏的音频全部丢弃
             await asyncio.sleep(0.02)
@@ -378,11 +406,11 @@ class LLMSessionManager:
                 if self.tts_ready and self.tts_thread and self.tts_thread.is_alive():
                     # TTS已就绪，直接发送
                     try:
-                        self.tts_request_queue.put((self.current_speech_id, text))
+                        self._enqueue_tts_text_chunk(self.current_speech_id, text)
                     except Exception as e:
                         logger.warning(f"⚠️ 发送TTS请求失败: {e}")
                 else:
-                    # TTS未就绪，先缓存
+                    # TTS未就绪，先缓存（规范化延迟到 _flush_tts_pending_chunks）
                     self.tts_pending_chunks.append((self.current_speech_id, text))
                     if len(self.tts_pending_chunks) == 1:
                         logger.info("TTS未就绪，开始缓存文本chunk...")
@@ -588,11 +616,11 @@ class LLMSessionManager:
                 if self.tts_ready and self.tts_thread and self.tts_thread.is_alive():
                     # TTS已就绪，直接发送
                     try:
-                        self.tts_request_queue.put((self.current_speech_id, text))
+                        self._enqueue_tts_text_chunk(self.current_speech_id, text)
                     except Exception as e:
                         logger.warning(f"⚠️ 发送TTS请求失败: {e}")
                 else:
-                    # TTS未就绪，先缓存
+                    # TTS未就绪，先缓存（规范化延迟到 _flush_tts_pending_chunks）
                     self.tts_pending_chunks.append((self.current_speech_id, text))
                     if len(self.tts_pending_chunks) == 1:
                         logger.info("TTS未就绪，开始缓存文本chunk...")
@@ -602,34 +630,44 @@ class LLMSessionManager:
 
     async def send_lanlan_response(self, text: str, is_first_chunk: bool = False, turn_id: str | None = None):
         """Qwen输出转录回调: 可用于前端显示/缓存/同步。"""
+        text_clean = self.emotion_pattern.sub('', text)
+        effective_turn_id = turn_id or self.current_speech_id
+        message = {
+            "type": "gemini_response",
+            "text": text_clean,
+            "isNewMessage": is_first_chunk,
+            "turn_id": effective_turn_id
+        }
+
+        # 无论 WS 发送成功与否，始终将消息写入 sync_message_queue 和 message_cache，
+        # 确保 cross_server 历史组装不因 WS 断连而丢失 assistant 内容。
+        if is_first_chunk:
+            logger.debug("[%s] send_lanlan_response: first chunk (len=%d)", self.lanlan_name, len(text_clean))
+        self.sync_message_queue.put({"type": "json", "data": message})
+        if hasattr(self, 'is_preparing_new_session') and self.is_preparing_new_session:
+            if not hasattr(self, 'message_cache_for_new_session'):
+                self.message_cache_for_new_session = []
+            # 注意：缓存使用原始文本，不翻译（用于记忆等内部处理）
+            if len(self.message_cache_for_new_session) == 0 or self.message_cache_for_new_session[-1]['role']==self.master_name:
+                self.message_cache_for_new_session.append(
+                    {"role": self.lanlan_name, "text": text_clean})
+            elif self.message_cache_for_new_session[-1]['role'] == self.lanlan_name:
+                self.message_cache_for_new_session[-1]['text'] += text_clean
+
+        # WS 发送（可能失败，但 sync/cache 已保存）
         try:
-            if self.websocket and hasattr(self.websocket, 'client_state') and self.websocket.client_state == self.websocket.client_state.CONNECTED:
-                text = self.emotion_pattern.sub('', text)
+            async def _do_send():
+                if self.websocket and hasattr(self.websocket, 'client_state') and self.websocket.client_state == self.websocket.client_state.CONNECTED:
+                    await self.websocket.send_json(message)
+                    return True
+                return False
 
-                # 优先使用传入的 turn_id, 兜底使用当前会话记录的 speech_id (即 turn id)
-                effective_turn_id = turn_id or self.current_speech_id
-
-                message = {
-                    "type": "gemini_response",
-                    "text": text,
-                    "isNewMessage": is_first_chunk,
-                    "turn_id": effective_turn_id
-                }
-                await self.websocket.send_json(message)
-                if is_first_chunk:
-                    logger.debug("[%s] send_lanlan_response: first chunk sent via WS (len=%d)", self.lanlan_name, len(text))
-                self.sync_message_queue.put({"type": "json", "data": message})
-                if hasattr(self, 'is_preparing_new_session') and self.is_preparing_new_session:
-                    if not hasattr(self, 'message_cache_for_new_session'):
-                        self.message_cache_for_new_session = []
-                    # 注意：缓存使用原始文本，不翻译（用于记忆等内部处理）
-                    if len(self.message_cache_for_new_session) == 0 or self.message_cache_for_new_session[-1]['role']==self.master_name:
-                        self.message_cache_for_new_session.append(
-                            {"role": self.lanlan_name, "text": text})
-                    elif self.message_cache_for_new_session[-1]['role'] == self.lanlan_name:
-                        self.message_cache_for_new_session[-1]['text'] += text
-                return True
-            return False
+            if self.websocket_lock:
+                async with self.websocket_lock:
+                    ws_ok = await _do_send()
+            else:
+                ws_ok = await _do_send()
+            return ws_ok
 
         except WebSocketDisconnect:
             logger.info("Frontend disconnected.")
@@ -1019,7 +1057,7 @@ class LLMSessionManager:
             if self.tts_thread and self.tts_thread.is_alive():
                 for speech_id, text in self.tts_pending_chunks:
                     try:
-                        self.tts_request_queue.put((speech_id, text))
+                        self._enqueue_tts_text_chunk(speech_id, text)
                     except Exception as e:
                         logger.error(f"💥 发送缓存的TTS请求失败: {e}")
                         break
@@ -2041,7 +2079,7 @@ class LLMSessionManager:
         async with self.tts_cache_lock:
             if self.tts_ready and self.tts_thread and self.tts_thread.is_alive():
                 try:
-                    self.tts_request_queue.put((self.current_speech_id, text))
+                    self._enqueue_tts_text_chunk(self.current_speech_id, text)
                 except Exception as e:
                     logger.warning(f"⚠️ feed_tts_chunk 失败: {e}")
             else:

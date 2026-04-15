@@ -235,6 +235,12 @@
                 var newModelType = (data.model_type || 'live2d').toLowerCase();
                 var live3dSubType = (data.live3d_sub_type || '').toLowerCase();
                 var oldModelType = window.lanlan_config?.model_type || 'live2d';
+                var nextLighting = (data.lighting && typeof data.lighting === 'object')
+                    ? Object.assign({}, data.lighting)
+                    : null;
+
+                window.lanlan_config = window.lanlan_config || {};
+                window.lanlan_config.lighting = nextLighting;
 
                 console.log('[Model] 模型切换:', {
                     oldType: oldModelType,
@@ -256,6 +262,13 @@
                 var oldLive3dSubType = (window.lanlan_config?.live3d_sub_type || '').toLowerCase();
                 var typeChanged = oldModelType !== newModelType ||
                     (newModelType === 'live3d' && oldLive3dSubType !== live3dSubType);
+
+                // 提前更新 config，防止异步间隙中其他代码基于过时类型重建按钮
+                if (typeChanged && window.lanlan_config) {
+                    window.lanlan_config.model_type = newModelType;
+                    window.lanlan_config.live3d_sub_type = live3dSubType;
+                }
+
                 if (typeChanged) {
                     if (oldModelType === 'live2d') cleanupLive2DOverlayUI();
                     if (oldModelType === 'vrm') cleanupVRMOverlayUI();
@@ -354,9 +367,22 @@
                             }
                         }
 
-                        // Apply lighting config if available
-                        if (window.lanlan_config?.lighting && typeof window.applyVRMLighting === 'function') {
-                            window.applyVRMLighting(window.lanlan_config.lighting, window.vrmManager);
+                        // 重新应用打光/曝光/描边；若角色未保存自定义光照，则回退到默认值，避免沿用上一个角色的灯光状态。
+                        var effectiveLighting = window.lanlan_config?.lighting || window.VRM_DEFAULT_LIGHTING || null;
+                        if (effectiveLighting && typeof window.applyVRMLighting === 'function') {
+                            window.applyVRMLighting(effectiveLighting, window.vrmManager);
+                            if (typeof window.applyVRMOutlineWidth === 'function') {
+                                var currentModelRef = window.vrmManager?.currentModel;
+                                var outlineScale = effectiveLighting.outlineWidthScale;
+                                requestAnimationFrame(function () {
+                                    if (window.vrmManager?.currentModel !== currentModelRef) {
+                                        return;
+                                    }
+                                    if (outlineScale !== undefined) {
+                                        window.applyVRMOutlineWidth(outlineScale, window.vrmManager);
+                                    }
+                                });
+                            }
                         }
                     } else {
                         console.error('[Model] VRM 管理器初始化失败');
@@ -616,6 +642,12 @@
             }
         } catch (error) {
             console.error('[Model] 模型热切换失败:', error);
+            // 回滚提前写入的 config，防止残留错误的模型类型
+            if (typeChanged && window.lanlan_config) {
+                window.lanlan_config.model_type = oldModelType;
+                window.lanlan_config.live3d_sub_type = oldLive3dSubType || '';
+                console.warn('[Model] 已回滚 config:', { model_type: oldModelType, live3d_sub_type: oldLive3dSubType });
+            }
             window.showStatusToast(
                 window.t ? window.t('app.modelSwitchFailed') : '模型切换失败',
                 3000
@@ -696,6 +728,13 @@
             if (window.mmdManager && typeof window.mmdManager.pauseRendering === 'function') {
                 window.mmdManager.pauseRendering();
             }
+
+            // 隐藏所有悬浮按钮、锁图标和返回按钮（它们挂载在 document.body 上，不随容器隐藏）
+            document.querySelectorAll(
+                '#live2d-floating-buttons, #vrm-floating-buttons, #mmd-floating-buttons, ' +
+                '#live2d-lock-icon, #vrm-lock-icon, #mmd-lock-icon, ' +
+                '#live2d-return-button-container, #vrm-return-button-container, #mmd-return-button-container'
+            ).forEach(function (el) { el.style.display = 'none'; });
         } catch (error) {
             console.error('[UI] 隐藏主界面失败:', error);
         }
