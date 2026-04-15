@@ -769,6 +769,7 @@
      */
     function cleanupTutorialPopups() {
         var manager = getManager();
+        clearHandoffToken();
 
         if (manager && typeof manager.closePopupById === 'function') {
             Object.keys(_popupsOpenedByTutorial).forEach(function (buttonId) {
