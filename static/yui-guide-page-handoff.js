@@ -1001,14 +1001,30 @@
      */
     function cleanupTutorialPopups() {
         var manager = getManager();
-        if (!manager || typeof manager.closePopupById !== 'function') return;
-
-        Object.keys(_popupsOpenedByTutorial).forEach(function (buttonId) {
-            manager.closePopupById(buttonId);
-        });
-        _popupsOpenedByTutorial = {};
         clearHandoffToken();
+
+        if (manager && typeof manager.closePopupById === 'function') {
+            Object.keys(_popupsOpenedByTutorial).forEach(function (buttonId) {
+                manager.closePopupById(buttonId);
+            });
+        }
+        _popupsOpenedByTutorial = {};
     }
+
+    window.addEventListener('storage', function (event) {
+        if (event.key !== HANDOFF_CONSUMED_NOTIFY_KEY || !event.newValue) {
+            return;
+        }
+        try {
+            var payload = JSON.parse(event.newValue);
+            if (!payload || payload.sessionId === HANDOFF_SESSION_ID) {
+                return;
+            }
+            dispatchHandoffConsumedEvent(payload.detail || {});
+        } catch (e) {
+            console.warn('[YuiGuideHandoff] handoff_consumed storage payload 无法解析:', e);
+        }
+    });
 
     window.addEventListener('neko:yui-guide:tutorial-end', function () {
         cleanupTutorialPopups();

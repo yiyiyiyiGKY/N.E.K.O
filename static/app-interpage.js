@@ -989,6 +989,7 @@
     // =====================================================================
 
     var nekoBroadcastChannel = null;
+    var _isRelayingYuiGuideHandoffSent = false;
     try {
         if (typeof BroadcastChannel !== 'undefined') {
             nekoBroadcastChannel = new BroadcastChannel('neko_page_channel');
@@ -1082,6 +1083,18 @@
                         }));
                         break;
                     }
+                    case 'handoff_sent': {
+                        // 其他标签页发出了 handoff-sent，转发为本地 DOM 事件
+                        _isRelayingYuiGuideHandoffSent = true;
+                        try {
+                            window.dispatchEvent(new CustomEvent('neko:yui-guide:handoff-sent', {
+                                detail: event.data.detail || {}
+                            }));
+                        } finally {
+                            _isRelayingYuiGuideHandoffSent = false;
+                        }
+                        break;
+                    }
                     case 'request_avatar_capture': {
                         if (window.location.pathname === '/chat') break;
                         var captureLanlanName = (window.lanlan_config && window.lanlan_config.lanlan_name) || '';
@@ -1139,6 +1152,7 @@
 
     // 首页发出 handoff-sent DOM 事件时，转发到 BC 让其他标签页感知
     window.addEventListener('neko:yui-guide:handoff-sent', function (evt) {
+        if (_isRelayingYuiGuideHandoffSent) return;
         if (!nekoBroadcastChannel) return;
         nekoBroadcastChannel.postMessage({
             action: 'handoff_sent',
