@@ -696,17 +696,6 @@
         });
     }
 
-    function closeAgentPanel() {
-        var manager = getManager();
-        if (!manager || typeof manager.closePopupById !== 'function') {
-            return Promise.resolve(false);
-        }
-        manager.closePopupById('agent');
-        var popup = getPopup('agent');
-        var closed = !popup || popup.style.display !== 'flex';
-        return Promise.resolve(closed);
-    }
-
     /**
      * 确保设置弹层已打开且指定菜单项可见、可被教程高亮定位。
      *
@@ -769,7 +758,6 @@
      */
     function cleanupTutorialPopups() {
         var manager = getManager();
-        clearHandoffToken();
 
         if (manager && typeof manager.closePopupById === 'function') {
             Object.keys(_popupsOpenedByTutorial).forEach(function (buttonId) {
