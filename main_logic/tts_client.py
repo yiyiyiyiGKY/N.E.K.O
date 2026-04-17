@@ -22,6 +22,12 @@ from utils.logger_config import get_module_logger
 
 logger = get_module_logger(__name__, "Main")
 
+# 关闭哨兵：core.py 通过 request_queue.put((TTS_SHUTDOWN_SENTINEL, None))
+# 通知 worker 退出主循环。不能复用 (None, None)，因为它已被用作"本轮 utterance
+# 结束、flush/commit 缓冲区"的信号（见 _non_bistream_tts_main_loop、step/qwen
+# worker 的 sid is None 分支）。两种语义必须分开。
+TTS_SHUTDOWN_SENTINEL = "__shutdown__"
+
 
 def _record_tts_telemetry(model_name: str, text: str):
     """Record TTS usage telemetry via TokenTracker."""
@@ -640,6 +646,9 @@ async def _non_bistream_tts_main_loop(
         except Exception:
             break
 
+        if sid == TTS_SHUTDOWN_SENTINEL:
+            break
+
         if sid == "__interrupt__":
             await _cancel_all()
             sentence_buf.clear()
@@ -903,6 +912,9 @@ def step_realtime_tts_worker(request_queue, response_queue, audio_api_key, voice
                 except Exception:
                     break
 
+                if sid == TTS_SHUTDOWN_SENTINEL:
+                    break
+
                 if sid == "__interrupt__":
                     # 打断：立即关闭连接，不发 tts.text.done、不等服务器确认
                     if ws:
@@ -923,7 +935,7 @@ def step_realtime_tts_worker(request_queue, response_queue, audio_api_key, voice
                     current_speech_id = None
                     text_done_sent = False
                     continue
-                
+
                 if sid is None:
                     # 正常结束（非阻塞）：发送完成信号，但不等待服务器确认、不关闭连接
                     # 音频继续通过 receive_task 流入 response_queue，
@@ -1048,6 +1060,8 @@ def step_realtime_tts_worker(request_queue, response_queue, audio_api_key, voice
                         
                     except Exception as e:
                         logger.error(f"重新建立连接失败: {e}")
+                        if 'HTTP 503' in str(e):
+                            _enqueue_error(response_queue, json.dumps({"code": "UPSTREAM_SERVER_BUSY"}))
                         response_queue.put(("__reconnecting__", "TTS_RECONNECTING"))
                         await asyncio.sleep(1.0)
                         continue
@@ -1086,6 +1100,8 @@ def step_realtime_tts_worker(request_queue, response_queue, audio_api_key, voice
         
         except Exception as e:
             logger.error(f"StepFun实时TTS Worker错误: {e}")
+            if 'HTTP 503' in str(e):
+                _enqueue_error(response_queue, json.dumps({"code": "UPSTREAM_SERVER_BUSY"}))
             response_queue.put(("__ready__", False))
         finally:
             # 清理资源
@@ -1254,6 +1270,9 @@ def qwen_realtime_tts_worker(request_queue, response_queue, audio_api_key, voice
                     except Exception:
                         break
 
+                if sid == TTS_SHUTDOWN_SENTINEL:
+                    break
+
                 if sid == "__interrupt__":
                     # 打断：立即关闭连接，不发 commit、不等服务器确认
                     if ws:
@@ -1381,6 +1400,8 @@ def qwen_realtime_tts_worker(request_queue, response_queue, audio_api_key, voice
                         
                     except Exception as e:
                         logger.error(f"重新建立连接失败: {e}")
+                        if 'HTTP 503' in str(e):
+                            _enqueue_error(response_queue, json.dumps({"code": "UPSTREAM_SERVER_BUSY"}))
                         response_queue.put(("__reconnecting__", "TTS_RECONNECTING"))
                         await asyncio.sleep(1.0)
                         continue
@@ -1414,6 +1435,8 @@ def qwen_realtime_tts_worker(request_queue, response_queue, audio_api_key, voice
         
         except Exception as e:
             logger.error(f"Qwen实时TTS Worker错误: {e}")
+            if 'HTTP 503' in str(e):
+                _enqueue_error(response_queue, json.dumps({"code": "UPSTREAM_SERVER_BUSY"}))
             response_queue.put(("__ready__", False))
         finally:
             # 清理资源
@@ -1648,6 +1671,9 @@ def cosyvoice_vc_tts_worker(request_queue, response_queue, audio_api_key, voice_
 
         sid, tts_text = request_queue.get()
 
+        if sid == TTS_SHUTDOWN_SENTINEL:
+            break
+
         if sid == "__interrupt__":
             # 打断：立即静音回调 → 关闭 synthesizer → 清理状态
             # 先 mute 再 close，确保旧 SDK websocket 线程不再往 response_queue 灌数据
@@ -1761,6 +1787,19 @@ def cosyvoice_vc_tts_worker(request_queue, response_queue, audio_api_key, voice_
                     last_streaming_call_time = None
                     callback.accepted_speech_id = None
                     callback.reset_bootstrap_state()
+
+    # 收到 TTS_SHUTDOWN_SENTINEL 退出循环后：静音回调并关闭 synthesizer，
+    # 避免 SDK 内部 WebSocket 线程继续往 response_queue 写数据。
+    callback._muted = True
+    if synthesizer is not None:
+        try:
+            synthesizer.close()
+        except Exception:
+            # best-effort：关闭路径不 raise，与文件内其他 synthesizer.close()
+            # 块保持一致（L1644 / 1683 / 1718 / 1770）。SDK WS 在关闭时通常
+            # 已被服务端回收，异常既常见又不可恢复，log 只会增噪。
+            pass
+        synthesizer = None
 
 
 def cogtts_tts_worker(request_queue, response_queue, audio_api_key, voice_id):
@@ -2039,8 +2078,8 @@ def openai_tts_worker(request_queue, response_queue, audio_api_key, voice_id):
         while True:
             try:
                 sid, _ = request_queue.get()
-                if sid is None:
-                    continue
+                if sid == TTS_SHUTDOWN_SENTINEL:
+                    break
             except Exception:
                 break
         return
@@ -2267,6 +2306,9 @@ def gptsovits_tts_worker(request_queue, response_queue, audio_api_key, voice_id)
                 try:
                     sid, tts_text = await loop.run_in_executor(None, request_queue.get)
                 except Exception:
+                    break
+
+                if sid == TTS_SHUTDOWN_SENTINEL:
                     break
 
                 if sid == "__interrupt__":
@@ -2601,7 +2643,10 @@ def dummy_tts_worker(request_queue, response_queue, audio_api_key, voice_id):
         try:
             # 持续清空队列以避免阻塞，但不做任何处理
             sid, tts_text = request_queue.get()
-            if sid is None or sid == "__interrupt__":
+            if sid == TTS_SHUTDOWN_SENTINEL:
+                break
+            # sid is None 是 end-of-utterance 信号，dummy 不做任何处理
+            if sid == "__interrupt__" or sid is None:
                 continue
         except Exception as e:
             logger.error(f"Dummy TTS Worker 错误: {e}")
@@ -2635,9 +2680,14 @@ def get_tts_worker(core_api_type='qwen', has_custom_voice=False, voice_id=''):
     若某个 provider 需要替换 api_key，返回的第二个值非 None。
 
     Returns:
-        (worker_fn, api_key_override)
+        (worker_fn, api_key_override, provider_key)
         - worker_fn: 签名统一的 TTS worker callable
         - api_key_override: 若非 None，替换 tts_config['api_key']
+        - provider_key: 实际选中的 provider 名称（对应 TTS_PROVIDER_REGISTRY 的 key），
+          用于调用方查询 provider 元数据（如 category）。
+          特殊值：'free' 故意不在 registry 中（国外走 Gemini 后端需要 normalizer，
+          meta=None → 调用方 fallthrough 启用 normalizer）；
+          不支持原生 TTS 时为 None
     """
     cm = get_config_manager()
 
@@ -2658,15 +2708,20 @@ def get_tts_worker(core_api_type='qwen', has_custom_voice=False, voice_id=''):
                 MINIMAX_INTL_BASE_URL if provider == 'minimax_intl' else MINIMAX_DOMESTIC_BASE_URL
             )
             worker = partial(minimax_tts_worker, base_url=base_url)
-            return worker, api_key
+            return worker, api_key, 'minimax'
 
     try:
         tts_config = cm.get_model_api_config('tts_custom')
         if tts_config.get('is_custom'):
             base_url = tts_config.get('base_url') or ''
-            if base_url.startswith('http://') or base_url.startswith('https://'):
-                return gptsovits_tts_worker, None
-            return local_cosyvoice_worker, None
+            # GPT-SoVITS / local CosyVoice 需要用户显式启用 gptsovitsEnabled 开关，
+            # 仅 enableCustomApi + http URL 不应自动路由到 GPT-SoVITS。
+            core_cfg = cm.get_core_config()
+            gsv_enabled = core_cfg.get('gptsovitsEnabled', False)
+            if gsv_enabled and (base_url.startswith('http://') or base_url.startswith('https://')):
+                return gptsovits_tts_worker, None, 'gptsovits'
+            if gsv_enabled and (base_url.startswith('ws://') or base_url.startswith('wss://')):
+                return local_cosyvoice_worker, None, 'local_cosyvoice'
     except Exception as e:
         logger.warning(f'TTS调度器检查报告:{e}')
 
@@ -2675,25 +2730,28 @@ def get_tts_worker(core_api_type='qwen', has_custom_voice=False, voice_id=''):
     if has_custom_voice and voice_id:
         from utils.api_config_loader import get_free_voices
         if voice_id not in set(get_free_voices().values()):
-            return cosyvoice_vc_tts_worker, None
+            return cosyvoice_vc_tts_worker, None, 'cosyvoice'
         logger.info("voice_id '%s' 是免费预设音色，跳过 CosyVoice，使用默认 TTS", voice_id)
 
     # 没有自定义音色时，使用与 core_api 匹配的默认 TTS
     if core_api_type == 'qwen':
-        return qwen_realtime_tts_worker, None
+        return qwen_realtime_tts_worker, None, 'qwen'
     if core_api_type == 'free':
-        return partial(step_realtime_tts_worker, free_mode=True), None
+        # provider_key 故意用 'free' 而非 'step'：'free' 不在 TTS_PROVIDER_REGISTRY 中，
+        # 使调用方 meta=None → normalizer 启用，因为 free 国外模式走 Gemini 后端需要
+        # CJK 空格清理。若改为 'step'（ws_bistream）则国外 free 用户的 normalizer 会被错误禁用。
+        return partial(step_realtime_tts_worker, free_mode=True), None, 'free'
     elif core_api_type == 'step':
-        return step_realtime_tts_worker, None
+        return step_realtime_tts_worker, None, 'step'
     elif core_api_type == 'glm':
-        return cogtts_tts_worker, None
+        return cogtts_tts_worker, None, 'cogtts'
     elif core_api_type == 'gemini':
-        return gemini_tts_worker, None
+        return gemini_tts_worker, None, 'gemini'
     elif core_api_type == 'openai':
-        return openai_tts_worker, None
+        return openai_tts_worker, None, 'openai'
     else:
         logger.error(f"{core_api_type}不支持原生TTS，请使用自定义语音")
-        return dummy_tts_worker, None
+        return dummy_tts_worker, None, None
 
 
 def local_cosyvoice_worker(request_queue, response_queue, audio_api_key, voice_id):
@@ -2730,8 +2788,8 @@ def local_cosyvoice_worker(request_queue, response_queue, audio_api_key, voice_i
         while True:
             try:
                 sid, _ = request_queue.get()
-                if sid is None:
-                    continue
+                if sid == TTS_SHUTDOWN_SENTINEL:
+                    break
             except Exception:
                 break
         return
@@ -2837,6 +2895,9 @@ def local_cosyvoice_worker(request_queue, response_queue, audio_api_key, voice_i
                 sid, tts_text = await loop.run_in_executor(None, request_queue.get)
             except Exception as e:
                 logger.error(f'队列获取异常: {e}')
+                break
+
+            if sid == TTS_SHUTDOWN_SENTINEL:
                 break
 
             if sid == "__interrupt__":
