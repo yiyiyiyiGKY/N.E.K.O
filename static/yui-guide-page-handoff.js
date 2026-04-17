@@ -737,6 +737,68 @@
         });
     }
 
+    // ─── M2: "请她离开/回来" 包装 ────────────────────────────
+
+    /**
+     * 触发 Yui 离开流程。
+     * 所有模型类型（Live2D/VRM/MMD）的 goodbye 按钮统一派发 'live2d-goodbye-click'，
+     * 此处保持一致。
+     *
+     * @param {string} [reason] - 可选离开原因，用于日志
+     */
+    function triggerGoodbye(reason) {
+        if (reason) {
+            console.log('[YuiGuideHandoff] triggerGoodbye, reason:', reason);
+        }
+        window.dispatchEvent(new CustomEvent('live2d-goodbye-click'));
+    }
+
+    /**
+     * 触发 Yui 回来流程。
+     * 包装现有的 ${prefix}-return-click 事件。
+     */
+    function triggerReturn() {
+        var prefix = getPrefix();
+        window.dispatchEvent(new CustomEvent(prefix + '-return-click'));
+    }
+
+    // ─── M2: 教程结束清理 ────────────────────────────────────
+
+    /**
+     * 关闭教程期间打开的所有弹层，恢复页面干净状态。
+     */
+    function cleanupTutorialPopups() {
+        var manager = getManager();
+
+        if (manager && typeof manager.closePopupById === 'function') {
+            Object.keys(_popupsOpenedByTutorial).forEach(function (buttonId) {
+                manager.closePopupById(buttonId);
+            });
+        }
+        _popupsOpenedByTutorial = {};
+    }
+
+    window.addEventListener('storage', function (event) {
+        if (event.key !== HANDOFF_CONSUMED_NOTIFY_KEY || !event.newValue) {
+            return;
+        }
+        try {
+            var payload = JSON.parse(event.newValue);
+            if (!payload || payload.sessionId === HANDOFF_SESSION_ID) {
+                return;
+            }
+            dispatchHandoffConsumedEvent(payload.detail || {});
+        } catch (e) {
+            console.warn('[YuiGuideHandoff] handoff_consumed storage payload 无法解析:', e);
+        }
+    });
+
+    window.addEventListener('neko:yui-guide:tutorial-end', function () {
+        cleanupTutorialPopups();
+    });
+
+    // ─── 导出 ─────────────────────────────────────────────────
+
     function ensureAgentToggleChecked(toggleId, checked) {
         var desiredChecked = checked !== false;
         if (!toggleId) return Promise.resolve(false);
@@ -986,67 +1048,6 @@
         );
     }
 
-    // ─── M2: "请她离开/回来" 包装 ────────────────────────────
-
-    /**
-     * 触发 Yui 离开流程。
-     * 所有模型类型（Live2D/VRM/MMD）的 goodbye 按钮统一派发 'live2d-goodbye-click'，
-     * 此处保持一致。
-     *
-     * @param {string} [reason] - 可选离开原因，用于日志
-     */
-    function triggerGoodbye(reason) {
-        if (reason) {
-            console.log('[YuiGuideHandoff] triggerGoodbye, reason:', reason);
-        }
-        window.dispatchEvent(new CustomEvent('live2d-goodbye-click'));
-    }
-
-    /**
-     * 触发 Yui 回来流程。
-     * 包装现有的 ${prefix}-return-click 事件。
-     */
-    function triggerReturn() {
-        var prefix = getPrefix();
-        window.dispatchEvent(new CustomEvent(prefix + '-return-click'));
-    }
-
-    // ─── M2: 教程结束清理 ────────────────────────────────────
-
-    /**
-     * 关闭教程期间打开的所有弹层，恢复页面干净状态。
-     */
-    function cleanupTutorialPopups() {
-        var manager = getManager();
-
-        if (manager && typeof manager.closePopupById === 'function') {
-            Object.keys(_popupsOpenedByTutorial).forEach(function (buttonId) {
-                manager.closePopupById(buttonId);
-            });
-        }
-        _popupsOpenedByTutorial = {};
-    }
-
-    window.addEventListener('storage', function (event) {
-        if (event.key !== HANDOFF_CONSUMED_NOTIFY_KEY || !event.newValue) {
-            return;
-        }
-        try {
-            var payload = JSON.parse(event.newValue);
-            if (!payload || payload.sessionId === HANDOFF_SESSION_ID) {
-                return;
-            }
-            dispatchHandoffConsumedEvent(payload.detail || {});
-        } catch (e) {
-            console.warn('[YuiGuideHandoff] handoff_consumed storage payload 无法解析:', e);
-        }
-    });
-
-    window.addEventListener('neko:yui-guide:tutorial-end', function () {
-        cleanupTutorialPopups();
-    });
-
-    // ─── 导出 ─────────────────────────────────────────────────
     var handoff = Object.freeze({
         // M1
         openPage: openPage,
