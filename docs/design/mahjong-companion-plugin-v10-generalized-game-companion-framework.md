@@ -4,6 +4,7 @@
 > - `docs/design/mahjong-companion-plugin-plan.md`
 > - `docs/design/mahjong-companion-plugin-v8-complete-mahjong-analysis-and-calibrated-perception.md`
 > - `docs/design/mahjong-companion-plugin-v9-host-memory-sync-and-cross-session-coaching.md`
+> - `docs/design/mahjong-companion-plugin-v6-to-v9-finalization-implementation.md`
 >
 > 本文对应第九版之后的下一阶段，解决两件事：
 > - 把当前雀魂特化实现抽成通用游戏陪伴框架

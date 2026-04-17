@@ -19,6 +19,10 @@
 - 第九版：`docs/design/mahjong-companion-plugin-v9-host-memory-sync-and-cross-session-coaching.md`
 - 第十版：`docs/design/mahjong-companion-plugin-v10-generalized-game-companion-framework.md`
 
+## 收口实现文档
+
+- `docs/design/mahjong-companion-plugin-v6-to-v9-finalization-implementation.md`
+
 ## 当前实现快照
 
 以下内容基于当前仓库 `plugin/plugins/mahjong_companion/` 的实际实现，而不是阶段文档的原始设想：
@@ -29,21 +33,28 @@
   - `capture/` 截图 provider 层
   - `gates/` 帧变化门控层
   - `perception/` 感知管线
-  - `decision/` 最小决策层
+  - `decision/` 最小决策层 + `decision/tile_efficiency.py` 牌效率建议模块
+  - `perception/calibration.py`、`perception/hand_layout.py`、`perception/tile_parser.py` 组成的第八版第一版骨架
+  - `decision/risk_estimator.py`、`decision/mahjong_analysis.py` 提供的结构化分析与防守告警元数据
   - `narration/` 讲解、陪伴视图、播报策略与消息投递 adapter
-  - `action/human_override_guard.py` 输入安全守卫层
+  - `action/human_override_guard.py`、`action/input_adapter.py`、`action/action_registry.py`、`action/action_log.py` 组成的第七版第一版执行闭环
   - `review/bridge.py` 复盘候选沉淀
+  - `review/summarizer.py` 赛后复盘摘要生成
   - `review/memory_bridge.py` 长期记忆桥分流层
+  - `review/host_memory_sync.py`、`review/trend_aggregator.py`、`review/coaching_topics.py` 组成的第九版第一版本地跨局陪练链路
   - 调试 UI
   - `run_companion_pipeline` 一键总链路入口，可从图片或当前截图直接跑到猫娘主动回话
+- 第六版、第七版、第八版、第九版都已经有“可运行第一版”落地，其中第九版仍对宿主记忆写入能力做了本地降级。
 - 当前还没有具备：
-  - 牌效率、向听、打点等完整麻将算法
-  - 真正写入宿主长期记忆的插件侧 SDK 接口
+  - 面向 `perception / narration / review` 的完整依赖注入与可热替换 adapter 收口
+  - 稳定的牌级识别、完整向听 / 进张 / 危险度分析与校准 UI
+  - 真实宿主长期记忆写入接口，以及基于宿主记忆的跨会话引用闭环
 
 这个快照的意义是：
 
 - 后面所有“是否符合设计”的判断，都以当前实际代码为准。
 - 文档里的“建议拆分”要和现状分开写，避免把“已经分离”和“仍在 `orchestrator.py` 内”混成一件事。
+- 当前已经达到“目录级分层”，但还不应误写成“所有层都已达到实例级可插拔”；这两者在本文里需要明确区分。
 
 ---
 
@@ -251,19 +262,25 @@ Mahjong Companion Plugin
 | `Session Orchestrator` | 已实现 | `orchestrator.py` | 符合设计 |
 | `Capture Provider` | 已实现 | `capture/provider.py` + `window_binding.py` | 符合设计 |
 | `FrameChangeGate` | 已实现 | `gates/frame_change.py` | 符合设计 |
-| `Perception Pipeline` | 已实现 | `perception/` | 符合设计 |
+| `Perception Pipeline` | 已实现 | `perception/` | 目录级符合设计；后续仍建议补 `PerceptionAdapter` 一类契约 |
 | `Decision Engine Adapter` | 已实现 | `decision/adapter.py` + `decision/generator.py` | 基本符合设计 |
 | `Companion ViewModel` | 已实现 | `narration/view_model.py` | 符合设计 |
-| `Narration Adapter` | 已实现 | `narration/generator.py` + `narration/speech_policy.py` + `narration/dispatcher.py` | 符合设计 |
+| `Narration Adapter` | 已实现 | `narration/generator.py` + `narration/speech_policy.py` + `narration/dispatcher.py` | 目录级符合设计；后续仍建议补对象化 adapter 与注入点 |
 | `Input Safety Guard` | 已实现 | `action/human_override_guard.py` | 已独立成安全层，等待后续输入执行层接入 |
-| `Review & Memory Bridge` | 已实现 | `review/bridge.py` + `review/memory_bridge.py` | 已完成 review candidate 和记忆摘要分流；宿主写入仍受 SDK 能力限制 |
+| `Review & Memory Bridge` | 已实现 | `review/bridge.py` + `review/memory_bridge.py` | 已完成 review candidate 和记忆摘要分流；宿主写入仍受 SDK 能力限制，复盘摘要 adapter 仍待补 |
 | `Plugin UI` | 已实现 | `static/` | 符合设计 |
 
 结论可以直接写成三句话：
 
 - 当前插件已经完成了“截图 / 门控 / 感知 / 决策 / 讲解 / 消息投递 / 复盘桥接 / UI”这些主线的目录级分离。
 - 当前插件已经完成“输入安全守卫”“长期记忆桥”这两条横切安全与记忆层分离。
-- 因此它现在已经达到总方案文档里要求的目录级多层拆分，剩下主要是更强算法和宿主记忆写入能力，而不是继续把逻辑堆回 `orchestrator.py`。
+- 因此它现在已经达到总方案文档里要求的目录级多层拆分；但如果目标是“真正可热替换、可注入的实例级可插拔”，则还需要继续把若干默认实现从 `orchestrator.py` 中收口成独立 adapter。
+
+进一步说，当前实现状态更适合这样描述：
+
+- `capture / gates / decision` 三层已经接近实例级可插拔，因为它们已经有比较明确的 provider / gate / adapter 入口。
+- `perception / narration / review` 三层当前更像“模块已拆开，但编排层仍直接串接默认实现”。
+- 所以下一轮文档与实现优化重点，不是继续把目录拆得更碎，而是补齐依赖注入、adapter 契约和针对替换能力的测试。
 
 ### 5.4 为什么不建议一开始就做“三个网络微服务”
 
@@ -303,6 +320,7 @@ Mahjong Companion Plugin
 - 当前实际还新增了 `analyze_frame_path`、`get_last_perception`、`get_last_decision`、`get_last_narration`、`preview_companion_view`、`speak_last_narration`、`cycle_voice_mode` 等调试与状态入口。
 - 当前还没有独立的 `run_replay_review` 入口；赛后复盘摘要仍属于下一阶段要补的能力。
 - 当前实际的 `run_companion_pipeline` 总入口，用来把“选帧 / 截图 -> 感知 -> 决策 -> 讲解 -> 主动回话”收敛成单次可测试链路。这一入口对调试和宿主联调很有帮助，但它也说明当前 `orchestrator.py` 仍承担了一部分原本可继续拆出的调试编排职责。
+- 当前还建议在这一层补一个“依赖注入边界”说明：`SessionOrchestrator` 应优先依赖抽象契约，而不是在构造函数里固定 new 出所有默认实现；默认实现可以保留，但应作为缺省参数而不是硬编码依赖。
 
 建议在这一层内置通用 `SpeechPolicy`：
 
@@ -430,6 +448,21 @@ class FrameChangeGate(Protocol):
 }
 ```
 
+从“可插拔”的角度看，建议继续补一个显式契约：
+
+```python
+class PerceptionAdapter(Protocol):
+    def analyze(self, frame: FramePacket | Path) -> tuple[PerceivedGameState, dict[str, Any]]: ...
+```
+
+这样做的原因不是为了抽象而抽象，而是为了让后续三类实现能够共享同一编排入口：
+
+- 当前已经存在的规则型 `ROI + scene classifier + action detector`
+- 第六版之后可能加入的校准化牌级感知
+- 第八版之后可能加入的 YOLO / ONNX / 本地模型感知后端
+
+当前代码已经完成了目录级拆分，但 `orchestrator.py` 仍直接调用默认感知函数；因此这里应明确把“补 perception adapter”视为后续接口收口任务，而不是额外的架构花活。
+
 ### 6.4 决策层 `Decision Engine`
 
 这一层必须是可热替换接口，且与表达层彻底分开。
@@ -464,6 +497,12 @@ class DecisionEngine(Protocol):
   }
 }
 ```
+
+结合当前实现，再补一条收口建议：
+
+- 当前 `decision/adapter.py` 已经是一个正确方向。
+- 后续不应让讲解层、复盘层或输入执行层直接依赖底层规则函数的私有返回值。
+- 如果未来引入牌效率、向听、打点或本地模型候选，优先扩展 `DecisionResult` 契约，而不是绕过 adapter 直接让其他层读新引擎对象。
 
 实现顺序建议：
 
@@ -522,6 +561,22 @@ class DecisionEngine(Protocol):
   "detail_collapsed": true
 }
 ```
+
+如果希望这一层真正达到“实例级可插拔”，建议显式保留一个对象化接口：
+
+```python
+class NarrationAdapter(Protocol):
+    def render(self, decision: DecisionResult) -> tuple[NarrationEvent, CompanionViewModel, dict[str, Any]]: ...
+```
+
+以及一个独立的投递边界：
+
+```python
+class NarrationDispatcher(Protocol):
+    def dispatch(self, event: NarrationEvent, ...) -> dict[str, Any]: ...
+```
+
+当前代码已经把 `generator / speech_policy / dispatcher / view_model` 分目录拆开，这是对的；但编排层仍直接调用默认生成函数并套用默认策略，因此这里仍应保留“后续通过注入替换不同讲解风格或不同输出后端”的文档约束。
 
 ### 6.6 行动层 `Input Action Adapter`
 
@@ -607,6 +662,14 @@ class DecisionEngine(Protocol):
 - 第二天闲聊时，她可以自然提到前一晚的打法问题或亮眼表现。
 - 产品形态从“报牌工具”进一步靠近“长期陪伴者”。
 
+从接口设计上，建议把这一层继续收口成三个相对稳定的职责：
+
+- `ReviewLogger`：负责关键节点沉淀、去重、样本缓存。
+- `ReviewSummarizer`：负责把单局或多节点素材整理成可读复盘摘要。
+- `MemoryBridge`：负责把低频高价值摘要筛入宿主长期记忆桥。
+
+当前代码里 `review/bridge.py` 与 `review/memory_bridge.py` 已经把前后两端拆开，这是一个好的起点；但后续一旦开始做 `v6` 的复盘摘要，最好先补 `review/summarizer.py` 或等价 adapter，避免把摘要拼装逻辑重新堆回 `orchestrator.py`。
+
 ---
 
 ## 7. 与现有 N.E.K.O. 模块的映射关系
@@ -685,7 +748,9 @@ plugin/plugins/mahjong_companion/
 
 如果后续继续进入第六版和更后面的实现，再按需要补充：
 
+- `perception/adapter.py` 或等价的感知注入层
 - `decision/tile_efficiency.py` 或等价的牌效率模块
+- `narration/adapter.py` 或等价的讲解注入层
 - `review/summarizer.py` 一类的赛后复盘摘要模块
 - `action/input_adapter.py` 一类的有限辅助操作执行层
 
@@ -755,6 +820,20 @@ plugin/plugins/mahjong_companion/
 - 能在不刷屏的前提下说出建议。
 - 语气风格接近当前角色设定，而不是工具播报。
 - 默认 UI 呈现更像“猫娘陪看局”，而不是调试面板。
+
+### 阶段 4.2：补齐接口收口与依赖注入
+
+- 在继续推进 `v6 / v7 / v8` 前，先把当前已拆开的目录层补成更稳定的注入边界。
+- 给 `perception` 增加显式 adapter 或等价对象接口，避免 `orchestrator` 直接绑定默认感知函数。
+- 给 `narration` 增加对象化 adapter，明确“生成讲解”和“投递消息”是两个可替换层。
+- 给 `review` 增加摘要 adapter，避免后续复盘总结继续回流到 `orchestrator`。
+- 为这些替换点增加最小 mock / fake 测试，验证“能拆开”不只是目录形态，而是实际可替换能力。
+
+完成标志：
+
+- `SessionOrchestrator` 主要依赖抽象契约而不是默认实现细节。
+- `perception / narration / review` 至少各有一个稳定的注入点。
+- 单元测试可以通过 fake adapter 跑通主链路。
 
 ### 阶段 4.5：接入有限辅助操作
 
