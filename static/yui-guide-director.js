@@ -3219,7 +3219,6 @@
                 }
             }
         }
-
         async runTakeoverMainFlow() {
             if (this.takeoverFlowStarted || this.destroyed || this.angryExitTriggered) {
                 return this.takeoverFlowPromise;

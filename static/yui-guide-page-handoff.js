@@ -591,7 +591,6 @@
             : 'live2d-manage_';
         return stem + encodeURIComponent(normalizedName);
     }
-
     // ─── M2: 首页交互包装 API ────────────────────────────────
 
     /**
@@ -694,17 +693,6 @@
                 resolve(popup.style.display === 'flex');
             }, POPUP_OPEN_ANIMATION_MS);
         });
-    }
-
-    function closeAgentPanel() {
-        var manager = getManager();
-        if (!manager || typeof manager.closePopupById !== 'function') {
-            return Promise.resolve(false);
-        }
-        manager.closePopupById('agent');
-        var popup = getPopup('agent');
-        var closed = !popup || popup.style.display !== 'flex';
-        return Promise.resolve(closed);
     }
 
     /**
@@ -1047,7 +1035,6 @@
             buildCenteredWindowFeatures(1280, 900)
         );
     }
-
     var handoff = Object.freeze({
         // M1
         openPage: openPage,
