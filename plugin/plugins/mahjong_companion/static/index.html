@@ -11,7 +11,7 @@
     <header class="hero">
       <p class="eyebrow">Mahjong Companion</p>
       <h1>雀魂陪伴插件</h1>
-      <p class="summary">当前调试台。现在可验证窗口绑定、真实抓帧、基础感知、最小决策、讲解生成、状态上报与猫娘播报入口。</p>
+      <p class="summary">当前调试台。现在可验证窗口绑定、真实抓帧、基础感知、最小决策、讲解生成、v9 记忆桥同步降级、跨局趋势与训练话题入口。</p>
     </header>
 
     <section class="panel">
@@ -34,18 +34,40 @@
         <div><strong>决策类型</strong><span id="decision-type">-</span></div>
         <div><strong>风险等级</strong><span id="decision-risk">-</span></div>
         <div><strong>建议焦点</strong><span id="decision-focus">-</span></div>
+        <div><strong>复盘标签</strong><span id="decision-review-tags">-</span></div>
         <div><strong>决策时间</strong><span id="decision-at">-</span></div>
+        <div><strong>牌级分析</strong><span id="tile-analysis-available">-</span></div>
+        <div><strong>向听估计</strong><span id="shanten-estimate">-</span></div>
+        <div><strong>进张估计</strong><span id="ukeire-estimate">-</span></div>
         <div><strong>讲解类型</strong><span id="narration-type">-</span></div>
         <div><strong>输出通道</strong><span id="narration-channel">-</span></div>
         <div><strong>输出方式</strong><span id="narration-delivery">-</span></div>
         <div><strong>陪伴情绪</strong><span id="companion-mood">-</span></div>
         <div><strong>建议强度</strong><span id="suggestion-level">-</span></div>
         <div><strong>当前建议</strong><span id="decision-suggestion">-</span></div>
+        <div><strong>记忆桥状态</strong><span id="memory-bridge-status">-</span></div>
+        <div><strong>宿主同步状态</strong><span id="host-memory-sync-status">-</span></div>
+        <div><strong>宿主同步说明</strong><span id="host-memory-sync-note">-</span></div>
+        <div><strong>待同步数量</strong><span id="host-memory-sync-pending">-</span></div>
+        <div><strong>复盘摘要时间</strong><span id="review-summary-at">-</span></div>
+        <div><strong>复盘摘要</strong><span id="review-summary-text">-</span></div>
+        <div><strong>复盘高光</strong><span id="review-highlights">-</span></div>
+        <div><strong>复盘风险点</strong><span id="review-risk-points">-</span></div>
+        <div><strong>教练备注</strong><span id="review-coach-note">-</span></div>
+        <div><strong>跨局趋势时间</strong><span id="coaching-trend-at">-</span></div>
+        <div><strong>跨局趋势摘要</strong><span id="coaching-summary-text">-</span></div>
+        <div><strong>当前训练焦点</strong><span id="coaching-focus">-</span></div>
+        <div><strong>训练话题</strong><span id="coaching-topics">-</span></div>
         <div><strong>讲解文本</strong><span id="narration-text">-</span></div>
         <div><strong>语音模式</strong><span id="voice-mode">-</span></div>
         <div><strong>最近通知</strong><span id="notification-at">-</span></div>
         <div><strong>最近已播报</strong><span id="spoken-at">-</span></div>
         <div><strong>最近错误</strong><span id="last-error">-</span></div>
+        <div><strong>辅助模式</strong><span id="action-mode">-</span></div>
+        <div><strong>最近动作</strong><span id="last-action-id">-</span></div>
+        <div><strong>动作结果</strong><span id="last-action-ok">-</span></div>
+        <div><strong>动作阻塞原因</strong><span id="last-action-blocked">-</span></div>
+        <div><strong>守卫中断</strong><span id="last-action-guard-aborted">-</span></div>
       </div>
       <pre id="status">状态加载中...</pre>
     </section>
@@ -70,10 +92,33 @@
         <button id="analyze-btn" type="button">分析最近截图</button>
         <button id="decision-btn" type="button">生成决策</button>
         <button id="narration-btn" type="button">生成讲解</button>
+        <button id="review-summary-btn" type="button">生成复盘摘要</button>
+        <button id="sync-memory-btn" type="button">同步记忆桥</button>
+        <button id="coaching-trend-btn" type="button">刷新跨局趋势</button>
+        <button id="coaching-topics-btn" type="button">查看训练话题</button>
         <button id="pipeline-btn" type="button">一键跑到猫娘回话</button>
         <button id="preview-btn" type="button">刷新陪伴视图</button>
         <button id="speak-btn" type="button">播报当前讲解</button>
         <button id="voice-mode-btn" type="button">切换语音模式</button>
+      </div>
+
+      <h3>辅助操作（需先启用 assist 模式）</h3>
+      <div class="actions">
+        <button id="list-actions-btn" type="button">列出可用动作</button>
+        <label class="inline-select" for="action-select">动作</label>
+        <select id="action-select">
+          <option value="replay_next">回放下一手</option>
+          <option value="replay_prev">回放上一手</option>
+          <option value="dialog_confirm">确认弹窗</option>
+          <option value="dialog_cancel">取消弹窗</option>
+          <option value="menu_back">返回上一级</option>
+          <option value="menu_start_replay">打开回放</option>
+        </select>
+        <label class="inline-label"><input id="dry-run-check" type="checkbox" checked /> 预演</label>
+        <label class="inline-label"><input id="user-confirmed-check" type="checkbox" /> 已确认</label>
+        <button id="execute-action-btn" type="button">执行动作</button>
+        <button id="get-action-log-btn" type="button">查看动作日志</button>
+        <button id="clear-action-log-btn" type="button">清除动作日志</button>
       </div>
       <label class="toggle">
         <input id="auto-refresh-toggle" type="checkbox" />

@@ -3,6 +3,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import pytest
+
+from plugin.plugins.mahjong_companion import MahjongCompanionPlugin
 from plugin.plugins.mahjong_companion.config_defaults import DEFAULT_CONFIG, merge_runtime_config
 from plugin.plugins.mahjong_companion.gates import DefaultFrameChangeGate
 from plugin.plugins.mahjong_companion.narration.events import NarrationEvent
@@ -27,6 +30,33 @@ class _FakePlugin:
 
     def push_message(self, **kwargs: object) -> dict[str, object]:
         self.messages.append(dict(kwargs))
+        return {"ok": True}
+
+
+class _FakeCtx:
+    plugin_id = "mahjong_companion"
+
+    def __init__(self, config_path: Path) -> None:
+        self.config_path = config_path
+        self.logger = logging.getLogger("mahjong-companion-plugin-test")
+        self.metadata = {}
+        self.bus = {"messages": "bus"}
+        self._effective_config = {
+            "plugin": {"store": {"enabled": True}, "database": {"enabled": True, "name": "data.db"}},
+            "plugin_state": {"backend": "file"},
+        }
+        self.status: dict[str, object] | None = None
+
+    async def get_own_config(self, timeout: float = 5.0) -> dict[str, object]:
+        return {}
+
+    async def get_own_base_config(self, timeout: float = 5.0) -> dict[str, object]:
+        return {}
+
+    def update_status(self, status: dict[str, object]) -> None:
+        self.status = dict(status)
+
+    def push_message(self, **kwargs: object) -> dict[str, object]:
         return {"ok": True}
 
 
@@ -102,3 +132,21 @@ def test_get_status_exposes_host_status_and_runtime_status(tmp_path: Path) -> No
     assert payload["status"] == "in_match"
     assert payload["runtime_status"] == "scanning"
     assert payload["scene"] == "in_match"
+
+
+@pytest.mark.asyncio
+async def test_startup_copies_and_registers_static_ui(tmp_path: Path) -> None:
+    config_path = tmp_path / "mahjong_companion" / "plugin.toml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    ctx = _FakeCtx(config_path)
+    plugin = MahjongCompanionPlugin(ctx)
+
+    result = await plugin.startup()
+
+    static_index = config_path.parent / "static" / "index.html"
+
+    assert result.value["status"] == "ready"
+    assert static_index.is_file()
+    assert "Mahjong Companion" in static_index.read_text(encoding="utf-8")
+    assert plugin.get_static_ui_config() is not None
+    assert plugin.get_static_ui_config()["plugin_id"] == "mahjong_companion"

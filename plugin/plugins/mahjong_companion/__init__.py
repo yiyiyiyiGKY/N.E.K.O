@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
 from typing import Any
 
 from plugin.sdk.plugin import (
@@ -29,13 +31,20 @@ class MahjongCompanionPlugin(NekoPluginBase):
         cfg = await self.config.dump(timeout=5.0)
         merged = merge_runtime_config(DEFAULT_CONFIG, cfg if isinstance(cfg, dict) else {})
         self.orchestrator.apply_config(merged)
+        self.orchestrator.load_cached_outputs()
 
-        if (self.config_dir / "static").exists():
-            self.register_static_ui(
+        if self._ensure_static_ui_assets():
+            ok = self.register_static_ui(
                 "static",
                 index_file="index.html",
                 cache_control="no-cache, no-store, must-revalidate",
             )
+            if ok:
+                self.logger.info("mahjong companion static ui registered at /plugin/{}/ui/", self.plugin_id)
+            else:
+                self.logger.warning("mahjong companion static ui registration failed")
+        else:
+            self.logger.warning("mahjong companion bundled static ui not found")
 
         self.report_status(self.orchestrator.get_status())
         return Ok({"status": "ready"})
@@ -104,6 +113,30 @@ class MahjongCompanionPlugin(NekoPluginBase):
     async def get_last_narration(self, **_):
         return await self.orchestrator.get_last_narration()
 
+    @plugin_entry(id="generate_review_summary", name="生成复盘摘要", kind="action")
+    async def generate_review_summary(self, **_):
+        return await self.orchestrator.generate_review_summary()
+
+    @plugin_entry(id="get_last_review_summary", name="获取最近复盘摘要", kind="action")
+    async def get_last_review_summary(self, **_):
+        return await self.orchestrator.get_last_review_summary()
+
+    @plugin_entry(id="sync_memory_bridge", name="同步记忆桥", kind="action")
+    async def sync_memory_bridge(self, **_):
+        return await self.orchestrator.sync_memory_bridge()
+
+    @plugin_entry(id="get_coaching_trend", name="获取跨局趋势", kind="action")
+    async def get_coaching_trend(self, **_):
+        return await self.orchestrator.get_coaching_trend()
+
+    @plugin_entry(id="get_last_coaching_topics", name="获取训练话题", kind="action")
+    async def get_last_coaching_topics(self, **_):
+        return await self.orchestrator.get_last_coaching_topics()
+
+    @plugin_entry(id="generate_review_summary_from_file", name="从文件生成复盘摘要", kind="action")
+    async def generate_review_summary_from_file(self, review_candidates_path: str, **_):
+        return await self.orchestrator.generate_review_summary_from_file(review_candidates_path)
+
     @plugin_entry(id="preview_companion_view", name="预览陪伴视图", kind="action")
     async def preview_companion_view(self, **_):
         return await self.orchestrator.preview_companion_view()
@@ -139,3 +172,38 @@ class MahjongCompanionPlugin(NekoPluginBase):
     @plugin_entry(id="unbind_window", name="解除窗口绑定", kind="action")
     async def unbind_window(self, **_):
         return await self.orchestrator.unbind_window()
+
+    @plugin_entry(id="list_assist_actions", name="列出辅助动作", kind="action")
+    async def list_assist_actions(self, **_):
+        return await self.orchestrator.list_assist_actions()
+
+    @plugin_entry(id="execute_assist_action", name="执行辅助动作", kind="action")
+    async def execute_assist_action(self, action_id: str, dry_run: bool = False, user_confirmed: bool = False, **_):
+        return await self.orchestrator.execute_assist_action(
+            action_id, dry_run=bool(dry_run), user_confirmed=bool(user_confirmed),
+        )
+
+    @plugin_entry(id="get_action_log", name="获取动作日志", kind="action")
+    async def get_action_log(self, **_):
+        return await self.orchestrator.get_action_log()
+
+    @plugin_entry(id="clear_action_log", name="清除动作日志", kind="action")
+    async def clear_action_log(self, **_):
+        return await self.orchestrator.clear_action_log()
+
+    def _ensure_static_ui_assets(self) -> bool:
+        source_dir = Path(__file__).resolve().parent / "static"
+        index_path = source_dir / "index.html"
+        if not source_dir.is_dir() or not index_path.is_file():
+            return False
+
+        target_dir = self.config_dir / "static"
+        for source_path in source_dir.rglob("*"):
+            relative = source_path.relative_to(source_dir)
+            target_path = target_dir / relative
+            if source_path.is_dir():
+                target_path.mkdir(parents=True, exist_ok=True)
+                continue
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_path, target_path)
+        return True

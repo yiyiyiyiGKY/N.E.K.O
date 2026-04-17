@@ -57,6 +57,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "min_priority": 75,
             "max_memories_per_day": 3,
             "dedupe_window_sec": 21600,
+            "host_memory_bucket_id": "mahjong_companion_coaching",
+            "host_sync_batch_size": 5,
+        },
+        "coaching": {
+            "history_limit": 24,
+            "trend_window_sessions": 3,
+            "topic_limit": 3,
         },
     }
 }

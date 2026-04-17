@@ -1,26 +1,27 @@
 {
   "frame_path": "/Users/tonnodoubt/N.E.K.O/plugin/plugins/mahjong_companion/data/debug_samples/20260415-072038-804323-frame.png",
   "perceived_state": {
-    "scene": "unknown",
-    "confidence": 0.22,
+    "scene": "menu",
+    "confidence": 0.68,
     "is_user_turn": false,
-    "buttons": [
-      "chi",
-      "riichi",
-      "skip"
-    ],
+    "buttons": [],
     "notes": [
-      "insufficient scene evidence",
-      "green accent in bottom action bar",
-      "gold accent in bottom action bar",
-      "orange accent in bottom action bar"
+      "bright room setup menu detected",
+      "non-match scene suppresses bottom action bar inference",
+      "insufficient action evidence"
     ],
     "roi_hits": {
       "top_banner": false,
       "center_dialog": false,
       "bottom_action_bar": true,
       "right_replay_panel": true
-    }
+    },
+    "hand_tiles": [],
+    "melds": [],
+    "dora_indicators": [],
+    "riichi_players": [],
+    "raw_detections": [],
+    "analysis_hints": {}
   },
   "debug": {
     "image_path": "/Users/tonnodoubt/N.E.K.O/plugin/plugins/mahjong_companion/data/debug_samples/20260415-072038-804323-frame.png",

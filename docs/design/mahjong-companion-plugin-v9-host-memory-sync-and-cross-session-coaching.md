@@ -10,9 +10,10 @@
 > - 把“单局复盘”推进到“跨局训练陪伴”
 >
 > 实施同步说明：
-> - 截至当前仓库状态，第九阶段还没有落到代码里，这份文档是后续正式设计稿。
-> - 当前仓库已经有 `review/memory_bridge.py`，但仍是本地暂存，原因是宿主 SDK 目前缺少插件侧记忆写入接口。
-> - 因此第九阶段的关键，是在宿主能力到位后，把“摘要筛选 -> 写入长期记忆 -> 跨局引用”这条链路补齐。
+> - 截至当前仓库状态，第九阶段第一版已经落到代码里。
+> - 当前仓库已具备：`review/host_memory_sync.py`、`review/trend_aggregator.py`、`review/coaching_topics.py`、`review_summary_history.json`、`coaching_trend.json`、`coaching_topics.json` 这条本地跨局陪练链路，以及 `sync_memory_bridge / get_coaching_trend / get_last_coaching_topics` 插件入口和 UI 面板展示。
+> - 当前仓库已经把“摘要筛选 -> 宿主同步尝试 -> 跨局趋势 -> 训练话题”串起来，但仍对宿主 SDK 的现实能力做了诚实降级：由于目前没有插件侧记忆写入接口，`host_memory_sync.py` 会把状态明确标成 `host_memory_write_unavailable`，并保留本地队列而不是假装已经写入。
+> - 因此第九阶段现在可以视为“宿主记忆同步与跨局训练陪伴第一版已落地”，后续增强重点不再是趋势与话题骨架，而是等宿主写入接口就位后补齐真正的长期记忆写入与跨会话引用。
 
 ---
 
@@ -293,11 +294,11 @@ plugin/plugins/mahjong_companion/
 
 建议按这个顺序落：
 
-1. 等宿主提供插件侧记忆写入接口
-2. 实现 `host_memory_sync.py`
-3. 实现 `trend_aggregator.py`
-4. 实现 `coaching_topics.py`
-5. 最后接 UI 和闲聊链路
+1. 先用当前 SDK 能力落本地第一版：实现 `host_memory_sync.py` 的降级同步与状态上报
+2. 实现 `trend_aggregator.py`
+3. 实现 `coaching_topics.py`
+4. 接插件入口与 UI
+5. 等宿主提供插件侧记忆写入接口后，再把降级同步切换成真实写入
 
 ---
 

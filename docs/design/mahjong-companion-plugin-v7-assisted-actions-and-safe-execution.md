@@ -10,10 +10,10 @@
 > - 把现有 `HumanOverrideGuard` 从独立安全层推进到真正参与输入执行闭环
 >
 > 实施同步说明：
-> - 截至当前仓库状态，第七阶段还没有落到代码里，这份文档是下一阶段正式设计稿。
-> - 当前仓库已经具备第七阶段需要复用的前置能力：`action/human_override_guard.py`、`action_policy` 的默认配置占位、窗口绑定、截图与主循环状态机。
-> - 当前仓库还没有具备：输入执行 adapter、操作日志、辅助动作入口、确认后执行闭环。
-> - 因此第七阶段的关键，不是继续增强讲解，而是把“建议 -> 明确授权 -> 安全执行 -> 可审计回放”真正打通。
+> - 截至当前仓库状态，第七阶段基础闭环已经落到代码里。
+> - 当前仓库已具备：`action/input_adapter.py`、`action/action_registry.py`、`action/action_log.py`、`HumanOverrideGuard` 接入执行窗口、`list_assist_actions / execute_assist_action / get_action_log / clear_action_log` 入口，以及动作状态字段与审计日志。
+> - 当前仓库仍然保持保守边界：动作默认关闭，`assist` 模式只允许白名单场景和有限动作；屏幕点击仍基于窗口相对锚点，而不是稳定的按钮级定位。
+> - 因此第七阶段现在可以视为“有限辅助操作与安全执行闭环第一版已落地”，后续增强重点不再是入口和日志，而是更可靠的按钮定位与动作 UI。
 
 ---
 

@@ -9,38 +9,53 @@
     "summary": "当前更像是非对局操作阶段。",
     "detail": "这是菜单、大厅、对话框或结算一类状态，通常不需要高频播报。",
     "suggestion": "更适合静默展示状态，不需要持续提醒。",
-    "recommended_focus": "scene_lobby",
-    "scene": "lobby",
+    "recommended_focus": "scene_menu",
+    "scene": "menu",
     "buttons": [],
     "reason_codes": [
-      "scene.lobby"
+      "scene.menu"
     ],
     "review_tags": [],
+    "review_summary_snippet": "",
+    "mahjong_analysis": {
+      "analysis_version": "mahjong-lite-v1",
+      "tile_level_available": false,
+      "hand_shape_confidence": 0.0,
+      "shanten_estimate": null,
+      "ukeire_estimate": null,
+      "candidate_discards": [],
+      "attack_defense_bias": "neutral",
+      "teaching_points": [
+        "当前先按规则焦点做提醒，牌级建议尚未启用。"
+      ]
+    },
     "engine_meta": {
       "engine": "rule_based_v2",
-      "confidence": 0.7,
-      "focus_area": "scene_lobby",
+      "confidence": 0.68,
+      "focus_area": "scene_menu",
+      "analysis_version": "mahjong-lite-v1",
       "button_groups": {
         "win": [],
         "declaration": [],
         "call": [],
         "passive": []
       },
+      "tile_level_available": false,
       "review_candidate": false
     }
   },
   "debug": {
-    "source_scene": "lobby",
-    "source_confidence": 0.7,
+    "source_scene": "menu",
+    "source_confidence": 0.68,
     "source_buttons": [],
     "source_is_user_turn": false,
     "source_notes": [
-      "bright lobby-style frame detected",
+      "bright room setup menu detected",
       "non-match scene suppresses bottom action bar inference",
       "insufficient action evidence"
     ],
     "decision_reason_codes": [
-      "scene.lobby"
+      "scene.menu"
     ]
   }
 }

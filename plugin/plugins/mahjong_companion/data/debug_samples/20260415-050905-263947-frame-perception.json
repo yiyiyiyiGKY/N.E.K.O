@@ -15,6 +15,112 @@
       "center_dialog": true,
       "bottom_action_bar": true,
       "right_replay_panel": false
+    },
+    "hand_tiles": [],
+    "melds": [],
+    "dora_indicators": [],
+    "riichi_players": [],
+    "raw_detections": [
+      {
+        "slot_id": "hand_1",
+        "group": "hand",
+        "candidate_tile": "",
+        "confidence": 0.0,
+        "box": {
+          "name": "hand_1",
+          "left": 187,
+          "top": 573,
+          "width": 48,
+          "height": 89
+        },
+        "slot_mean_luma": 115.58,
+        "slot_colorful_ratio": 0.7391
+      },
+      {
+        "slot_id": "hand_2",
+        "group": "hand",
+        "candidate_tile": "",
+        "confidence": 0.0,
+        "box": {
+          "name": "hand_2",
+          "left": 240,
+          "top": 573,
+          "width": 48,
+          "height": 89
+        },
+        "slot_mean_luma": 39.4,
+        "slot_colorful_ratio": 0.0
+      },
+      {
+        "slot_id": "hand_3",
+        "group": "hand",
+        "candidate_tile": "",
+        "confidence": 0.0,
+        "box": {
+          "name": "hand_3",
+          "left": 293,
+          "top": 573,
+          "width": 48,
+          "height": 89
+        },
+        "slot_mean_luma": 52.27,
+        "slot_colorful_ratio": 0.1304
+      },
+      {
+        "slot_id": "hand_4",
+        "group": "hand",
+        "candidate_tile": "",
+        "confidence": 0.0,
+        "box": {
+          "name": "hand_4",
+          "left": 346,
+          "top": 573,
+          "width": 48,
+          "height": 89
+        },
+        "slot_mean_luma": 47.96,
+        "slot_colorful_ratio": 0.058
+      },
+      {
+        "slot_id": "hand_5",
+        "group": "hand",
+        "candidate_tile": "",
+        "confidence": 0.0,
+        "box": {
+          "name": "hand_5",
+          "left": 399,
+          "top": 573,
+          "width": 48,
+          "height": 89
+        },
+        "slot_mean_luma": 43.89,
+        "slot_colorful_ratio": 0.0
+      },
+      {
+        "slot_id": "hand_6",
+        "group": "hand",
+        "candidate_tile": "",
+        "confidence": 0.0,
+        "box": {
+          "name": "hand_6",
+          "left": 452,
+          "top": 573,
+          "width": 48,
+          "height": 89
+        },
+        "slot_mean_luma": 44.13,
+        "slot_colorful_ratio": 0.0109
+      }
+    ],
+    "analysis_hints": {
+      "analysis_version": "mahjong-core-v1",
+      "tile_level_state": "tile_level_unavailable",
+      "tile_level_available": false,
+      "analysis_confidence": 0.0,
+      "calibration_profile": "default-1342x796",
+      "calibration_enabled": false,
+      "tile_parser_source": "heuristic_layout_only",
+      "hand_slot_count": 14
     }
   },
   "debug": {

@@ -40,6 +40,9 @@ class SessionState:
     last_decision_ok: bool = False
     last_decision_type: str = ""
     last_decision_risk_level: str = ""
+    last_tile_analysis_available: bool = False
+    last_shanten_estimate: int | None = None
+    last_ukeire_estimate: int | None = None
     last_decision: dict[str, Any] = field(default_factory=dict)
     last_narration_at: str = ""
     last_narration_ok: bool = False
@@ -67,6 +70,25 @@ class SessionState:
     last_memory_bridge_at: str = ""
     last_memory_bridge_status: str = ""
     last_memory_bridge_summary: str = ""
+    last_host_memory_sync_at: str = ""
+    last_host_memory_sync_status: str = ""
+    last_host_memory_sync_note: str = ""
+    last_host_memory_sync_pending: int = 0
+    last_review_summary_at: str = ""
+    last_review_summary_ok: bool = False
+    last_review_summary: dict[str, Any] = field(default_factory=dict)
+    last_review_summary_text: str = ""
+    last_coaching_trend_at: str = ""
+    last_coaching_trend: dict[str, Any] = field(default_factory=dict)
+    last_coaching_summary_text: str = ""
+    last_coaching_focus: str = ""
+    last_coaching_topics: list[dict[str, Any]] = field(default_factory=list)
+    last_action_id: str = ""
+    last_action_at: str = ""
+    last_action_ok: bool = False
+    last_action_blocked_reason: str = ""
+    last_action_guard_aborted: bool = False
+    action_mode: str = "off"
     started_at: str = ""
 
     @classmethod

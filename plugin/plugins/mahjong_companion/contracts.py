@@ -25,6 +25,12 @@ class PerceivedGameState:
     buttons: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     roi_hits: dict[str, bool] = field(default_factory=dict)
+    hand_tiles: list[str] = field(default_factory=list)
+    melds: list[list[str]] = field(default_factory=list)
+    dora_indicators: list[str] = field(default_factory=list)
+    riichi_players: list[str] = field(default_factory=list)
+    raw_detections: list[dict[str, Any]] = field(default_factory=list)
+    analysis_hints: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -45,7 +51,54 @@ class DecisionResult:
     buttons: list[str] = field(default_factory=list)
     reason_codes: list[str] = field(default_factory=list)
     review_tags: list[str] = field(default_factory=list)
+    review_summary_snippet: str = ""
+    mahjong_analysis: dict[str, Any] = field(default_factory=dict)
     engine_meta: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class MahjongAnalysis:
+    analysis_version: str = "mahjong-lite-v1"
+    tile_level_available: bool = False
+    tile_level_state: str = "tile_level_unavailable"
+    analysis_confidence: float = 0.0
+    hand_shape_confidence: float = 0.0
+    shanten_estimate: int | None = None
+    ukeire_estimate: int | None = None
+    candidate_discards: list[dict[str, Any]] = field(default_factory=list)
+    attack_defense_bias: str = "neutral"
+    defense_alerts: list[str] = field(default_factory=list)
+    teaching_points: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class AssistAction:
+    action_id: str
+    category: str
+    label: str
+    allowed_contexts: list[str] = field(default_factory=list)
+    requires_confirmation: bool = True
+    requires_running_session: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class ActionExecutionResult:
+    ok: bool = False
+    action_id: str = ""
+    executed_at: str = ""
+    blocked_reason: str = ""
+    guard_aborted: bool = False
+    window_title: str = ""
+    log_path: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

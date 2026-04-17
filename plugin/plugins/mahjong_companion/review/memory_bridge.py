@@ -26,6 +26,7 @@ def build_memory_summary(
     summary_text = _build_summary_text(decision, perceived, tags)
     return {
         "captured_at": candidate.get("captured_at") or now_iso(),
+        "session_id": candidate.get("session_id", ""),
         "summary_text": summary_text,
         "summary_tags": tags,
         "scene": decision.scene,

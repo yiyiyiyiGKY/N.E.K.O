@@ -44,9 +44,8 @@
     "right_replay_panel": true
   },
   "notes": [
-    "insufficient scene evidence",
-    "green accent in bottom action bar",
-    "gold accent in bottom action bar",
-    "orange accent in bottom action bar"
+    "bright room setup menu detected",
+    "non-match scene suppresses bottom action bar inference",
+    "insufficient action evidence"
   ]
 }

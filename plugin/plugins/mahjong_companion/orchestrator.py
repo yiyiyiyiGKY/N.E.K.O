@@ -8,8 +8,11 @@ from typing import Any, Optional
 from plugin.sdk.plugin import Ok
 
 from .action import HumanOverrideGuard
+from .action.action_log import ActionLogEntry, append_action_log, clear_action_log, load_action_log
+from .action.action_registry import ActionRegistry
+from .action.input_adapter import InputAdapter
 from .capture import DefaultCaptureProvider
-from .contracts import DecisionResult, PerceivedGameState
+from .contracts import ActionExecutionResult, DecisionResult, PerceivedGameState
 from .decision.adapter import DefaultDecisionAdapter
 from .decision.debug_dump import write_debug_artifacts as write_decision_debug_artifacts
 from .gates import DefaultFrameChangeGate
@@ -20,9 +23,16 @@ from .perception import analyze_image_path
 from .perception.debug_dump import write_debug_artifacts as write_perception_debug_artifacts
 from .review import (
     append_review_candidate,
+    append_review_summary_history,
     build_memory_summary,
     build_review_candidate,
+    build_review_summary,
+    generate_coaching_topics,
+    generate_coaching_trend,
+    generate_review_summary as generate_review_summary_artifact,
+    load_review_candidates,
     stage_memory_summary,
+    sync_memory_bridge_queue,
 )
 from .session_state import SessionState, now_iso
 from .window_binding import WindowBindingResult
@@ -42,6 +52,9 @@ class SessionOrchestrator:
         self._frame_change_gate = DefaultFrameChangeGate()
         self._human_override_guard = HumanOverrideGuard()
         self._narration_dispatcher = NarrationDispatcher(plugin)
+        self._action_registry = ActionRegistry()
+        self._input_adapter = InputAdapter()
+        self._human_override_guard.configure_pointer_provider(self._input_adapter.get_pointer)
 
     def apply_config(self, config: dict[str, Any]) -> None:
         self._config = config
@@ -55,6 +68,11 @@ class SessionOrchestrator:
             if not self.state.running:
                 voice_mode = str(speech_cfg.get("voice_mode", "key_events_only")).strip()
                 self.state.voice_mode = voice_mode or "key_events_only"
+        action_cfg = companion_cfg.get("action_policy", {})
+        if isinstance(action_cfg, dict):
+            action_mode = str(action_cfg.get("mode", "off")).strip()
+            if action_mode in {"off", "assist", "semi_auto"}:
+                self.state.action_mode = action_mode
 
     async def start(self):
         async with self._lock:
@@ -80,6 +98,10 @@ class SessionOrchestrator:
             self.state.last_memory_bridge_at = ""
             self.state.last_memory_bridge_status = ""
             self.state.last_memory_bridge_summary = ""
+            self.state.last_review_summary_at = ""
+            self.state.last_review_summary_ok = False
+            self.state.last_review_summary = {}
+            self.state.last_review_summary_text = ""
             self.state.started_at = self.state.started_at or now_iso()
             self._frame_change_gate.reset()
             self._human_override_guard.reset()
@@ -212,6 +234,177 @@ class SessionOrchestrator:
                 "ok": self.state.last_narration_ok,
                 "data": self.state.last_narration,
                 "last_narration_at": self.state.last_narration_at,
+            })
+
+    async def generate_review_summary(self):
+        async with self._lock:
+            cache_dir = self.plugin.data_path("session_cache")
+            try:
+                summary, summary_path = generate_review_summary_artifact(
+                    cache_dir,
+                    session_id=self.state.session_id,
+                )
+                history_path = append_review_summary_history(
+                    cache_dir,
+                    summary,
+                    limit=int(self._get_coaching_cfg().get("history_limit", 24)),
+                )
+                payload = self._apply_review_summary_result(summary)
+                payload.update(self._refresh_coaching_state_locked(cache_dir))
+                payload["ok"] = True
+                payload["path"] = str(summary_path)
+                payload["history_path"] = str(history_path)
+                self._emit_status()
+                return Ok(payload)
+            except Exception as exc:
+                self.logger.exception("generate_review_summary failed")
+                self.state.last_review_summary_at = now_iso()
+                self.state.last_review_summary_ok = False
+                self.state.last_review_summary = {}
+                self.state.last_review_summary_text = ""
+                self.state.last_error = str(exc)
+                self._emit_status()
+                return Ok({
+                    "ok": False,
+                    "error": str(exc),
+                })
+
+    async def get_last_review_summary(self):
+        async with self._lock:
+            return Ok({
+                "ok": self.state.last_review_summary_ok,
+                "data": self.state.last_review_summary,
+                "last_review_summary_at": self.state.last_review_summary_at,
+                "last_review_summary_text": self.state.last_review_summary_text,
+            })
+
+    async def generate_review_summary_from_file(self, review_candidates_path: str):
+        async with self._lock:
+            candidate = Path(review_candidates_path).expanduser()
+            if not candidate.is_absolute():
+                candidate = (Path.cwd() / candidate).resolve()
+            try:
+                items = load_review_candidates(candidate)
+                summary = build_review_summary(
+                    session_id=self.state.session_id,
+                    candidates=items,
+                )
+                history_path = append_review_summary_history(
+                    self.plugin.data_path("session_cache"),
+                    summary,
+                    limit=int(self._get_coaching_cfg().get("history_limit", 24)),
+                )
+                payload = self._apply_review_summary_result(summary)
+                payload.update(self._refresh_coaching_state_locked(self.plugin.data_path("session_cache")))
+                payload["ok"] = True
+                payload["source_path"] = str(candidate)
+                payload["history_path"] = str(history_path)
+                self._emit_status()
+                return Ok(payload)
+            except Exception as exc:
+                self.logger.exception("generate_review_summary_from_file failed")
+                self.state.last_review_summary_at = now_iso()
+                self.state.last_review_summary_ok = False
+                self.state.last_review_summary = {}
+                self.state.last_review_summary_text = ""
+                self.state.last_error = str(exc)
+                self._emit_status()
+                return Ok({
+                    "ok": False,
+                    "error": str(exc),
+                    "source_path": str(candidate),
+                })
+
+    async def sync_memory_bridge(self):
+        async with self._lock:
+            cache_dir = self.plugin.data_path("session_cache")
+            bridge_cfg = self._get_memory_bridge_cfg()
+            report, report_path = sync_memory_bridge_queue(
+                cache_dir,
+                memory_client=getattr(self.plugin, "memory", None),
+                bucket_id=str(bridge_cfg.get("host_memory_bucket_id", "mahjong_companion_coaching")),
+                batch_size=int(bridge_cfg.get("host_sync_batch_size", 5)),
+            )
+            self._apply_host_memory_sync_result(report)
+            self._emit_status()
+            payload = dict(report)
+            payload["path"] = str(report_path)
+            return Ok(payload)
+
+    async def get_coaching_trend(self):
+        async with self._lock:
+            cache_dir = self.plugin.data_path("session_cache")
+            try:
+                payload = self._refresh_coaching_state_locked(cache_dir)
+                payload["ok"] = True
+                self._emit_status()
+                return Ok(payload)
+            except Exception as exc:
+                self.state.last_error = str(exc)
+                self._emit_status()
+                return Ok({
+                    "ok": False,
+                    "error": str(exc),
+                })
+
+    async def get_last_coaching_topics(self):
+        async with self._lock:
+            if not self.state.last_coaching_topics:
+                cache_dir = self.plugin.data_path("session_cache")
+                try:
+                    self._refresh_coaching_state_locked(cache_dir)
+                except Exception as exc:
+                    self.state.last_error = str(exc)
+                    self._emit_status()
+                    return Ok({
+                        "ok": False,
+                        "error": str(exc),
+                        "topics": [],
+                    })
+            return Ok({
+                "ok": bool(self.state.last_coaching_topics),
+                "coach_focus": self.state.last_coaching_focus,
+                "summary_text": self.state.last_coaching_summary_text,
+                "topics": list(self.state.last_coaching_topics),
+                "last_coaching_trend_at": self.state.last_coaching_trend_at,
+            })
+
+    async def list_assist_actions(self):
+        async with self._lock:
+            actions = self._action_registry.list_actions()
+            return Ok({
+                "ok": True,
+                "action_mode": self.state.action_mode,
+                "actions": [a.to_dict() for a in actions],
+            })
+
+    async def execute_assist_action(
+        self,
+        action_id: str,
+        *,
+        dry_run: bool = False,
+        user_confirmed: bool = False,
+    ):
+        async with self._lock:
+            return Ok(self._execute_assist_action_locked(
+                action_id, dry_run=dry_run, user_confirmed=user_confirmed,
+            ))
+
+    async def get_action_log(self):
+        async with self._lock:
+            entries = load_action_log(self.plugin.data_path("session_cache"))
+            return Ok({
+                "ok": True,
+                "count": len(entries),
+                "entries": entries,
+            })
+
+    async def clear_action_log(self):
+        async with self._lock:
+            removed = clear_action_log(self.plugin.data_path("session_cache"))
+            return Ok({
+                "ok": True,
+                "cleared": removed,
             })
 
     async def preview_companion_view(self):
@@ -453,6 +646,7 @@ class SessionOrchestrator:
             )
             review_candidate = build_review_candidate(frame_path, decision, perceived) if should_persist_review else None
             if review_candidate is not None:
+                review_candidate["session_id"] = self.state.session_id
                 review_path = append_review_candidate(self.plugin.data_path("session_cache"), review_candidate)
                 artifacts["review_candidates_path"] = str(review_path)
                 bridge_cfg = self._get_memory_bridge_cfg()
@@ -661,12 +855,26 @@ class SessionOrchestrator:
             guard_cfg = {}
         return guard_cfg
 
+    def _get_action_policy_cfg(self) -> dict[str, Any]:
+        companion_cfg = self._config.get("mahjong_companion", {})
+        action_cfg = companion_cfg.get("action_policy", {})
+        if not isinstance(action_cfg, dict):
+            action_cfg = {}
+        return action_cfg
+
     def _get_memory_bridge_cfg(self) -> dict[str, Any]:
         companion_cfg = self._config.get("mahjong_companion", {})
         bridge_cfg = companion_cfg.get("memory_bridge", {})
         if not isinstance(bridge_cfg, dict):
             bridge_cfg = {}
         return bridge_cfg
+
+    def _get_coaching_cfg(self) -> dict[str, Any]:
+        companion_cfg = self._config.get("mahjong_companion", {})
+        coaching_cfg = companion_cfg.get("coaching", {})
+        if not isinstance(coaching_cfg, dict):
+            coaching_cfg = {}
+        return coaching_cfg
 
     def _perception_debug_dump_enabled(self) -> bool:
         companion_cfg = self._config.get("mahjong_companion", {})
@@ -864,10 +1072,14 @@ class SessionOrchestrator:
 
     def _apply_decision_result(self, decision: DecisionResult) -> dict[str, Any]:
         payload = decision.to_dict()
+        analysis = decision.mahjong_analysis if isinstance(decision.mahjong_analysis, dict) else {}
         self.state.last_decision_at = now_iso()
         self.state.last_decision_ok = True
         self.state.last_decision_type = decision.decision_type
         self.state.last_decision_risk_level = decision.risk_level
+        self.state.last_tile_analysis_available = bool(analysis.get("tile_level_available", False))
+        self.state.last_shanten_estimate = analysis.get("shanten_estimate")
+        self.state.last_ukeire_estimate = analysis.get("ukeire_estimate")
         self.state.last_decision = decision.to_dict()
         self._clear_narration_state()
         self.state.last_error = ""
@@ -890,6 +1102,69 @@ class SessionOrchestrator:
             **event_payload,
             "companion_view": view_payload,
         }
+
+    def _apply_review_summary_result(self, summary: dict[str, Any]) -> dict[str, Any]:
+        self.state.last_review_summary_at = now_iso()
+        self.state.last_review_summary_ok = True
+        self.state.last_review_summary = dict(summary)
+        self.state.last_review_summary_text = str(summary.get("summary_text", ""))
+        self.state.last_error = ""
+        return dict(summary)
+
+    def _apply_host_memory_sync_result(self, report: dict[str, Any]) -> dict[str, Any]:
+        self.state.last_host_memory_sync_at = str(report.get("attempted_at") or now_iso())
+        self.state.last_host_memory_sync_status = str(report.get("status", ""))
+        self.state.last_host_memory_sync_note = str(report.get("note", ""))
+        self.state.last_host_memory_sync_pending = int(report.get("pending_count", 0) or 0)
+        self.state.last_error = ""
+        return dict(report)
+
+    def _apply_coaching_outputs(self, trend: dict[str, Any], topics_payload: dict[str, Any]) -> dict[str, Any]:
+        self.state.last_coaching_trend_at = str(trend.get("generated_at") or now_iso())
+        self.state.last_coaching_trend = dict(trend)
+        self.state.last_coaching_summary_text = str(trend.get("summary_text", ""))
+        self.state.last_coaching_focus = str(trend.get("coach_focus", ""))
+        topics = topics_payload.get("topics", [])
+        self.state.last_coaching_topics = list(topics) if isinstance(topics, list) else []
+        self.state.last_error = ""
+        return {
+            "coaching_trend": dict(trend),
+            "coaching_topics": dict(topics_payload),
+        }
+
+    def _refresh_coaching_state_locked(self, cache_dir: Path) -> dict[str, Any]:
+        coaching_cfg = self._get_coaching_cfg()
+        trend, trend_path = generate_coaching_trend(
+            cache_dir,
+            session_window=int(coaching_cfg.get("trend_window_sessions", 3)),
+        )
+        topics_payload, topics_path = generate_coaching_topics(
+            cache_dir,
+            trend,
+            topic_limit=int(coaching_cfg.get("topic_limit", 3)),
+        )
+        payload = self._apply_coaching_outputs(trend, topics_payload)
+        payload["coaching_trend_path"] = str(trend_path)
+        payload["coaching_topics_path"] = str(topics_path)
+        return payload
+
+    def load_cached_outputs(self) -> None:
+        cache_dir = self.plugin.data_path("session_cache")
+        sync_payload = self._load_cache_json(cache_dir / "host_memory_sync_report.json")
+        if sync_payload:
+            self._apply_host_memory_sync_result(sync_payload)
+
+        trend_payload = self._load_cache_json(cache_dir / "coaching_trend.json")
+        topics_payload = self._load_cache_json(cache_dir / "coaching_topics.json")
+        if trend_payload and topics_payload:
+            self._apply_coaching_outputs(trend_payload, topics_payload)
+
+    def _load_cache_json(self, path: Path) -> dict[str, Any]:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        return payload if isinstance(payload, dict) else {}
 
     def _dispatch_narration_locked(self, event: NarrationEvent) -> dict[str, Any]:
         return self._narration_dispatcher.dispatch(
@@ -962,6 +1237,200 @@ class SessionOrchestrator:
         )
         return decision.should_process
 
+    def _execute_assist_action_locked(
+        self,
+        action_id: str,
+        *,
+        dry_run: bool = False,
+        user_confirmed: bool = False,
+    ) -> dict[str, Any]:
+        """Core execution logic for assist actions.
+
+        Steps:
+        1. Validate action against registry, scene, mode, and confirmation.
+        2. If dry_run, return the validation result without executing.
+        3. Build InputCommand from action_id and window geometry.
+        4. Arm HumanOverrideGuard.
+        5. Execute via InputAdapter with guard check.
+        6. Log the result.
+        7. Update session state.
+        """
+        self._human_override_guard.configure_pointer_provider(self._input_adapter.get_pointer)
+        current_scene = self.state.scene or "unknown"
+        action_policy_cfg = self._get_action_policy_cfg()
+        allowed_contexts = action_policy_cfg.get("allowed_contexts", [])
+        allowed_contexts = (
+            [str(item).strip() for item in allowed_contexts if str(item).strip()]
+            if isinstance(allowed_contexts, list) else []
+        )
+
+        allowed, reason = self._action_registry.validate(
+            action_id,
+            current_scene=current_scene,
+            action_mode=self.state.action_mode,
+            session_running=self.state.running,
+            user_confirmed=user_confirmed,
+        )
+        if not allowed:
+            blocked = ActionExecutionResult(
+                ok=False,
+                action_id=action_id,
+                executed_at=now_iso(),
+                blocked_reason=reason,
+                guard_aborted=False,
+                window_title=self.state.window_title,
+            )
+            self._record_action_result(blocked, allow_reason=reason)
+            self._emit_status()
+            return blocked.to_dict()
+
+        if allowed_contexts and current_scene not in allowed_contexts:
+            reason = f"scene '{current_scene}' not in action_policy.allowed_contexts {allowed_contexts}"
+            blocked = ActionExecutionResult(
+                ok=False,
+                action_id=action_id,
+                executed_at=now_iso(),
+                blocked_reason=reason,
+                guard_aborted=False,
+                window_title=self.state.window_title,
+            )
+            self._record_action_result(blocked, allow_reason=reason)
+            self._emit_status()
+            return blocked.to_dict()
+
+        if dry_run:
+            result = ActionExecutionResult(
+                ok=True, action_id=action_id,
+                executed_at=now_iso(),
+                blocked_reason="dry_run",
+                window_title=self.state.window_title,
+            )
+            self._record_action_result(result, allow_reason="dry_run")
+            self._emit_status()
+            return result.to_dict()
+
+        if self.state.window_bound:
+            binding_result = WindowBindingResult(
+                bound=True,
+                window_title=self.state.window_title,
+                match_keyword=self.state.window_match_keyword,
+                left=self.state.window_left,
+                top=self.state.window_top,
+                width=self.state.window_width,
+                height=self.state.window_height,
+            )
+        else:
+            binding_result = self._bind_window()
+        if not binding_result.bound:
+            reason = binding_result.error or "window not bound"
+            blocked = ActionExecutionResult(
+                ok=False,
+                action_id=action_id,
+                executed_at=now_iso(),
+                blocked_reason=reason,
+                guard_aborted=False,
+                window_title=self.state.window_title,
+            )
+            self._record_action_result(blocked, allow_reason=reason)
+            self._emit_status()
+            return blocked.to_dict()
+
+        if not binding_result.has_bounds():
+            reason = "window bounds unavailable"
+            blocked = ActionExecutionResult(
+                ok=False,
+                action_id=action_id,
+                executed_at=now_iso(),
+                blocked_reason=reason,
+                guard_aborted=False,
+                window_title=self.state.window_title,
+            )
+            self._record_action_result(blocked, allow_reason=reason)
+            self._emit_status()
+            return blocked.to_dict()
+
+        command = InputAdapter.build_command_from_action(
+            action_id,
+            window_left=binding_result.left or 0,
+            window_top=binding_result.top or 0,
+            window_width=binding_result.width or 0,
+            window_height=binding_result.height or 0,
+        )
+        if command is None:
+            reason = f"no screen mapping for action_id: {action_id}"
+            blocked = ActionExecutionResult(
+                ok=False,
+                action_id=action_id,
+                executed_at=now_iso(),
+                blocked_reason=reason,
+                guard_aborted=False,
+                window_title=self.state.window_title,
+            )
+            self._record_action_result(blocked, allow_reason=reason)
+            self._emit_status()
+            return blocked.to_dict()
+
+        guard_cfg = self._get_human_override_guard_cfg()
+        guard_enabled = bool(guard_cfg.get("enabled", True)) and bool(guard_cfg.get("abort_on_human_input", True))
+        active_window_sec = float(guard_cfg.get("active_window_sec", 1.5))
+        movement_threshold_px = int(guard_cfg.get("movement_threshold_px", 18))
+
+        self._human_override_guard.arm(
+            enabled=guard_enabled,
+            active_window_sec=active_window_sec,
+            movement_threshold_px=movement_threshold_px,
+        )
+
+        def guard_check() -> tuple[bool, str]:
+            decision = self._human_override_guard.evaluate()
+            if decision.should_abort:
+                return True, decision.reason
+            return False, ""
+
+        result_payload = self._input_adapter.execute(command, guard_check=guard_check)
+        self._human_override_guard.reset()
+
+        guard_aborted = bool(result_payload.get("aborted", False))
+        ok = bool(result_payload.get("ok", False))
+        result = ActionExecutionResult(
+            ok=ok,
+            action_id=action_id,
+            executed_at=now_iso(),
+            blocked_reason="" if ok else result_payload.get("abort_reason", "execution_failed"),
+            guard_aborted=guard_aborted,
+            window_title=self.state.window_title,
+        )
+
+        self._record_action_result(result, allow_reason=reason)
+        self._emit_status()
+        return result.to_dict()
+
+    def _record_action_result(self, result: ActionExecutionResult, *, allow_reason: str = "") -> None:
+        log_entry = ActionLogEntry(
+            action_id=result.action_id,
+            executed_at=result.executed_at or now_iso(),
+            ok=result.ok,
+            blocked_reason=result.blocked_reason,
+            guard_aborted=result.guard_aborted,
+            window_title=result.window_title,
+            trigger_source="manual",
+            allow_reason=allow_reason,
+        )
+        log_path = append_action_log(self.plugin.data_path("session_cache"), log_entry)
+        result.log_path = str(log_path)
+        self._apply_action_result(result)
+
+    def _apply_action_result(self, result: ActionExecutionResult) -> None:
+        self.state.last_action_id = result.action_id
+        self.state.last_action_at = result.executed_at
+        self.state.last_action_ok = result.ok
+        self.state.last_action_blocked_reason = result.blocked_reason
+        self.state.last_action_guard_aborted = result.guard_aborted
+        if not result.ok:
+            self.state.last_error = result.blocked_reason
+        else:
+            self.state.last_error = ""
+
     def _should_persist_review_artifacts(
         self,
         frame_path: Path | None,
@@ -1024,6 +1493,9 @@ class SessionOrchestrator:
         self.state.last_decision_ok = False
         self.state.last_decision_type = ""
         self.state.last_decision_risk_level = ""
+        self.state.last_tile_analysis_available = False
+        self.state.last_shanten_estimate = None
+        self.state.last_ukeire_estimate = None
         self.state.last_decision = {}
 
     def _clear_narration_state(self) -> None:
@@ -1101,6 +1573,9 @@ class SessionOrchestrator:
             "last_decision_ok": self.state.last_decision_ok,
             "last_decision_type": self.state.last_decision_type,
             "last_decision_risk_level": self.state.last_decision_risk_level,
+            "last_tile_analysis_available": self.state.last_tile_analysis_available,
+            "last_shanten_estimate": self.state.last_shanten_estimate,
+            "last_ukeire_estimate": self.state.last_ukeire_estimate,
             "last_decision": self.state.last_decision,
             "last_narration_at": self.state.last_narration_at,
             "last_narration_ok": self.state.last_narration_ok,
@@ -1128,6 +1603,25 @@ class SessionOrchestrator:
             "last_memory_bridge_at": self.state.last_memory_bridge_at,
             "last_memory_bridge_status": self.state.last_memory_bridge_status,
             "last_memory_bridge_summary": self.state.last_memory_bridge_summary,
+            "last_host_memory_sync_at": self.state.last_host_memory_sync_at,
+            "last_host_memory_sync_status": self.state.last_host_memory_sync_status,
+            "last_host_memory_sync_note": self.state.last_host_memory_sync_note,
+            "last_host_memory_sync_pending": self.state.last_host_memory_sync_pending,
+            "last_review_summary_at": self.state.last_review_summary_at,
+            "last_review_summary_ok": self.state.last_review_summary_ok,
+            "last_review_summary": self.state.last_review_summary,
+            "last_review_summary_text": self.state.last_review_summary_text,
+            "last_coaching_trend_at": self.state.last_coaching_trend_at,
+            "last_coaching_trend": self.state.last_coaching_trend,
+            "last_coaching_summary_text": self.state.last_coaching_summary_text,
+            "last_coaching_focus": self.state.last_coaching_focus,
+            "last_coaching_topics": self.state.last_coaching_topics,
+            "action_mode": self.state.action_mode,
+            "last_action_id": self.state.last_action_id,
+            "last_action_at": self.state.last_action_at,
+            "last_action_ok": self.state.last_action_ok,
+            "last_action_blocked_reason": self.state.last_action_blocked_reason,
+            "last_action_guard_aborted": self.state.last_action_guard_aborted,
             "last_error": self.state.last_error,
         }
 

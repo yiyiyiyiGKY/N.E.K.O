@@ -9,6 +9,7 @@ from ..contracts import PerceivedGameState
 from .action_detector import detect_actions
 from .roi import build_default_rois, collect_region_metrics
 from .scene_classifier import classify_scene
+from .tile_parser import enrich_perceived_state_with_tiles
 
 
 def analyze_image_path(image_path: Path) -> tuple[PerceivedGameState, dict[str, Any]]:
@@ -36,6 +37,12 @@ def analyze_image_path(image_path: Path) -> tuple[PerceivedGameState, dict[str, 
         buttons=buttons,
         notes=notes,
         roi_hits=roi_hits,
+    )
+    perceived = enrich_perceived_state_with_tiles(
+        perceived,
+        image_path,
+        image,
+        metrics=metrics,
     )
     debug_payload = {
         "image_path": str(image_path),

@@ -59,18 +59,48 @@ function renderSummary(payload) {
   document.getElementById("decision-type").textContent = String(data.last_decision_type || "-");
   document.getElementById("decision-risk").textContent = String(data.last_decision_risk_level || "-");
   document.getElementById("decision-focus").textContent = String(data.last_decision?.recommended_focus || "-");
+  document.getElementById("decision-review-tags").textContent = Array.isArray(data.last_decision?.review_tags) && data.last_decision.review_tags.length
+    ? data.last_decision.review_tags.join(", ")
+    : "-";
   document.getElementById("decision-at").textContent = String(data.last_decision_at || "-");
+  document.getElementById("tile-analysis-available").textContent = String(data.last_tile_analysis_available ?? "-");
+  document.getElementById("shanten-estimate").textContent = String(data.last_shanten_estimate ?? "-");
+  document.getElementById("ukeire-estimate").textContent = String(data.last_ukeire_estimate ?? "-");
   document.getElementById("narration-type").textContent = String(data.last_narration_type || "-");
   document.getElementById("narration-channel").textContent = String(data.last_narration_channel || "-");
   document.getElementById("narration-delivery").textContent = String(data.last_narration_delivery || "-");
   document.getElementById("companion-mood").textContent = String(data.last_companion_mood || "-");
   document.getElementById("suggestion-level").textContent = String(data.last_companion_view?.suggestion_level || "-");
   document.getElementById("decision-suggestion").textContent = String(data.last_decision?.suggestion || "-");
+  document.getElementById("memory-bridge-status").textContent = String(data.last_memory_bridge_status || "-");
+  document.getElementById("host-memory-sync-status").textContent = String(data.last_host_memory_sync_status || "-");
+  document.getElementById("host-memory-sync-note").textContent = String(data.last_host_memory_sync_note || "-");
+  document.getElementById("host-memory-sync-pending").textContent = String(data.last_host_memory_sync_pending ?? "-");
+  document.getElementById("review-summary-at").textContent = String(data.last_review_summary_at || "-");
+  document.getElementById("review-summary-text").textContent = String(data.last_review_summary_text || "-");
+  document.getElementById("review-highlights").textContent = Array.isArray(data.last_review_summary?.highlights) && data.last_review_summary.highlights.length
+    ? data.last_review_summary.highlights.join(" / ")
+    : "-";
+  document.getElementById("review-risk-points").textContent = Array.isArray(data.last_review_summary?.risk_points) && data.last_review_summary.risk_points.length
+    ? data.last_review_summary.risk_points.join(" / ")
+    : "-";
+  document.getElementById("review-coach-note").textContent = String(data.last_review_summary?.coach_note || "-");
+  document.getElementById("coaching-trend-at").textContent = String(data.last_coaching_trend_at || "-");
+  document.getElementById("coaching-summary-text").textContent = String(data.last_coaching_summary_text || "-");
+  document.getElementById("coaching-focus").textContent = String(data.last_coaching_focus || "-");
+  document.getElementById("coaching-topics").textContent = Array.isArray(data.last_coaching_topics) && data.last_coaching_topics.length
+    ? data.last_coaching_topics.map((item) => item?.title || item?.topic_id || "-").join(" / ")
+    : "-";
   document.getElementById("narration-text").textContent = String(data.last_narration_text || "-");
   document.getElementById("voice-mode").textContent = String(data.voice_mode || "-");
   document.getElementById("notification-at").textContent = String(data.last_notification_at || "-");
   document.getElementById("spoken-at").textContent = String(data.last_spoken_at || "-");
   document.getElementById("last-error").textContent = String(data.last_error || "-");
+  document.getElementById("action-mode").textContent = String(data.action_mode || "off");
+  document.getElementById("last-action-id").textContent = String(data.last_action_id || "-");
+  document.getElementById("last-action-ok").textContent = String(data.last_action_ok ?? "-");
+  document.getElementById("last-action-blocked").textContent = String(data.last_action_blocked_reason || "-");
+  document.getElementById("last-action-guard-aborted").textContent = String(data.last_action_guard_aborted ?? "-");
 }
 
 async function refreshStatus(options = {}) {
@@ -153,6 +183,22 @@ document.getElementById("narration-btn")?.addEventListener("click", () => {
   runAction("generate_narration");
 });
 
+document.getElementById("review-summary-btn")?.addEventListener("click", () => {
+  runAction("generate_review_summary");
+});
+
+document.getElementById("sync-memory-btn")?.addEventListener("click", () => {
+  runAction("sync_memory_bridge");
+});
+
+document.getElementById("coaching-trend-btn")?.addEventListener("click", () => {
+  runAction("get_coaching_trend");
+});
+
+document.getElementById("coaching-topics-btn")?.addEventListener("click", () => {
+  runAction("get_last_coaching_topics");
+});
+
 document.getElementById("pipeline-btn")?.addEventListener("click", async () => {
   try {
     const data = await callEntry("run_companion_pipeline", {
@@ -177,6 +223,35 @@ document.getElementById("speak-btn")?.addEventListener("click", () => {
 
 document.getElementById("voice-mode-btn")?.addEventListener("click", () => {
   runAction("cycle_voice_mode");
+});
+
+document.getElementById("list-actions-btn")?.addEventListener("click", () => {
+  runAction("list_assist_actions");
+});
+
+document.getElementById("execute-action-btn")?.addEventListener("click", async () => {
+  const actionId = document.getElementById("action-select")?.value || "replay_next";
+  const dryRun = document.getElementById("dry-run-check")?.checked ?? true;
+  const userConfirmed = document.getElementById("user-confirmed-check")?.checked ?? false;
+  try {
+    const data = await callEntry("execute_assist_action", {
+      action_id: actionId,
+      dry_run: dryRun,
+      user_confirmed: userConfirmed,
+    });
+    renderJson("output", data);
+    await refreshStatus({ preserveOutput: true });
+  } catch (error) {
+    renderJson("output", { error: String(error) });
+  }
+});
+
+document.getElementById("get-action-log-btn")?.addEventListener("click", () => {
+  runAction("get_action_log");
+});
+
+document.getElementById("clear-action-log-btn")?.addEventListener("click", () => {
+  runAction("clear_action_log");
 });
 
 document.getElementById("auto-refresh-toggle")?.addEventListener("change", (event) => {

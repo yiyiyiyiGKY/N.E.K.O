@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..contracts import DecisionResult, PerceivedGameState
+from .tile_efficiency import build_mahjong_analysis
 
 WIN_BUTTONS = {"ron", "tsumo"}
 DECLARATION_BUTTONS = {"riichi"}
@@ -157,6 +158,59 @@ def build_decision(state: PerceivedGameState) -> DecisionResult:
         reason_codes.append("state.default")
 
     review_tags = _dedupe(review_tags)
+    mahjong_analysis = build_mahjong_analysis(
+        state,
+        recommended_focus=recommended_focus,
+        review_tags=review_tags,
+    )
+    if (
+        mahjong_analysis.tile_level_available
+        and state.scene == "in_match"
+        and state.is_user_turn
+        and decision_type == "scene_update"
+        and not buttons
+    ):
+        top_candidate = mahjong_analysis.candidate_discards[0] if mahjong_analysis.candidate_discards else {}
+        discard_tile = str(top_candidate.get("tile", "")).strip()
+        discard_reason = str(top_candidate.get("reason", "")).strip()
+        bias = mahjong_analysis.attack_defense_bias
+        defense_alert = mahjong_analysis.defense_alerts[0] if mahjong_analysis.defense_alerts else ""
+        ukeire_text = (
+            f"，进张估计约 {mahjong_analysis.ukeire_estimate}"
+            if mahjong_analysis.ukeire_estimate is not None else ""
+        )
+
+        decision_type = "tile_efficiency_hint"
+        priority = max(priority, 62)
+        risk_level = "medium" if bias == "slightly_defensive" else "low"
+        action_required = True
+        speakable = bool(state.confidence >= 0.72 and mahjong_analysis.shanten_estimate in {0, 1})
+        summary = (
+            "这一巡更适合先走稳一点的牌效率路线。"
+            if bias == "slightly_defensive"
+            else "这一巡可以开始给出轻量牌理建议了。"
+        )
+        detail = "当前已经有结构化牌理输入。"
+        if discard_tile:
+            detail = f"当前更像适合先考虑处理 {discard_tile} 这类改善较弱的牌{ukeire_text}。"
+        if discard_reason:
+            detail = f"{detail} {discard_reason}。"
+        if defense_alert:
+            detail = f"{detail} {defense_alert}"
+        suggestion = (
+            f"优先考虑处理 {discard_tile} 这类改善较弱的牌。"
+            if discard_tile else "优先保留更连贯的块，再处理孤张或边张。"
+        )
+        recommended_focus = "tile_efficiency"
+        reason_codes.extend(["analysis.tile_level_available", "analysis.tile_efficiency_hint"])
+        review_tags.extend(["tile_efficiency", "mid_round_choice"])
+
+    review_tags = _dedupe(review_tags)
+    review_summary_snippet = _build_review_summary_snippet(
+        decision_type=decision_type,
+        recommended_focus=recommended_focus,
+        review_tags=review_tags,
+    )
 
     return DecisionResult(
         decision_type=decision_type,
@@ -172,16 +226,23 @@ def build_decision(state: PerceivedGameState) -> DecisionResult:
         buttons=buttons,
         reason_codes=reason_codes,
         review_tags=review_tags,
+        review_summary_snippet=review_summary_snippet,
+        mahjong_analysis=mahjong_analysis.to_dict(),
         engine_meta={
             "engine": "rule_based_v2",
             "confidence": state.confidence,
             "focus_area": recommended_focus,
+            "analysis_version": mahjong_analysis.analysis_version,
+            "analysis_confidence": mahjong_analysis.analysis_confidence,
+            "tile_level_state": mahjong_analysis.tile_level_state,
+            "defense_alert_count": len(mahjong_analysis.defense_alerts),
             "button_groups": {
                 "win": win_buttons,
                 "declaration": declaration_buttons,
                 "call": call_buttons,
                 "passive": passive_buttons,
             },
+            "tile_level_available": mahjong_analysis.tile_level_available,
             "review_candidate": bool(review_tags and priority >= 44),
         },
     )
@@ -211,3 +272,24 @@ def _dedupe(items: list[str]) -> list[str]:
         seen.add(item)
         ordered.append(item)
     return ordered
+
+
+def _build_review_summary_snippet(
+    *,
+    decision_type: str,
+    recommended_focus: str,
+    review_tags: list[str],
+) -> str:
+    if not review_tags:
+        return ""
+    if "win_window" in review_tags:
+        return "这类和牌确认窗口值得作为本局高光节点回看。"
+    if "riichi_window" in review_tags:
+        return "这次立直窗口更适合在赛后回看当时的路线判断。"
+    if {"kan_choice", "call_window", "route_choice"} & set(review_tags):
+        return "这类路线选择点适合放进复盘里看节奏是否过急。"
+    if "tile_efficiency" in review_tags:
+        return "这类中盘牌效率选择适合赛后回看当时为什么会偏进攻或偏保守。"
+    if decision_type == "action_available" and recommended_focus == "dialog_confirmation":
+        return "确认类弹窗也值得复盘，避免把关键确认误当成普通过渡。"
+    return "这个节点已经被标记为适合赛后继续回看。"

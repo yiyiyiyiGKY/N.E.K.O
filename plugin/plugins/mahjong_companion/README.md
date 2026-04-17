@@ -44,6 +44,16 @@
 7. 截图会保存到 `data/debug_samples/`，感知、决策、讲解结果也会生成配套 JSON；关键节点还会沉淀到 `data/session_cache/review_candidates.json`。
 8. 页面会展示最近截图路径、场景、按钮候选、决策类型、讲解文本、语音模式和最近错误。
 
+快速自检：
+
+- 可以直接运行 `.venv/bin/python -m plugin.plugins.mahjong_companion.smoke_test --pretty`
+- 这个 smoke test 会同时验证：
+  - 真实调试样本下的 `感知 -> 决策 -> 讲解 -> 强制调试回话`
+  - 可控高价值窗口下的 `review candidate -> memory bridge -> review summary -> coaching trend`
+  - 可控牌效率场景下的 `tile_efficiency_hint`
+  - `assist` 模式下的辅助动作 `dry_run` 与动作日志
+- 如果返回 JSON 里的 `ok` 为 `true`，说明当前 V1-V9 的第一版主链路仍然可运行。
+
 当前实现说明：
 
 - 绑定是“软绑定优先，区域抓图尽量，失败时回退全屏”的策略。

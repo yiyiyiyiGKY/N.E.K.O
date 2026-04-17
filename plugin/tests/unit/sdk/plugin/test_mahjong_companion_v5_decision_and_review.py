@@ -44,6 +44,41 @@ def test_build_decision_handles_dialog_confirmation() -> None:
     assert decision.speakable is False
 
 
+def test_build_decision_handles_riichi_decision() -> None:
+    state = PerceivedGameState(
+        scene="in_match",
+        confidence=0.76,
+        is_user_turn=True,
+        buttons=["riichi", "skip"],
+        notes=["gold accent in bottom action bar"],
+    )
+
+    decision = build_decision(state)
+
+    assert decision.decision_type == "danger_action"
+    assert decision.recommended_focus == "riichi_decision"
+    assert "riichi_window" in decision.review_tags
+    assert decision.speakable is True
+
+
+def test_build_decision_handles_call_route_choice() -> None:
+    state = PerceivedGameState(
+        scene="in_match",
+        confidence=0.73,
+        is_user_turn=True,
+        buttons=["chi", "skip"],
+        notes=["green accent in bottom action bar"],
+    )
+
+    decision = build_decision(state)
+
+    assert decision.decision_type == "action_available"
+    assert decision.recommended_focus == "call_decision"
+    assert "call_window" in decision.review_tags
+    assert "route_choice" in decision.review_tags
+    assert decision.speakable is True
+
+
 def test_build_decision_suppresses_voice_when_confidence_is_low() -> None:
     state = PerceivedGameState(
         scene="in_match",
