@@ -22,8 +22,10 @@ from .narration.dispatcher import NarrationDispatcher
 from .perception import analyze_image_path
 from .perception.debug_dump import write_debug_artifacts as write_perception_debug_artifacts
 from .review import (
+    append_game_private_memory,
     append_review_candidate,
     append_review_summary_history,
+    build_game_private_record,
     build_memory_summary,
     build_review_candidate,
     build_review_summary,
@@ -34,6 +36,7 @@ from .review import (
     stage_memory_summary,
     sync_memory_bridge_queue,
 )
+from .runtime import GameAgentRuntime, GameAgentRuntimeConfig
 from .session_state import SessionState, now_iso
 from .window_binding import WindowBindingResult
 
@@ -55,6 +58,13 @@ class SessionOrchestrator:
         self._action_registry = ActionRegistry()
         self._input_adapter = InputAdapter()
         self._human_override_guard.configure_pointer_provider(self._input_adapter.get_pointer)
+        self._runtime_cfg = GameAgentRuntimeConfig()
+        self._game_runtime = GameAgentRuntime(self._runtime_cfg)
+        self._runtime_mailbox_limits: tuple[int, int] = (
+            self._runtime_cfg.inbound_queue_limit,
+            self._runtime_cfg.outbound_queue_limit,
+        )
+        self._runtime_outbox_flush_per_tick = self._runtime_cfg.outbound_flush_per_tick
 
     def apply_config(self, config: dict[str, Any]) -> None:
         self._config = config
@@ -73,6 +83,27 @@ class SessionOrchestrator:
             action_mode = str(action_cfg.get("mode", "off")).strip()
             if action_mode in {"off", "assist", "semi_auto"}:
                 self.state.action_mode = action_mode
+        runtime_cfg = companion_cfg.get("game_agent_runtime", {})
+        if isinstance(runtime_cfg, dict):
+            runtime_mode = str(runtime_cfg.get("mode", self.state.runtime_mode)).strip().lower() or "active"
+            inbound_limit = max(1, int(runtime_cfg.get("inbound_queue_limit", self._runtime_mailbox_limits[0]) or 1))
+            outbound_limit = max(1, int(runtime_cfg.get("outbound_queue_limit", self._runtime_mailbox_limits[1]) or 1))
+            flush_per_tick = max(
+                1, int(runtime_cfg.get("outbound_flush_per_tick", self._runtime_outbox_flush_per_tick) or 1),
+            )
+            dedupe_window_sec = max(0, int(runtime_cfg.get("outbound_dedupe_window_sec", 8) or 0))
+            self._runtime_cfg = GameAgentRuntimeConfig(
+                mode=runtime_mode,
+                inbound_queue_limit=inbound_limit,
+                outbound_queue_limit=outbound_limit,
+                outbound_flush_per_tick=flush_per_tick,
+                outbound_dedupe_window_sec=dedupe_window_sec,
+            )
+            self._game_runtime.configure(self._runtime_cfg)
+            self.state.runtime_mode = self._game_runtime.mode
+            self._runtime_mailbox_limits = (inbound_limit, outbound_limit)
+            self._runtime_outbox_flush_per_tick = flush_per_tick
+        self._sync_runtime_mailbox_state_locked()
 
     async def start(self):
         async with self._lock:
@@ -81,6 +112,7 @@ class SessionOrchestrator:
 
             self.state.running = True
             self.state.status = "starting"
+            self.state.runtime_status = "starting"
             self.state.last_error = ""
             self._consecutive_capture_failures = 0
             self.state.last_notification_at = ""
@@ -98,6 +130,7 @@ class SessionOrchestrator:
             self.state.last_memory_bridge_at = ""
             self.state.last_memory_bridge_status = ""
             self.state.last_memory_bridge_summary = ""
+            self.state.last_runtime_interrupt_reason = ""
             self.state.last_review_summary_at = ""
             self.state.last_review_summary_ok = False
             self.state.last_review_summary = {}
@@ -105,6 +138,7 @@ class SessionOrchestrator:
             self.state.started_at = self.state.started_at or now_iso()
             self._frame_change_gate.reset()
             self._human_override_guard.reset()
+            self._sync_runtime_mailbox_state_locked()
             self._emit_status()
             self._task = asyncio.create_task(self._run_loop(), name="mahjong-companion-loop")
             return Ok(self.get_status())
@@ -113,6 +147,7 @@ class SessionOrchestrator:
         async with self._lock:
             self.state.running = False
             self.state.status = "stopping"
+            self.state.runtime_status = "stopping"
             self._emit_status()
 
             if self._task:
@@ -124,9 +159,12 @@ class SessionOrchestrator:
                 self._task = None
 
             self.state.status = "idle"
+            self.state.runtime_status = "idle"
+            self._game_runtime.set_status("idle")
             self._consecutive_capture_failures = 0
             self._frame_change_gate.reset()
             self._human_override_guard.reset()
+            self._sync_runtime_mailbox_state_locked()
             self._emit_status()
             return Ok(self.get_status())
 
@@ -134,6 +172,82 @@ class SessionOrchestrator:
         async with self._lock:
             self.state.mode = mode
             self._emit_status()
+
+    async def set_runtime_mode(self, mode: str):
+        async with self._lock:
+            normalized = str(mode).strip().lower()
+            if normalized not in {"active", "standby", "off"}:
+                return Ok({
+                    "ok": False,
+                    "error": f"invalid runtime mode: {mode}",
+                    "allowed": ["active", "standby", "off"],
+                })
+            self.state.runtime_mode = self._game_runtime.set_mode(normalized)
+            if normalized == "off":
+                self.state.status = "idle"
+            self.state.runtime_status = self.state.runtime_mode
+            self._emit_status()
+            return Ok({
+                "ok": True,
+                "runtime_mode": self.state.runtime_mode,
+                "runtime_status": self.state.runtime_status,
+            })
+
+    async def send_runtime_message(
+        self,
+        *,
+        action: str,
+        payload: dict[str, Any] | None = None,
+        interrupt: bool = True,
+        source: str = "catgirl",
+    ):
+        async with self._lock:
+            message = self._game_runtime.enqueue_inbound(
+                action=str(action).strip(),
+                payload=dict(payload or {}),
+                source=source,
+                interrupt=bool(interrupt),
+            )
+            self.state.last_runtime_command_id = message.message_id
+            self.state.last_runtime_command_source = message.source
+            self.state.last_runtime_command_action = message.action
+            self.state.last_runtime_command_at = now_iso()
+            self.state.last_runtime_command_ok = False
+            self.state.last_runtime_command_result = {}
+            if bool(interrupt):
+                self.state.runtime_interrupt_seq += 1
+                self.state.last_runtime_interrupt_at = now_iso()
+                self.state.last_runtime_interrupt_reason = f"interrupt_by_{source}:{message.action}"
+            self._sync_runtime_mailbox_state_locked()
+            self._emit_status()
+            return Ok({
+                "ok": True,
+                "queued": True,
+                "message": message.to_dict(),
+                "runtime_interrupt_seq": self.state.runtime_interrupt_seq,
+                "mailbox": self._game_runtime.snapshot(),
+            })
+
+    async def get_runtime_mailbox(self):
+        async with self._lock:
+            self._sync_runtime_mailbox_state_locked()
+            return Ok({
+                "ok": True,
+                "runtime_mode": self.state.runtime_mode,
+                "runtime_status": self.state.runtime_status,
+                "runtime_interrupt_seq": self.state.runtime_interrupt_seq,
+                "last_runtime_command_id": self.state.last_runtime_command_id,
+                "last_runtime_command_action": self.state.last_runtime_command_action,
+                "last_runtime_command_source": self.state.last_runtime_command_source,
+                "last_runtime_command_at": self.state.last_runtime_command_at,
+                "last_runtime_command_ok": self.state.last_runtime_command_ok,
+                "last_runtime_command_result": self.state.last_runtime_command_result,
+                "last_runtime_interrupt_at": self.state.last_runtime_interrupt_at,
+                "last_runtime_interrupt_reason": self.state.last_runtime_interrupt_reason,
+                "last_runtime_outbound_id": self.state.last_runtime_outbound_id,
+                "last_runtime_outbound_at": self.state.last_runtime_outbound_at,
+                "mailbox": self._game_runtime.snapshot(),
+            })
 
     def get_status(self) -> dict[str, Any]:
         return self._build_status_snapshot()
@@ -567,12 +681,14 @@ class SessionOrchestrator:
 
     async def _run_loop(self) -> None:
         self.state.status = "scanning"
+        self.state.runtime_status = "loop_running"
+        self._game_runtime.set_status("loop_running")
         self._emit_status()
         interval_ms = self._get_sample_interval_ms()
         try:
             while self.state.running:
                 async with self._lock:
-                    self._run_live_cycle_locked()
+                    self._run_runtime_cycle_locked()
                 if not self.state.running:
                     break
                 await asyncio.sleep(interval_ms / 1000.0)
@@ -583,7 +699,156 @@ class SessionOrchestrator:
             self.state.running = False
             self.state.last_error = str(exc)
             self.state.status = "error"
+            self.state.runtime_status = "error"
+            self._game_runtime.set_status("error")
             self._emit_status()
+
+    def _run_runtime_cycle_locked(self) -> None:
+        self._process_runtime_command_locked()
+
+        runtime_mode = self._game_runtime.set_mode(self.state.runtime_mode)
+        self.state.runtime_mode = runtime_mode
+        if runtime_mode == "off":
+            self.state.runtime_status = "off"
+            self._game_runtime.set_status("off")
+            self.state.status = "idle"
+            self._flush_runtime_outbox_locked(limit=self._runtime_outbox_flush_per_tick)
+            self._emit_status()
+            return
+
+        if runtime_mode == "standby":
+            self.state.runtime_status = "standby"
+            self._game_runtime.set_status("standby")
+            if self.state.running and self.state.status not in {"warning", "error"}:
+                self.state.status = "standby"
+            self._flush_runtime_outbox_locked(limit=self._runtime_outbox_flush_per_tick)
+            self._emit_status()
+            return
+
+        self.state.runtime_status = "active"
+        self._game_runtime.set_status("active")
+        self._run_live_cycle_locked()
+        self._flush_runtime_outbox_locked(limit=self._runtime_outbox_flush_per_tick)
+
+    def _process_runtime_command_locked(self) -> None:
+        command = self._game_runtime.pop_inbound()
+        if command is None:
+            self._sync_runtime_mailbox_state_locked()
+            return
+
+        self.state.last_runtime_command_id = command.message_id
+        self.state.last_runtime_command_source = command.source
+        self.state.last_runtime_command_action = command.action
+        self.state.last_runtime_command_at = now_iso()
+        self.state.runtime_status = "processing_command"
+        result: dict[str, Any]
+
+        try:
+            result = self._handle_runtime_command_locked(command.action, command.payload)
+            ok = bool(result.get("ok", True))
+            self.state.last_runtime_command_ok = ok
+            self.state.last_runtime_command_result = dict(result)
+            if not ok and result.get("error"):
+                self.state.last_error = str(result.get("error"))
+        except Exception as exc:
+            self.logger.exception("runtime command failed")
+            self.state.last_runtime_command_ok = False
+            self.state.last_runtime_command_result = {
+                "ok": False,
+                "error": str(exc),
+            }
+            self.state.last_error = str(exc)
+        finally:
+            self._sync_runtime_mailbox_state_locked()
+            if self.state.runtime_mode != "off":
+                self.state.runtime_status = self.state.runtime_mode
+            else:
+                self.state.runtime_status = "off"
+
+    def _handle_runtime_command_locked(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
+        normalized = str(action).strip().lower()
+        if not normalized:
+            return {"ok": False, "error": "runtime action is empty"}
+
+        if normalized == "refresh_status":
+            return {"ok": True, "status": self.get_status()}
+
+        if normalized == "set_mode":
+            mode = str(payload.get("mode", "")).strip()
+            if mode not in {"spectate", "replay", "teaching", "silent"}:
+                return {"ok": False, "error": f"invalid mode: {mode}"}
+            self.state.mode = mode
+            self._emit_status()
+            return {"ok": True, "mode": mode}
+
+        if normalized == "set_runtime_mode":
+            runtime_mode = str(payload.get("runtime_mode", "")).strip().lower()
+            if runtime_mode not in {"active", "standby", "off"}:
+                return {
+                    "ok": False,
+                    "error": f"invalid runtime mode: {runtime_mode}",
+                }
+            self.state.runtime_mode = self._game_runtime.set_mode(runtime_mode)
+            if runtime_mode == "off":
+                self.state.status = "idle"
+            return {"ok": True, "runtime_mode": self.state.runtime_mode}
+
+        if normalized == "summarize_review":
+            cache_dir = self.plugin.data_path("session_cache")
+            summary, summary_path = generate_review_summary_artifact(
+                cache_dir,
+                session_id=self.state.session_id,
+            )
+            history_path = append_review_summary_history(
+                cache_dir,
+                summary,
+                limit=int(self._get_coaching_cfg().get("history_limit", 24)),
+            )
+            payload_result = self._apply_review_summary_result(summary)
+            payload_result.update(self._refresh_coaching_state_locked(cache_dir))
+            payload_result["path"] = str(summary_path)
+            payload_result["history_path"] = str(history_path)
+            self._emit_status()
+            return {"ok": True, **payload_result}
+
+        if normalized == "sync_memory":
+            cache_dir = self.plugin.data_path("session_cache")
+            bridge_cfg = self._get_memory_bridge_cfg()
+            report, report_path = sync_memory_bridge_queue(
+                cache_dir,
+                memory_client=getattr(self.plugin, "memory", None),
+                bucket_id=str(bridge_cfg.get("host_memory_bucket_id", "mahjong_companion_coaching")),
+                batch_size=int(bridge_cfg.get("host_sync_batch_size", 5)),
+            )
+            self._apply_host_memory_sync_result(report)
+            self._emit_status()
+            return {"ok": True, **report, "path": str(report_path)}
+
+        if normalized == "dispatch_current_narration":
+            event = self._current_narration_event()
+            if event is None:
+                return {"ok": False, "error": "no narration available"}
+            dispatch = self._dispatch_narration_locked(event)
+            return {"ok": bool(dispatch.get("ok")), "dispatch": dispatch}
+
+        if normalized == "explain_current_hand":
+            ready, perception_payload = self._ensure_perception_locked()
+            if not ready:
+                return {"ok": False, "error": perception_payload.get("error", "perception_unavailable")}
+            decision_payload = self._generate_decision_locked(persist_review_artifacts=False)
+            if not decision_payload.get("ok"):
+                return {"ok": False, "error": decision_payload.get("error", "decision_failed")}
+            narration_payload = self._generate_narration_locked()
+            if not narration_payload.get("ok"):
+                return {"ok": False, "error": narration_payload.get("error", "narration_failed")}
+            return {
+                "ok": True,
+                "perception": perception_payload,
+                "decision": decision_payload,
+                "narration": narration_payload,
+            }
+
+        return {"ok": False, "error": f"unsupported runtime action: {action}"}
 
     def _analyze_frame_locked(self, frame_path: Path) -> dict[str, Any]:
         if not frame_path.exists():
@@ -650,6 +915,13 @@ class SessionOrchestrator:
                 review_path = append_review_candidate(self.plugin.data_path("session_cache"), review_candidate)
                 artifacts["review_candidates_path"] = str(review_path)
                 bridge_cfg = self._get_memory_bridge_cfg()
+                private_record = build_game_private_record(review_candidate, decision, perceived)
+                private_path = append_game_private_memory(
+                    self.plugin.data_path("session_cache"),
+                    private_record,
+                    limit=int(bridge_cfg.get("private_memory_limit", 400)),
+                )
+                artifacts["game_private_memory_path"] = str(private_path)
                 if decision.priority >= int(bridge_cfg.get("min_priority", 75)):
                     memory_summary = build_memory_summary(review_candidate, decision, perceived)
                     if memory_summary is not None:
@@ -1167,31 +1439,120 @@ class SessionOrchestrator:
         return payload if isinstance(payload, dict) else {}
 
     def _dispatch_narration_locked(self, event: NarrationEvent) -> dict[str, Any]:
-        return self._narration_dispatcher.dispatch(
+        if event.delivery not in {"proactive_notification", "voice_candidate"}:
+            return {
+                "ok": False,
+                "skipped": True,
+                "reason": "delivery_suppressed",
+                "delivery": event.delivery,
+            }
+        self._queue_runtime_outbound_event_locked(
             event,
-            state=self.state,
-            emit_status=self._emit_status,
-            target_lanlan=self._get_voice_target_lanlan(),
             require_running=True,
             require_window_bound=True,
         )
+        flushed = self._flush_runtime_outbox_locked(limit=1)
+        if flushed:
+            return flushed[-1]
+        return {
+            "ok": False,
+            "skipped": True,
+            "reason": "runtime_outbox_empty",
+        }
 
     def _dispatch_debug_narration_locked(self, event: NarrationEvent) -> dict[str, Any]:
         self._narration_dispatcher.apply_debug_reply_event(event, state=self.state)
-        return self._narration_dispatcher.dispatch(
+        self._queue_runtime_outbound_event_locked(
             event,
-            state=self.state,
-            emit_status=self._emit_status,
-            target_lanlan=self._get_voice_target_lanlan(),
             require_running=False,
             require_window_bound=False,
         )
+        flushed = self._flush_runtime_outbox_locked(limit=1)
+        if flushed:
+            return flushed[-1]
+        return {
+            "ok": False,
+            "skipped": True,
+            "reason": "runtime_outbox_empty",
+        }
 
     def _build_debug_reply_event(self, event: NarrationEvent) -> NarrationEvent:
         return self._narration_dispatcher.build_debug_reply_event(event)
 
     def _apply_debug_reply_event(self, event: NarrationEvent) -> None:
         self._narration_dispatcher.apply_debug_reply_event(event, state=self.state)
+
+    def _queue_runtime_outbound_event_locked(
+        self,
+        event: NarrationEvent,
+        *,
+        require_running: bool,
+        require_window_bound: bool,
+    ) -> None:
+        envelope = self._game_runtime.enqueue_outbound(
+            event_type="narration_event",
+            payload={
+                "event": event.to_dict(),
+                "require_running": bool(require_running),
+                "require_window_bound": bool(require_window_bound),
+                "target_lanlan": self._get_voice_target_lanlan(),
+            },
+            priority=int(event.priority),
+            dedupe_key=str(event.dedupe_key or "").strip(),
+        )
+        if envelope is None:
+            self._sync_runtime_mailbox_state_locked()
+            return
+        self.state.last_runtime_outbound_id = envelope.message_id
+        self.state.last_runtime_outbound_at = now_iso()
+        self._sync_runtime_mailbox_state_locked()
+
+    def _flush_runtime_outbox_locked(self, *, limit: int = 1) -> list[dict[str, Any]]:
+        responses: list[dict[str, Any]] = []
+        messages = self._game_runtime.pop_outbound_batch(limit=limit)
+        for message in messages:
+            if message.event_type != "narration_event":
+                responses.append({
+                    "ok": False,
+                    "skipped": True,
+                    "reason": f"unsupported_outbound_event:{message.event_type}",
+                    "queued_message_id": message.message_id,
+                })
+                continue
+
+            payload = message.payload if isinstance(message.payload, dict) else {}
+            event_payload = payload.get("event", {})
+            if not isinstance(event_payload, dict):
+                responses.append({
+                    "ok": False,
+                    "skipped": True,
+                    "reason": "invalid_narration_payload",
+                    "queued_message_id": message.message_id,
+                })
+                continue
+
+            try:
+                event = NarrationEvent(**event_payload)
+                response = self._narration_dispatcher.dispatch(
+                    event,
+                    state=self.state,
+                    emit_status=self._emit_status,
+                    target_lanlan=str(payload.get("target_lanlan", "")).strip(),
+                    require_running=bool(payload.get("require_running", True)),
+                    require_window_bound=bool(payload.get("require_window_bound", True)),
+                )
+            except Exception as exc:
+                self.logger.exception("runtime outbox dispatch failed")
+                response = {
+                    "ok": False,
+                    "error": str(exc),
+                }
+
+            response["queued_message_id"] = message.message_id
+            responses.append(response)
+
+        self._sync_runtime_mailbox_state_locked()
+        return responses
 
     def _resolve_pipeline_frame_path(self, frame_path: str, capture: bool) -> Path | dict[str, Any]:
         if frame_path.strip():
@@ -1263,6 +1624,20 @@ class SessionOrchestrator:
             [str(item).strip() for item in allowed_contexts if str(item).strip()]
             if isinstance(allowed_contexts, list) else []
         )
+
+        if self.state.runtime_mode != "active":
+            reason = f"runtime_mode={self.state.runtime_mode} blocks game actions"
+            blocked = ActionExecutionResult(
+                ok=False,
+                action_id=action_id,
+                executed_at=now_iso(),
+                blocked_reason=reason,
+                guard_aborted=False,
+                window_title=self.state.window_title,
+            )
+            self._record_action_result(blocked, allow_reason=reason)
+            self._emit_status()
+            return blocked.to_dict()
 
         allowed, reason = self._action_registry.validate(
             action_id,
@@ -1522,6 +1897,14 @@ class SessionOrchestrator:
         else:
             self.state.last_human_override_reason = "guard_disabled"
 
+    def _sync_runtime_mailbox_state_locked(self) -> None:
+        snapshot = self._game_runtime.snapshot()
+        self.state.runtime_inbound_pending = int(snapshot.get("inbound_pending", 0) or 0)
+        self.state.runtime_outbound_pending = int(snapshot.get("outbound_pending", 0) or 0)
+        self.state.runtime_dropped_inbound = int(snapshot.get("dropped_inbound", 0) or 0)
+        self.state.runtime_dropped_outbound = int(snapshot.get("dropped_outbound", 0) or 0)
+        self.state.runtime_deduped_outbound = int(snapshot.get("deduped_outbound", 0) or 0)
+
     async def _cancel_background_loop_locked(self) -> None:
         if self._task is None:
             return
@@ -1534,6 +1917,10 @@ class SessionOrchestrator:
             self._task = None
 
     def _derive_report_status(self) -> str:
+        if self.state.runtime_mode == "standby" and self.state.running:
+            return "standby"
+        if self.state.runtime_mode == "off":
+            return "idle"
         runtime_status = self.state.status
         if runtime_status in {"idle", "starting", "stopping", "warning", "error"}:
             return runtime_status
@@ -1617,6 +2004,24 @@ class SessionOrchestrator:
             "last_coaching_focus": self.state.last_coaching_focus,
             "last_coaching_topics": self.state.last_coaching_topics,
             "action_mode": self.state.action_mode,
+            "runtime_mode": self.state.runtime_mode,
+            "game_runtime_status": self.state.runtime_status,
+            "runtime_interrupt_seq": self.state.runtime_interrupt_seq,
+            "runtime_inbound_pending": self.state.runtime_inbound_pending,
+            "runtime_outbound_pending": self.state.runtime_outbound_pending,
+            "runtime_dropped_inbound": self.state.runtime_dropped_inbound,
+            "runtime_dropped_outbound": self.state.runtime_dropped_outbound,
+            "runtime_deduped_outbound": self.state.runtime_deduped_outbound,
+            "last_runtime_command_id": self.state.last_runtime_command_id,
+            "last_runtime_command_at": self.state.last_runtime_command_at,
+            "last_runtime_command_source": self.state.last_runtime_command_source,
+            "last_runtime_command_action": self.state.last_runtime_command_action,
+            "last_runtime_command_ok": self.state.last_runtime_command_ok,
+            "last_runtime_command_result": self.state.last_runtime_command_result,
+            "last_runtime_interrupt_at": self.state.last_runtime_interrupt_at,
+            "last_runtime_interrupt_reason": self.state.last_runtime_interrupt_reason,
+            "last_runtime_outbound_id": self.state.last_runtime_outbound_id,
+            "last_runtime_outbound_at": self.state.last_runtime_outbound_at,
             "last_action_id": self.state.last_action_id,
             "last_action_at": self.state.last_action_at,
             "last_action_ok": self.state.last_action_ok,
@@ -1627,6 +2032,7 @@ class SessionOrchestrator:
 
     def _emit_status(self) -> None:
         self._sync_human_override_status()
+        self._sync_runtime_mailbox_state_locked()
         snapshot = self._build_status_snapshot()
         self.plugin.report_status(snapshot)
         self._write_session_cache(snapshot)

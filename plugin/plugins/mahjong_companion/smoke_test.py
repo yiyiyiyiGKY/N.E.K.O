@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .config_defaults import DEFAULT_CONFIG, merge_runtime_config
+from .narration.events import NarrationEvent
 from .orchestrator import SessionOrchestrator
 
 
@@ -65,6 +66,7 @@ async def run_v1_to_v9_smoke() -> dict[str, Any]:
         orchestrator.apply_config(merge_runtime_config(DEFAULT_CONFIG, {}))
 
         results = [
+            await _run_runtime_contract_case(orchestrator, plugin),
             await _run_real_sample_sanity(orchestrator, plugin),
             await _run_action_window_case(orchestrator, plugin),
             await _run_tile_efficiency_case(orchestrator, plugin),
@@ -120,6 +122,76 @@ async def _run_real_sample_sanity(orchestrator: SessionOrchestrator, plugin: _Fa
             "decision_type": decision_value.get("decision_type"),
             "narration_type": narration_value.get("event_type"),
             "dispatch_delivery": pipeline_value.get("dispatch", {}).get("delivery"),
+        },
+    )
+
+
+async def _run_runtime_contract_case(orchestrator: SessionOrchestrator, plugin: _FakePlugin) -> SmokeResult:
+    orchestrator.state.running = True
+    orchestrator.state.window_bound = True
+    orchestrator.state.window_title = "Mahjong Soul"
+    orchestrator.state.runtime_mode = "active"
+    orchestrator.state.action_mode = "assist"
+    orchestrator.state.scene = "replay"
+
+    first = await orchestrator.send_runtime_message(
+        action="set_mode",
+        payload={"mode": "spectate"},
+        interrupt=False,
+        source="catgirl",
+    )
+    second = await orchestrator.send_runtime_message(
+        action="set_mode",
+        payload={"mode": "replay"},
+        interrupt=True,
+        source="catgirl",
+    )
+    # Keep this check independent from live capture/binding side effects.
+    orchestrator.state.runtime_mode = "standby"
+    orchestrator._run_runtime_cycle_locked()
+
+    event = NarrationEvent(
+        event_type="action_available",
+        channel="nudge",
+        delivery="proactive_notification",
+        priority=75,
+        summary="可行动作",
+        detail="这是运行时队列 smoke 检查。",
+        risk_level="medium",
+        scene="replay",
+        buttons=["next"],
+        text="我把高价值提醒先放队列，再发给猫娘。",
+        speakable=False,
+        dedupe_key="smoke-runtime-contract",
+    )
+    dispatch_payload = orchestrator._dispatch_narration_locked(event)
+
+    await orchestrator.set_runtime_mode("standby")
+    blocked_action = await orchestrator.execute_assist_action("replay_next", dry_run=True, user_confirmed=True)
+    await orchestrator.set_runtime_mode("active")
+
+    first_value = first.value
+    second_value = second.value
+    blocked_value = blocked_action.value
+    ok = all([
+        first_value.get("ok"),
+        second_value.get("ok"),
+        second_value.get("runtime_interrupt_seq", 0) >= 1,
+        second_value.get("mailbox", {}).get("inbound_pending") == 1,
+        orchestrator.state.mode == "replay",
+        dispatch_payload.get("ok"),
+        bool(dispatch_payload.get("queued_message_id")),
+        blocked_value.get("ok") is False,
+        "runtime_mode=standby" in str(blocked_value.get("blocked_reason", "")),
+    ])
+    return SmokeResult(
+        name="runtime_contract_rules",
+        ok=ok,
+        details={
+            "interrupt_seq": second_value.get("runtime_interrupt_seq"),
+            "inbound_pending_after_interrupt": second_value.get("mailbox", {}).get("inbound_pending"),
+            "queued_message_id": dispatch_payload.get("queued_message_id", ""),
+            "standby_blocked_reason": blocked_value.get("blocked_reason", ""),
         },
     )
 

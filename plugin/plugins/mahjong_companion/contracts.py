@@ -1,7 +1,26 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, Literal
+
+
+RuntimeMode = Literal["active", "standby", "off"]
+RuntimeCommandAction = Literal[
+    "refresh_status",
+    "set_mode",
+    "set_runtime_mode",
+    "summarize_review",
+    "sync_memory",
+    "dispatch_current_narration",
+    "explain_current_hand",
+]
+
+# D1 固化协议：猫娘->游戏可打断；游戏->猫娘只排队；standby 不操作但可整理。
+RUNTIME_HARD_RULES: dict[str, str] = {
+    "catgirl_to_game_interruptible": "catgirl->game inbound command MAY interrupt queued game command(s).",
+    "game_to_catgirl_queue_only": "game->catgirl outbound event MUST be enqueued before dispatch.",
+    "standby_no_game_actions": "standby MUST block game actions but still allow status/review/memory housekeeping.",
+}
 
 
 @dataclass
@@ -99,6 +118,42 @@ class ActionExecutionResult:
     guard_aborted: bool = False
     window_title: str = ""
     log_path: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class RuntimeInboundContract:
+    source: str
+    action: RuntimeCommandAction
+    payload: dict[str, Any] = field(default_factory=dict)
+    interrupt: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class RuntimeOutboundContract:
+    event_type: str
+    payload: dict[str, Any] = field(default_factory=dict)
+    priority: int = 0
+    dedupe_key: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class RuntimeContractSnapshot:
+    mode: RuntimeMode
+    status: str
+    inbound_pending: int
+    outbound_pending: int
+    dropped_inbound: int
+    dropped_outbound: int
+    deduped_outbound: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

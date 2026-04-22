@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
+from .game_private_memory import build_public_memory_projection
 from ..session_state import now_iso
 
 
@@ -152,9 +153,14 @@ def build_coaching_memory(summary: dict[str, Any]) -> tuple[dict[str, Any] | Non
     if len(summary_text) < 12:
         return None, "summary_too_short"
 
-    tags = _normalize_tags(summary.get("summary_tags"))
+    public_projection = build_public_memory_projection(summary)
+    tags = _normalize_tags(public_projection.get("summary_tags"))
     if not tags:
         return None, "missing_summary_tags"
+
+    coach_note = str(public_projection.get("coach_note", "")).strip()
+    if len(coach_note) < 8:
+        return None, "coach_note_too_short"
 
     confidence = _estimate_memory_confidence(summary)
     if confidence < 0.45:
@@ -162,13 +168,15 @@ def build_coaching_memory(summary: dict[str, Any]) -> tuple[dict[str, Any] | Non
 
     dedupe_key = str(summary.get("dedupe_key", "")).strip()
     if not dedupe_key:
-        dedupe_key = "%s|%s" % (summary_text, ",".join(tags))
+        dedupe_key = "%s|%s" % (coach_note, ",".join(tags))
 
     coaching_memory = {
         "memory_type": "mahjong_style_summary",
         "generated_at": str(summary.get("captured_at") or now_iso()),
         "session_id": str(summary.get("session_id", "")).strip(),
-        "summary": summary_text,
+        "summary": coach_note,
+        "coach_note": coach_note,
+        "summary_tags": tags,
         "tags": tags,
         "evidence_count": _estimate_evidence_count(summary),
         "confidence": confidence,

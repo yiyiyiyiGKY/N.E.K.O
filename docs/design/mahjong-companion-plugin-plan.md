@@ -22,6 +22,8 @@
 ## 收口实现文档
 
 - `docs/design/mahjong-companion-plugin-v6-to-v9-finalization-implementation.md`
+- `docs/design/mahjong-companion-plugin-runtime-release-checklist.md`
+- `docs/design/mahjong-companion-plugin-next-phase-continuation-guide.md`
 
 ## 当前实现快照
 
@@ -41,7 +43,16 @@
   - `review/bridge.py` 复盘候选沉淀
   - `review/summarizer.py` 赛后复盘摘要生成
   - `review/memory_bridge.py` 长期记忆桥分流层
+  - `review/game_private_memory.py` 游戏侧私有记忆层（不直接上送猫娘）
   - `review/host_memory_sync.py`、`review/trend_aggregator.py`、`review/coaching_topics.py` 组成的第九版第一版本地跨局陪练链路
+  - `contracts.py` 中已补 runtime 协议契约与三条硬规则常量
+  - `runtime/game_agent_runtime.py` 独立运行时主类
+  - `runtime/inbox.py` 猫娘 -> 游戏入站邮箱
+  - `runtime/outbox.py` 游戏 -> 猫娘出站队列（优先级/去重/节流）
+  - `runtime/mailbox.py` 运行时双队列兼容层（保留旧调用路径）
+  - `runtime_mode = active / standby / off` 三态运行模式
+  - `set_runtime_mode`、`send_runtime_message`、`get_runtime_mailbox` 三个运行时入口
+  - “猫娘消息可打断、游戏消息先排队再投递”的最小协作语义
   - 调试 UI
   - `run_companion_pipeline` 一键总链路入口，可从图片或当前截图直接跑到猫娘主动回话
 - 第六版、第七版、第八版、第九版都已经有“可运行第一版”落地，其中第九版仍对宿主记忆写入能力做了本地降级。
@@ -49,12 +60,15 @@
   - 面向 `perception / narration / review` 的完整依赖注入与可热替换 adapter 收口
   - 稳定的牌级识别、完整向听 / 进张 / 危险度分析与校准 UI
   - 真实宿主长期记忆写入接口，以及基于宿主记忆的跨会话引用闭环
+  - 面向“猫娘侧调度器”的跨插件统一协议标准（当前已在插件内冻结契约，但尚未抽成宿主级统一规范）
 
 这个快照的意义是：
 
 - 后面所有“是否符合设计”的判断，都以当前实际代码为准。
 - 文档里的“建议拆分”要和现状分开写，避免把“已经分离”和“仍在 `orchestrator.py` 内”混成一件事。
 - 当前已经达到“目录级分层”，但还不应误写成“所有层都已达到实例级可插拔”；这两者在本文里需要明确区分。
+- 当前已补齐“运行时协作骨架”，但仍需把更多能力继续从 `orchestrator.py` 收口到稳定 adapter。
+- 下一阶段推进请按“继续指导文件”执行，避免无序并行导致语义漂移。
 
 ---
 
@@ -310,6 +324,9 @@ Mahjong Companion Plugin
   - `start_session`
   - `stop_session`
   - `set_mode`
+  - `set_runtime_mode`
+  - `send_runtime_message`
+  - `get_runtime_mailbox`
   - `capture_debug_frame`
   - `analyze_debug_frame`
   - `generate_decision`
@@ -318,6 +335,8 @@ Mahjong Companion Plugin
 - 额外建议保留一个 `get_session_status` 或 `get_debug_snapshot` 入口，方便宿主页、脚本调用和后续测试。
 - 每次模式切换、会话启动、错误恢复后都建议同步 `report_status()`，让 `/ui/plugins` 和 `/ui/plugins/:id` 能看到更细粒度的宿主状态。
 - 当前实际还新增了 `analyze_frame_path`、`get_last_perception`、`get_last_decision`、`get_last_narration`、`preview_companion_view`、`speak_last_narration`、`cycle_voice_mode` 等调试与状态入口。
+- 当前已经有 `runtime_mode=active/standby/off` 与双队列 runtime mailbox，支持“猫娘入站消息可打断旧命令、游戏出站消息先排队再投递”的协作语义。
+- 当前 `standby` 模式下会停止游戏操作主循环，也会阻断辅助动作执行；但运行时命令仍可用于状态刷新、复盘整理和记忆同步。
 - 当前还没有独立的 `run_replay_review` 入口；赛后复盘摘要仍属于下一阶段要补的能力。
 - 当前实际的 `run_companion_pipeline` 总入口，用来把“选帧 / 截图 -> 感知 -> 决策 -> 讲解 -> 主动回话”收敛成单次可测试链路。这一入口对调试和宿主联调很有帮助，但它也说明当前 `orchestrator.py` 仍承担了一部分原本可继续拆出的调试编排职责。
 - 当前还建议在这一层补一个“依赖注入边界”说明：`SessionOrchestrator` 应优先依赖抽象契约，而不是在构造函数里固定 new 出所有默认实现；默认实现可以保留，但应作为缺省参数而不是硬编码依赖。
@@ -772,6 +791,22 @@ plugin/plugins/mahjong_companion/
 - UI 能开关会话与模式。
 - 能保存基础配置与校准信息。
 
+### 阶段 0.5：先补游戏运行时协作骨架（当前已实现第一版）
+
+- 建立 `catgirl -> game` 入站队列与 `game -> catgirl` 出站队列。
+- 建立 `active / standby / off` 三态运行模式。
+- 在 `contracts.py` 固化运行时动作契约与三条硬规则。
+- 允许猫娘侧低频发送运行时命令，并定义 `interrupt=true` 的打断语义。
+- 约束游戏侧消息先入队再投递，避免打断猫娘当前对话链路。
+- 把运行时状态和队列指标接入宿主状态上报与调试 UI。
+
+完成标志：
+
+- 有 `set_runtime_mode`、`send_runtime_message`、`get_runtime_mailbox` 入口。
+- 入站打断语义可测，且出站排队语义可测。
+- `standby` 不操作游戏，但仍可处理整理类命令。
+- 游戏循环与猫娘对话链路互不阻塞。
+
 ### 阶段 1：打通低频截图与调试闭环
 
 - 用现有 `pyautogui` 依赖跑通窗口定位、截图、裁切和调试保存。
@@ -879,6 +914,9 @@ plugin/plugins/mahjong_companion/
 ### 10.1 单元测试
 
 - `FrameChangeGate` 的哈希稳定性与误判率测试。
+- runtime mailbox 语义测试（入站打断、出站排队与丢弃计数）。
+- standby 模式测试（不操作游戏但可整理信息）。
+- memory boundary 测试（默认不外泄私有游戏记忆）。
 - 固定截图样本测试感知输出。
 - 决策契约测试。
 - Narration 模板测试，避免输出过硬、过长或风格跑偏。
@@ -890,6 +928,7 @@ plugin/plugins/mahjong_companion/
 - 静态 UI 可用性测试。
 - 会话启停、配置保存、日志导出测试。
 - `/ui/plugins` 列表展示与插件详情页基础可见性测试。
+- `active / standby / off` 运行时模式切换测试。
 - 输入辅助开关、场景白名单、风险提示与操作日志测试。
 - `HumanOverrideGuard` 的物理输入中断测试。
 - `MemoryBridge` 的写入频控与摘要质量测试。
@@ -912,6 +951,10 @@ plugin/plugins/mahjong_companion/
 4. 菜单辅助
 
 不建议把“实时对战辅助”作为第一验收目标。
+
+上线门禁可直接按：
+
+- `docs/design/mahjong-companion-plugin-runtime-release-checklist.md`
 
 ---
 
@@ -940,8 +983,9 @@ plugin/plugins/mahjong_companion/
 而是：
 
 1. 先做一个长生命周期插件。
-2. 先跑通低频截图、`FrameChangeGate`、状态结构化、建议生成、陪伴表达。
-3. 先把回放 / 教学 / 复盘、`SpeechPolicy`、`CompanionViewModel` 和 `assist` 级辅助操作做好。
-4. 再按契约逐步替换截图实现、感知模型、决策引擎、更高阶输入层与长期记忆桥。
+2. 先稳住运行时协作骨架（双队列 mailbox + 三态 runtime + 打断语义）。
+3. 再跑通低频截图、`FrameChangeGate`、状态结构化、建议生成、陪伴表达。
+4. 再把回放 / 教学 / 复盘、`SpeechPolicy`、`CompanionViewModel` 和 `assist` 级辅助操作做好。
+5. 最后按契约逐步替换截图实现、感知模型、决策引擎、更高阶输入层与长期记忆桥。
 
 这样既能保住“雀魂陪伴与讲解”这个亮点，也真正贴合当前项目已有的插件、语音、Avatar 和 Agent 能力。

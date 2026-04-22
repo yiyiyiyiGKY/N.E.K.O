@@ -39,9 +39,21 @@ function renderSummary(payload) {
   document.getElementById("host-status").textContent = String(data.status || "-");
   document.getElementById("runtime-status").textContent = String(data.runtime_status || "-");
   document.getElementById("current-mode").textContent = String(data.mode || "-");
+  document.getElementById("runtime-mode").textContent = String(data.runtime_mode || "-");
+  document.getElementById("game-runtime-status").textContent = String(data.game_runtime_status || "-");
+  document.getElementById("runtime-inbound-pending").textContent = String(data.runtime_inbound_pending ?? "-");
+  document.getElementById("runtime-outbound-pending").textContent = String(data.runtime_outbound_pending ?? "-");
+  document.getElementById("runtime-deduped-outbound").textContent = String(data.runtime_deduped_outbound ?? "-");
+  document.getElementById("runtime-interrupt-seq").textContent = String(data.runtime_interrupt_seq ?? "-");
+  document.getElementById("runtime-last-action").textContent = String(data.last_runtime_command_action || "-");
+  document.getElementById("runtime-last-interrupt-reason").textContent = String(data.last_runtime_interrupt_reason || "-");
   const modeSelect = document.getElementById("mode-select");
   if (modeSelect && typeof data.mode === "string" && data.mode) {
     modeSelect.value = data.mode;
+  }
+  const runtimeModeSelect = document.getElementById("runtime-mode-select");
+  if (runtimeModeSelect && typeof data.runtime_mode === "string" && data.runtime_mode) {
+    runtimeModeSelect.value = data.runtime_mode;
   }
   document.getElementById("window-bound").textContent = String(data.window_bound ?? "-");
   document.getElementById("window-title").textContent = String(data.window_title || "-");
@@ -159,6 +171,17 @@ document.getElementById("set-mode-btn")?.addEventListener("click", async () => {
   }
 });
 
+document.getElementById("set-runtime-mode-btn")?.addEventListener("click", async () => {
+  const mode = document.getElementById("runtime-mode-select")?.value || "active";
+  try {
+    const data = await callEntry("set_runtime_mode", { mode });
+    renderJson("output", data);
+    await refreshStatus({ preserveOutput: true });
+  } catch (error) {
+    renderJson("output", { error: String(error) });
+  }
+});
+
 document.getElementById("bind-btn")?.addEventListener("click", () => {
   runAction("bind_window");
 });
@@ -223,6 +246,40 @@ document.getElementById("speak-btn")?.addEventListener("click", () => {
 
 document.getElementById("voice-mode-btn")?.addEventListener("click", () => {
   runAction("cycle_voice_mode");
+});
+
+document.getElementById("send-runtime-message-btn")?.addEventListener("click", async () => {
+  const action = document.getElementById("runtime-action-select")?.value || "refresh_status";
+  const interrupt = document.getElementById("runtime-interrupt-check")?.checked ?? true;
+  const rawPayload = String(document.getElementById("runtime-payload-input")?.value || "").trim();
+  let payload = {};
+  if (rawPayload) {
+    try {
+      payload = JSON.parse(rawPayload);
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+        throw new Error("payload 必须是 JSON 对象");
+      }
+    } catch (error) {
+      renderJson("output", { error: `payload 解析失败: ${String(error)}` });
+      return;
+    }
+  }
+  try {
+    const data = await callEntry("send_runtime_message", {
+      action,
+      payload,
+      interrupt,
+      source: "ui_debug",
+    });
+    renderJson("output", data);
+    await refreshStatus({ preserveOutput: true });
+  } catch (error) {
+    renderJson("output", { error: String(error) });
+  }
+});
+
+document.getElementById("get-runtime-mailbox-btn")?.addEventListener("click", () => {
+  runAction("get_runtime_mailbox");
 });
 
 document.getElementById("list-actions-btn")?.addEventListener("click", () => {

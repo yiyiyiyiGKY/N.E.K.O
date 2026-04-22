@@ -89,6 +89,24 @@ class SessionState:
     last_action_blocked_reason: str = ""
     last_action_guard_aborted: bool = False
     action_mode: str = "off"
+    runtime_mode: str = "active"
+    runtime_status: str = "idle"
+    runtime_interrupt_seq: int = 0
+    runtime_inbound_pending: int = 0
+    runtime_outbound_pending: int = 0
+    runtime_dropped_inbound: int = 0
+    runtime_dropped_outbound: int = 0
+    runtime_deduped_outbound: int = 0
+    last_runtime_command_id: str = ""
+    last_runtime_command_at: str = ""
+    last_runtime_command_source: str = ""
+    last_runtime_command_action: str = ""
+    last_runtime_command_ok: bool = False
+    last_runtime_command_result: dict[str, Any] = field(default_factory=dict)
+    last_runtime_interrupt_at: str = ""
+    last_runtime_interrupt_reason: str = ""
+    last_runtime_outbound_id: str = ""
+    last_runtime_outbound_at: str = ""
     started_at: str = ""
 
     @classmethod

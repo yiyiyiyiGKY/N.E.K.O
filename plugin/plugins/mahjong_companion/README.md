@@ -1,6 +1,6 @@
 # Mahjong Companion
 
-雀魂陪伴插件，当前已完成第一阶段骨架、第二阶段“真实抓帧 + 窗口绑定”、第三阶段第一版“最小感知闭环”、第四阶段第一版“最小决策层 + 讲解与陪伴输出”，以及第五阶段第一版“增强规则建议与复盘桥接起点”。
+雀魂陪伴插件，当前已完成 V1-V9 第一版主链路，并补齐了“游戏运行时协作骨架”（runtime mailbox + 三态运行模式）。
 
 当前已实现：
 
@@ -8,6 +8,7 @@
 - 最小会话状态机与状态缓存写入
 - 静态调试 UI
 - `start_session` / `stop_session` / `get_session_status` / `set_mode`
+- `set_runtime_mode` / `send_runtime_message` / `get_runtime_mailbox`
 - `bind_window` / `unbind_window`
 - `capture_debug_frame` 真实截图
 - `analyze_debug_frame` / `analyze_frame_path` / `get_last_perception`
@@ -15,6 +16,9 @@
 - `generate_narration` / `get_last_narration` / `preview_companion_view`
 - `run_companion_pipeline`
 - `speak_last_narration` / `cycle_voice_mode`
+- `generate_review_summary` / `get_last_review_summary`
+- `sync_memory_bridge` / `get_coaching_trend` / `get_last_coaching_topics`
+- `list_assist_actions` / `execute_assist_action` / `get_action_log`
 - 多后端截图回退
 - 帧变化门控
 - 连续失败降级
@@ -23,15 +27,21 @@
 - 更细的规则建议焦点、关键决策标签与复盘候选沉淀
 - `action/human_override_guard.py` 输入安全守卫层
 - `review/memory_bridge.py` 长期记忆桥分流层
+- `review/game_private_memory.py` 游戏侧私有记忆层
+- `runtime/game_agent_runtime.py` 独立运行时主类
+- `runtime/inbox.py` 入站邮箱与打断语义
+- `runtime/outbox.py` 出站队列（优先级/去重/节流）
+- `runtime/mailbox.py` 兼容双队列实现
+- `runtime_mode=active/standby/off` 三态运行模式（`standby` 下停游戏操作但可整理信息）
 - 感知调试产物输出
 
 当前还未实现：
 
-- 雀魂牌面识别
-- 更完整的局面结构化
-- 更强规则建议 / 牌效率建议
-- 复盘摘要
-- 自动辅助操作
+- 更稳定的真实牌级识别与校准样本闭环
+- 更完整的向听/进张/危险度分析后端
+- 更可靠的动作定位策略（按钮级定位、多策略回退）
+- 真实宿主长期记忆写入（当前仍以本地记忆桥暂存与聚合为主）
+- 面向猫娘侧的标准化调度协议（当前主要通过 runtime action 约定）
 
 当前可怎么用：
 
@@ -41,8 +51,9 @@
 4. 再点“分析最近截图”。
 5. 之后可以继续点“生成决策”“生成讲解”，需要时再点“播报当前讲解”。
 6. 如果你只是想验证总链路，可以直接点“一键跑到猫娘回话”。
-7. 截图会保存到 `data/debug_samples/`，感知、决策、讲解结果也会生成配套 JSON；关键节点还会沉淀到 `data/session_cache/review_candidates.json`。
-8. 页面会展示最近截图路径、场景、按钮候选、决策类型、讲解文本、语音模式和最近错误。
+7. 运行时控制区可直接切换 `active/standby/off`，并发送 runtime 动作（例如 `refresh_status`、`summarize_review`、`sync_memory`）。
+8. 截图会保存到 `data/debug_samples/`，感知、决策、讲解结果也会生成配套 JSON；关键节点还会沉淀到 `data/session_cache/review_candidates.json`。
+9. 页面会展示最近截图路径、场景、按钮候选、决策类型、讲解文本、语音模式、运行时队列与最近错误。
 
 快速自检：
 
@@ -68,11 +79,15 @@
 - 当前第五阶段起点已经开始把“和牌窗口 / 立直窗口 / 吃碰杠决策点 / 确认弹窗”拆成更细的规则焦点，并把高价值节点写入复盘候选缓存。
 - 当前 `HumanOverrideGuard` 已经独立成安全层，先负责动作窗口的“武装 / 检测 / 中断”逻辑，为后续自动辅助操作接入做准备。
 - 当前 `MemoryBridge` 已经独立成摘要桥接层，会把高价值节点写入本地记忆桥队列；由于宿主 SDK 现在只有 memory 查询能力、还没有插件侧写入接口，所以暂时采用本地暂存而不是直接写入宿主长期记忆。
+- 当前 runtime 协作语义是：猫娘入站命令可以打断旧命令，游戏侧出站消息先排队再按 tick flush，不会直接抢占猫娘对话线程。
+- 当前 runtime 协作语义已在 `contracts.py` 固化三条硬规则，避免后续实现漂移。
+- 当前 `standby` 模式会暂停游戏操作主循环与辅助动作执行，但仍可处理状态刷新、复盘摘要和记忆同步类命令。
+- 当前记忆边界是：原始游戏流水写入 `game_private_memory.json`，上送宿主/猫娘侧默认只投影 `summary_tags + coach_note`。
 - 感知、决策、讲解调试文件会和截图一起落到 `data/debug_samples/`，便于后续离线调规则。
 
 后续开发顺序建议：
 
-1. 牌效率与更细粒度规则建议
-2. 更强讲解输出
-3. 赛后复盘摘要
-4. 自动辅助操作
+1. 先稳定 runtime 协议与依赖注入边界
+2. 提升牌级感知与牌理分析可信度（V8/V6 质量收口）
+3. 提升动作定位与授权审计能力（V7 收口）
+4. 接真实宿主记忆写入闭环（V9 收口）

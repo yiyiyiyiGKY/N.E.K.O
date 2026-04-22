@@ -24,11 +24,13 @@ def build_memory_summary(
         return None
 
     summary_text = _build_summary_text(decision, perceived, tags)
+    coach_note = _build_coach_note(decision)
     return {
         "captured_at": candidate.get("captured_at") or now_iso(),
         "session_id": candidate.get("session_id", ""),
         "summary_text": summary_text,
         "summary_tags": tags,
+        "coach_note": coach_note,
         "scene": decision.scene,
         "decision_type": decision.decision_type,
         "priority": decision.priority,
@@ -135,6 +137,14 @@ def _build_memory_dedupe_key(decision: DecisionResult, tags: list[str]) -> str:
         decision.recommended_focus,
         ",".join(sorted(tags)),
     )
+
+
+def _build_coach_note(decision: DecisionResult) -> str:
+    suggestion = str(decision.suggestion or "").strip()
+    if suggestion:
+        return suggestion
+    focus = str(decision.recommended_focus or "").strip() or "observe"
+    return f"下一轮优先关注 {focus}，避免在低价值分支反复犹豫。"
 
 
 def _load_existing(path: Path) -> dict[str, Any]:

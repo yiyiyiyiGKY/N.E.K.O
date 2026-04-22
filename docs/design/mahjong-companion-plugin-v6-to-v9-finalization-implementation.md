@@ -15,6 +15,8 @@
 
 > 实施同步说明：
 > - 截至当前仓库状态，V6-V9 都已经有“可运行第一版”，并且 smoke test 与对应单元测试已经能覆盖主链路。
+> - 已补齐“游戏运行时协作骨架”第一版：`runtime/game_agent_runtime.py`、`runtime/inbox.py`、`runtime/outbox.py`、`runtime_mode=active/standby/off`、`set_runtime_mode/send_runtime_message/get_runtime_mailbox`，以及“入站可打断、出站先排队”的最小语义。
+> - 已在 `contracts.py` 固化运行时动作契约和三条硬规则，作为 P0 验收口径基线。
 > - 当前真正缺的，不是“有没有入口”，而是“质量、边界、依赖注入、真实宿主能力、真实识别精度、真实按钮定位”等最终形态能力。
 > - 因此这份文档的目标不是再扩展概念，而是定义一套明确的收口标准、模块清单、接口草案和实施顺序。
 
@@ -22,10 +24,11 @@
 
 ## 1. 文档目标
 
-本文只做五件事：
+本文只做六件事：
 
 - 定义 V6-V9 各自的“最终形态”到底意味着什么
 - 把“当前第一版”和“最终形态”之间的缺口写清楚
+- 明确当前实现与“通用游戏插件框架”要求的一致性与差距
 - 给出模块级拆分、接口草案和数据流边界
 - 明确推荐的落地顺序，避免并行推进时互相打架
 - 给出验收标准，确保完成后可以自然进入 V10
@@ -61,6 +64,18 @@
   - `review/trend_aggregator.py`
   - `review/coaching_topics.py`
   - `sync_memory_bridge / get_coaching_trend / get_last_coaching_topics`
+- 运行时协作框架第一版：
+  - `runtime/game_agent_runtime.py` 独立运行时主类
+  - `runtime/inbox.py` 入站邮箱（支持 interrupt）
+  - `runtime/outbox.py` 出站队列（优先级/去重/节流）
+  - `runtime/mailbox.py` 兼容层（保留）
+  - `runtime_mode=active/standby/off` 三态运行模式
+  - `set_runtime_mode / send_runtime_message / get_runtime_mailbox` 插件入口
+  - `SessionState.runtime_*` 状态字段与调试 UI 展示
+  - 入站 `interrupt=true` 时清空旧命令，出站消息先排队再按 tick flush
+- 记忆分层第一版：
+  - `review/game_private_memory.py` 游戏侧私有流水（本地留存）
+  - `review/memory_bridge.py` 与 `review/host_memory_sync.py` 默认只投影 `summary_tags + coach_note` 给上游
 
 当前仓库仍然缺少：
 
@@ -77,11 +92,33 @@
 - V9：
   - 真实宿主长期记忆写入
   - 基于宿主记忆的跨会话引用闭环
+- 运行时框架：
+  - 面向猫娘侧的宿主级统一调度协议仍未抽到平台层（当前为插件级契约）
+  - 游戏记忆到猫娘提示的策略模板还可继续标准化（当前已完成最小边界投影）
 
 结论：
 
 - V6-V9 现在不是“没做”
 - 而是“都有第一版，但还没有达到最终形态”
+
+### 2.1 与通用游戏插件框架的一致性核对
+
+按当前代码实况，对齐结果如下：
+
+- 要求 1：后台持续运行的游戏 LLM/代理，只在特定节点和猫娘同步  
+  当前状态：已满足第一版。`SessionOrchestrator` 长循环独立运行，猫娘侧通过 runtime 入站动作低频触发同步。
+- 要求 2：双向消息，猫娘消息可打断，游戏消息只入猫娘队列  
+  当前状态：已满足第一版。入站 `interrupt=true` 会清空旧命令队列；出站统一进 runtime outbox，再由 flush 投递。
+- 要求 3：游戏代理可复杂、有记忆，但不承载复杂人格  
+  当前状态：已满足方向。当前人格表达主要在 `narration/`，游戏侧聚焦感知/决策/复盘。
+- 要求 4：不是所有消息都发给猫娘  
+  当前状态：已满足第一版。当前由讲解策略和出站 flush 节流控制，默认只推送关键节点。
+- 要求 5：猫娘对话不因游戏中断，游戏不因猫娘静默中断  
+  当前状态：已满足第一版。游戏循环与猫娘对话链路解耦，消息通过队列异步投递。
+- 要求 6：`standby` 不操作游戏，但仍可整理信息  
+  当前状态：已满足第一版。`standby` 会跳过 live cycle 与辅助动作，但可处理 `summarize_review/sync_memory` 等命令。
+- 要求 7：游戏记忆不直接暴露，先由游戏侧整理再提醒猫娘  
+  当前状态：部分满足。已有 `memory_bridge` 与复盘摘要分流，但筛选策略仍需进一步标准化。
 
 ---
 
@@ -388,6 +425,16 @@ V6-V9 的最终形态，不是四份独立小修小补。
 
 它们有几项统一前置任务：
 
+### 5.0 固化运行时协作协议（框架优先）
+
+在上线压力高的情况下，先保证“框架正确”，再追求“分析更强”：
+
+- 固化 runtime 命令集合与 payload 契约（`refresh_status/set_mode/set_runtime_mode/explain_current_hand/summarize_review/sync_memory/dispatch_current_narration`）。
+- 固化打断语义：猫娘发入站命令可打断旧命令；游戏出站消息不抢占猫娘当前对话。
+- 固化 `active/standby/off` 三态行为边界，避免后续功能叠加时语义漂移。
+- 把运行时 mailbox 指标纳入状态上报与 UI（队列长度、丢弃计数、最近命令、最近出站消息）。
+- 把协议硬规则沉淀到 `contracts.py`，减少实现与文档漂移。
+
 ### 5.1 补齐依赖注入边界
 
 当前仍建议继续完成这些注入点：
@@ -416,6 +463,12 @@ V6-V9 的最终形态，不是四份独立小修小补。
 - `last_coaching_trend`
 - `last_coaching_topics`
 - `last_action_*`
+- `runtime_mode`
+- `game_runtime_status`
+- `runtime_interrupt_seq`
+- `runtime_inbound_pending / runtime_outbound_pending`
+- `runtime_dropped_inbound / runtime_dropped_outbound`
+- `last_runtime_command_* / last_runtime_outbound_*`
 
 ### 5.3 统一样本与 smoke test
 
@@ -440,23 +493,28 @@ V6-V9 的最终形态，不是四份独立小修小补。
 
 更合理的顺序是：
 
-1. 先补统一接口收口：
+1. P0：先稳住运行时框架（已完成第一版）
+   - runtime mailbox、三态模式、入站打断语义、出站排队语义
+   - 目标：先保证“猫娘与游戏互不阻塞”
+2. P1：补统一接口收口
    - `PerceptionAdapter`
    - `ReviewSummarizer`
    - `ActionLocator`
    - `HostMemoryWriter`
-2. 再补 V8：
-   - 因为它决定 V6 和 V9 的上游质量
-3. 再补 V6：
-   - 把复盘摘要升到更稳定结构
-4. 再补 V7：
-   - 把动作定位从锚点提升到更可靠策略
-5. 最后补 V9：
+   - 目标：把后续改动从 `orchestrator` 主循环里解耦
+3. P2：先补 V8，再补 V6
+   - 先提高牌级感知与分析可信度
+   - 再把复盘摘要结构升级到可跨局复用
+4. P3：补 V7
+   - 把动作定位从锚点提升到多策略定位
+   - 完成更清晰授权、审计、失败恢复
+5. P4：补 V9 宿主闭环
    - 接真实宿主写入
    - 接跨会话引用闭环
 
 原因：
 
+- 上线窗口紧时，框架错误比算法不够强更致命
 - V8 质量不稳，V6 和 V9 的内容质量也不会稳
 - V9 宿主写入如果先做，很容易把当前低质量摘要放大
 - V7 最终形态依赖更稳定的感知和场景定位支持
@@ -494,8 +552,21 @@ V6-V9 的最终形态，不是四份独立小修小补。
 - `smoke_test.py` 继续通过
 - 对应单元测试继续通过
 - 新增能力都有降级路径和状态字段
+- runtime mailbox 相关测试通过（至少覆盖：入站打断、`standby` 跳过 live cycle、`standby` 阻断 assist 动作、出站排队 flush）
+- memory boundary 相关测试通过（默认不暴露私有游戏流水）
+- 关键测试文件：
+  - `plugin/tests/unit/sdk/plugin/test_mahjong_companion_runtime_mailbox.py`
+  - `plugin/tests/unit/sdk/plugin/test_mahjong_companion_standby_mode.py`
+  - `plugin/tests/unit/sdk/plugin/test_mahjong_companion_memory_boundary.py`
 
 ---
+
+## 9. 上线门禁文档
+
+Runtime 收口上线按以下文档执行：
+
+- `docs/design/mahjong-companion-plugin-runtime-release-checklist.md`
+- `docs/design/mahjong-companion-plugin-next-phase-continuation-guide.md`
 
 ## 8. 完成后对 V10 的意义
 

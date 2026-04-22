@@ -81,6 +81,30 @@ class MahjongCompanionPlugin(NekoPluginBase):
         await self.orchestrator.set_mode(mode)
         return Ok(self.orchestrator.get_status())
 
+    @plugin_entry(id="set_runtime_mode", name="设置运行时模式", kind="action")
+    async def set_runtime_mode(self, mode: str, **_):
+        return await self.orchestrator.set_runtime_mode(mode)
+
+    @plugin_entry(id="send_runtime_message", name="发送运行时消息", kind="action")
+    async def send_runtime_message(
+        self,
+        action: str,
+        payload: dict[str, Any] | None = None,
+        interrupt: bool = True,
+        source: str = "catgirl",
+        **_,
+    ):
+        return await self.orchestrator.send_runtime_message(
+            action=action,
+            payload=payload or {},
+            interrupt=bool(interrupt),
+            source=source,
+        )
+
+    @plugin_entry(id="get_runtime_mailbox", name="获取运行时邮箱状态", kind="action")
+    async def get_runtime_mailbox(self, **_):
+        return await self.orchestrator.get_runtime_mailbox()
+
     @plugin_entry(id="capture_debug_frame", name="抓取调试帧", kind="action")
     async def capture_debug_frame(self, **_):
         return await self.orchestrator.capture_debug_frame()

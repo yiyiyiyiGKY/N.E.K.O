@@ -20,6 +20,14 @@
         <div><strong>宿主状态</strong><span id="host-status">-</span></div>
         <div><strong>运行态</strong><span id="runtime-status">-</span></div>
         <div><strong>当前模式</strong><span id="current-mode">-</span></div>
+        <div><strong>运行时模式</strong><span id="runtime-mode">-</span></div>
+        <div><strong>运行时状态</strong><span id="game-runtime-status">-</span></div>
+        <div><strong>入站队列</strong><span id="runtime-inbound-pending">-</span></div>
+        <div><strong>出站队列</strong><span id="runtime-outbound-pending">-</span></div>
+        <div><strong>出站去重</strong><span id="runtime-deduped-outbound">-</span></div>
+        <div><strong>打断序号</strong><span id="runtime-interrupt-seq">-</span></div>
+        <div><strong>最近运行时动作</strong><span id="runtime-last-action">-</span></div>
+        <div><strong>最近打断原因</strong><span id="runtime-last-interrupt-reason">-</span></div>
         <div><strong>窗口绑定</strong><span id="window-bound">-</span></div>
         <div><strong>窗口标题</strong><span id="window-title">-</span></div>
         <div><strong>最近抓图</strong><span id="capture-ok">-</span></div>
@@ -88,6 +96,13 @@
           <option value="silent">silent</option>
         </select>
         <button id="set-mode-btn" type="button">设置模式</button>
+        <label class="inline-select" for="runtime-mode-select">运行时</label>
+        <select id="runtime-mode-select">
+          <option value="active">active</option>
+          <option value="standby">standby</option>
+          <option value="off">off</option>
+        </select>
+        <button id="set-runtime-mode-btn" type="button">设置运行时</button>
         <button id="capture-btn" type="button">抓取调试帧</button>
         <button id="analyze-btn" type="button">分析最近截图</button>
         <button id="decision-btn" type="button">生成决策</button>
@@ -100,6 +115,24 @@
         <button id="preview-btn" type="button">刷新陪伴视图</button>
         <button id="speak-btn" type="button">播报当前讲解</button>
         <button id="voice-mode-btn" type="button">切换语音模式</button>
+      </div>
+
+      <h3>运行时消息（猫娘 -> 游戏代理）</h3>
+      <div class="actions">
+        <label class="inline-select" for="runtime-action-select">动作</label>
+        <select id="runtime-action-select">
+          <option value="refresh_status">refresh_status</option>
+          <option value="set_mode">set_mode</option>
+          <option value="set_runtime_mode">set_runtime_mode</option>
+          <option value="explain_current_hand">explain_current_hand</option>
+          <option value="summarize_review">summarize_review</option>
+          <option value="sync_memory">sync_memory</option>
+          <option value="dispatch_current_narration">dispatch_current_narration</option>
+        </select>
+        <input id="runtime-payload-input" type="text" placeholder='payload JSON，如 {"mode":"replay"}' />
+        <label class="inline-label"><input id="runtime-interrupt-check" type="checkbox" checked /> 打断当前消息</label>
+        <button id="send-runtime-message-btn" type="button">发送运行时消息</button>
+        <button id="get-runtime-mailbox-btn" type="button">查看邮箱状态</button>
       </div>
 
       <h3>辅助操作（需先启用 assist 模式）</h3>

@@ -46,6 +46,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "mode": "off",
             "allowed_contexts": ["menu", "replay", "custom_room"],
         },
+        "game_agent_runtime": {
+            "mode": "active",
+            "inbound_queue_limit": 32,
+            "outbound_queue_limit": 128,
+            "outbound_flush_per_tick": 1,
+            "outbound_dedupe_window_sec": 8,
+        },
         "human_override_guard": {
             "enabled": True,
             "active_window_sec": 1.5,
@@ -57,6 +64,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "min_priority": 75,
             "max_memories_per_day": 3,
             "dedupe_window_sec": 21600,
+            "private_memory_limit": 400,
             "host_memory_bucket_id": "mahjong_companion_coaching",
             "host_sync_batch_size": 5,
         },
