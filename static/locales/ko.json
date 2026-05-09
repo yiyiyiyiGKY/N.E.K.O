@@ -1650,6 +1650,7 @@
         "storageRecoveryRequired": "저장 위치 복구가 필요합니다",
         "changeStorageLocation": "저장 위치 변경",
         "openCurrentStorageRoot": "현재 디렉터리 열기",
+        "subconsciousMaintenanceEntry": "잠재의식 유지 / 창 방위전",
         "storageLoadFailed": "저장 위치 로드 실패",
         "storageManagementUnavailable": "현재 저장 위치를 사용할 수 없습니다",
         "storageMemoryLimitedState": "저장 위치가 아직 준비되지 않았습니다. 저장 위치 선택, 복구 또는 마이그레이션이 완료된 뒤 메모리를 확인하세요.",

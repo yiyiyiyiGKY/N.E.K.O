@@ -43,6 +43,12 @@ _REACT_CHAT_ASSET_VERSION_PATHS = (
 )
 _REACT_CHAT_ASSET_CACHE_TTL = 30.0
 _react_chat_asset_version_cache: tuple[float, str] = (0.0, "0")
+_SUBCONSCIOUS_MAINTENANCE_ASSET_VERSION_PATHS = (
+    _PROJECT_ROOT / "static/css/subconscious_maintenance.css",
+    _PROJECT_ROOT / "static/js/subconscious_maintenance.js",
+)
+_SUBCONSCIOUS_MAINTENANCE_ASSET_CACHE_TTL = 30.0
+_subconscious_maintenance_asset_version_cache: tuple[float, str] = (0.0, "0")
 
 
 def _vrm_defaults_ctx() -> dict:
@@ -91,6 +97,26 @@ def _react_chat_assets_ctx() -> dict:
     version = str(latest_mtime or 0)
     _react_chat_asset_version_cache = (now, version)
     return {"react_chat_asset_version": version}
+
+
+def _subconscious_maintenance_assets_ctx() -> dict:
+    """返回潜意识维护态页面静态资源的统一缓存版本号。"""
+    global _subconscious_maintenance_asset_version_cache
+    now = time.monotonic()
+    cached_at, cached_version = _subconscious_maintenance_asset_version_cache
+    if now - cached_at < _SUBCONSCIOUS_MAINTENANCE_ASSET_CACHE_TTL:
+        return {"subconscious_maintenance_asset_version": cached_version}
+
+    latest_mtime = 0
+    for path in _SUBCONSCIOUS_MAINTENANCE_ASSET_VERSION_PATHS:
+        try:
+            latest_mtime = max(latest_mtime, int(path.stat().st_mtime))
+        except OSError:
+            continue
+
+    version = str(latest_mtime or 0)
+    _subconscious_maintenance_asset_version_cache = (now, version)
+    return {"subconscious_maintenance_asset_version": version}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -217,6 +243,15 @@ async def memory_browser(request: Request):
     return templates.TemplateResponse('templates/memory_browser.html', {
         "request": request,
         **_static_assets_ctx(),
+    })
+
+
+@router.get("/subconscious_maintenance", response_class=HTMLResponse)
+async def subconscious_maintenance_page(request: Request):
+    templates = get_templates()
+    return templates.TemplateResponse("templates/subconscious_maintenance.html", {
+        "request": request,
+        **_subconscious_maintenance_assets_ctx(),
     })
 
 

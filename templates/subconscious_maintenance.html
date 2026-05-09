@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N.E.K.O. 潜意识维护态</title>
+    <link rel="stylesheet" href="/static/css/subconscious_maintenance.css?v={{ subconscious_maintenance_asset_version }}">
+</head>
+<body class="subconscious-maintenance-host" data-phase="setup">
+    <main id="subconscious-maintenance-app" aria-label="潜意识维护态">
+        <canvas id="subconscious-maintenance-canvas" aria-label="战场画布"></canvas>
+
+        <header id="subconscious-maintenance-hud" class="sm-hud" aria-label="HUD">
+            <div class="sm-hud-group sm-hud-group--title">
+                <div class="sm-hud-kicker">NEKO</div>
+                <div class="sm-hud-title">潜意识维护态</div>
+            </div>
+            <div class="sm-hud-group sm-hud-group--stats">
+                <div class="sm-hud-stat">
+                    <span class="sm-hud-stat-label">稳定</span>
+                    <span class="sm-hud-stat-value" id="subconscious-maintenance-stability">100</span>
+                </div>
+                <div class="sm-hud-stat">
+                    <span class="sm-hud-stat-label">碎片</span>
+                    <span class="sm-hud-stat-value" id="subconscious-maintenance-fragments">0</span>
+                </div>
+                <div class="sm-hud-stat">
+                    <span class="sm-hud-stat-label">虫</span>
+                    <span class="sm-hud-stat-value" id="subconscious-maintenance-worms">0</span>
+                </div>
+                <div class="sm-hud-stat">
+                    <span class="sm-hud-stat-label">连击</span>
+                    <span class="sm-hud-stat-value" id="subconscious-maintenance-combo">0</span>
+                </div>
+            </div>
+        </header>
+
+        <section id="subconscious-maintenance-setup" class="sm-layer sm-layer--setup" aria-label="难度选择">
+            <div class="sm-panel">
+                <div class="sm-panel-head">
+                    <div class="sm-panel-title">难度</div>
+                    <div class="sm-panel-subtitle" id="subconscious-maintenance-session-label">待命</div>
+                </div>
+                <div class="sm-difficulty-list" role="radiogroup" aria-label="难度选择">
+                    <button type="button" class="sm-difficulty-btn is-active" data-difficulty="easy">低</button>
+                    <button type="button" class="sm-difficulty-btn" data-difficulty="normal">中</button>
+                    <button type="button" class="sm-difficulty-btn" data-difficulty="hard">高</button>
+                </div>
+                <div class="sm-panel-actions">
+                    <button type="button" id="subconscious-maintenance-start-btn" class="sm-command-btn sm-command-btn--primary">▶ 开始</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="subconscious-maintenance-pause-layer" class="sm-layer sm-layer--overlay" hidden aria-label="暂停菜单">
+            <div class="sm-panel">
+                <div class="sm-panel-head">
+                    <div class="sm-panel-title">暂停</div>
+                    <div class="sm-panel-subtitle">继续 / 重开 / 退出</div>
+                </div>
+                <div class="sm-panel-actions sm-panel-actions--compact">
+                    <button type="button" id="subconscious-maintenance-continue-btn" class="sm-icon-btn" aria-label="继续">▶</button>
+                    <button type="button" id="subconscious-maintenance-restart-btn" class="sm-icon-btn" aria-label="重新开始">↻</button>
+                    <button type="button" id="subconscious-maintenance-exit-btn" class="sm-icon-btn" aria-label="返回记忆页">←</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="subconscious-maintenance-end-layer" class="sm-layer sm-layer--overlay" hidden aria-label="结算菜单">
+            <div class="sm-panel">
+                <div class="sm-panel-head">
+                    <div class="sm-panel-title" id="subconscious-maintenance-result-title">结果</div>
+                    <div class="sm-panel-subtitle" id="subconscious-maintenance-result-detail">-</div>
+                </div>
+                <div class="sm-panel-actions sm-panel-actions--compact">
+                    <button type="button" id="subconscious-maintenance-end-restart-btn" class="sm-icon-btn" aria-label="重新开始">↻</button>
+                    <button type="button" id="subconscious-maintenance-end-exit-btn" class="sm-icon-btn" aria-label="返回记忆页">←</button>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="/static/js/subconscious_maintenance.js?v={{ subconscious_maintenance_asset_version }}" defer></script>
+</body>
+</html>

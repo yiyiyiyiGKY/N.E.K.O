@@ -1650,6 +1650,7 @@
         "storageRecoveryRequired": "需要恢复存储位置",
         "changeStorageLocation": "更改存储位置",
         "openCurrentStorageRoot": "打开当前目录",
+        "subconsciousMaintenanceEntry": "潜意识维护态 / 窗口保卫战",
         "storageLoadFailed": "存储位置加载失败",
         "storageManagementUnavailable": "当前存储位置暂不可用",
         "storageMemoryLimitedState": "当前存储位置还未就绪。请先完成存储位置选择、恢复或等待迁移完成，然后再查看记忆。",

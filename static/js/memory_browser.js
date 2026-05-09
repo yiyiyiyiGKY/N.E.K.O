@@ -216,6 +216,16 @@
         if (openBtn) {
             openBtn.disabled = state.loadFailed || !String(bootstrap.current_root || '').trim();
         }
+
+        const subconsciousMaintenanceBtn = document.getElementById('subconscious-maintenance-open-btn');
+        if (subconsciousMaintenanceBtn) {
+            const blockingReason = String(state.blockingReason || '').trim();
+            const blockingNonRecoverable = blockingReason && !RECOVERABLE_STORAGE_BLOCKING_REASONS.has(blockingReason);
+            subconsciousMaintenanceBtn.disabled = state.loadFailed || blockingNonRecoverable || !String(bootstrap.current_root || '').trim();
+            subconsciousMaintenanceBtn.title = subconsciousMaintenanceBtn.disabled
+                ? translate('memory.storageManagementUnavailable', '当前存储位置暂不可用')
+                : '';
+        }
     }
 
     async function initStorageLocationPanel() {
@@ -719,6 +729,71 @@
         }
     }
 
+    function createSubconsciousMaintenanceSessionId() {
+        return 'subconscious-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+    }
+
+    async function resolveSubconsciousMaintenanceLanlanName() {
+        const directName = String(currentCatName || '').trim();
+        if (directName) {
+            return directName;
+        }
+
+        const configuredName = String(window.lanlan_config && window.lanlan_config.lanlan_name || '').trim();
+        if (configuredName) {
+            return configuredName;
+        }
+
+        try {
+            const resp = await fetch('/api/characters/current_catgirl', {
+                cache: 'no-store'
+            });
+            const payload = await resp.json();
+            const currentCatgirl = payload && payload.current_catgirl;
+            return String(currentCatgirl || '').trim();
+        } catch (e) {
+            console.warn('[MemoryBrowser] resolve subconscious maintenance character failed:', e);
+            return '';
+        }
+    }
+
+    function buildSubconsciousMaintenanceUrl(lanlanName, sessionId) {
+        const params = new URLSearchParams();
+        const normalizedLanlanName = String(lanlanName || '').trim();
+        const normalizedSessionId = String(sessionId || '').trim();
+        if (normalizedLanlanName) {
+            params.set('lanlan_name', normalizedLanlanName);
+        }
+        if (normalizedSessionId) {
+            params.set('session_id', normalizedSessionId);
+        }
+        const query = params.toString();
+        return query ? '/subconscious_maintenance?' + query : '/subconscious_maintenance';
+    }
+
+    async function openSubconsciousMaintenance() {
+        const state = storageLocationState || {};
+        const bootstrap = state.bootstrap || {};
+        const blockingReason = String(state.blockingReason || '').trim();
+        const blockingNonRecoverable = blockingReason && !RECOVERABLE_STORAGE_BLOCKING_REASONS.has(blockingReason);
+        if (state.loadFailed || blockingNonRecoverable || !String(bootstrap.current_root || '').trim()) {
+            setElementText('storage-location-status', translate('memory.storageManagementUnavailable', '当前存储位置暂不可用'));
+            return;
+        }
+        const lanlanName = await resolveSubconsciousMaintenanceLanlanName();
+        const sessionId = createSubconsciousMaintenanceSessionId();
+        const url = buildSubconsciousMaintenanceUrl(lanlanName, sessionId);
+        const windowName = 'neko_subconscious_maintenance';
+        const features = 'width=1200,height=800,scrollbars=yes,resizable=yes';
+
+        if (typeof window.openOrFocusWindow === 'function') {
+            window.openOrFocusWindow(url, windowName, features);
+            return;
+        }
+
+        window.open(url, windowName, features);
+    }
+
     /** Normalize message body from recent_*.json (string or OpenAI-style content blocks). */
     function extractDataContent(data) {
         if (!data || data.content === undefined || data.content === null) {
@@ -1166,6 +1241,12 @@
         if (openStorageBtn) {
             openStorageBtn.addEventListener('click', function () {
                 openCurrentStorageRoot();
+            });
+        }
+        const subconsciousMaintenanceBtn = document.getElementById('subconscious-maintenance-open-btn');
+        if (subconsciousMaintenanceBtn) {
+            subconsciousMaintenanceBtn.addEventListener('click', function () {
+                openSubconsciousMaintenance();
             });
         }
         const manageStorageBtn = document.getElementById('storage-location-manage-btn');

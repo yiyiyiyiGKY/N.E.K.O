@@ -317,10 +317,41 @@ def test_memory_browser_storage_bootstrap_blocks_memory_apis(mock_page: Page, ru
     # Recoverable storage states keep the management entry enabled so the user
     # can resolve selection/recovery without leaving limited mode.
     expect(mock_page.locator("#storage-location-manage-btn")).to_be_enabled()
+    expect(mock_page.locator("#subconscious-maintenance-open-btn")).to_be_enabled()
 
     assert "/api/storage/location/bootstrap" in requested_paths
     assert not any("/api/memory/recent_files" in path for path in requested_paths)
     assert not any("/api/memory/review_config" in path for path in requested_paths)
+
+
+@pytest.mark.frontend
+def test_memory_browser_subconscious_entry_disables_for_nonrecoverable_storage_state(
+    mock_page: Page,
+    running_server: str,
+    seed_memory_file,
+):
+    _install_ready_memory_browser_routes(mock_page, seed_memory_file)
+
+    def handle_bootstrap(route):
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            json={
+                "current_root": "/tmp/current/N.E.K.O",
+                "recommended_root": "/tmp/recommended/N.E.K.O",
+                "legacy_sources": [],
+                "selection_required": False,
+                "migration_pending": True,
+                "recovery_required": False,
+                "blocking_reason": "migration_pending",
+            },
+    )
+
+    mock_page.route("**/api/storage/location/bootstrap", handle_bootstrap)
+    mock_page.goto(f"{running_server}/memory_browser")
+
+    expect(mock_page.locator("#storage-location-manage-btn")).to_be_disabled()
+    expect(mock_page.locator("#subconscious-maintenance-open-btn")).to_be_disabled()
 
 
 @pytest.mark.frontend

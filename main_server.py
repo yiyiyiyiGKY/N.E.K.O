@@ -1277,6 +1277,7 @@ _MAIN_LIMITED_MODE_ALLOWED_PAGE_PATHS = {
     "/character_card_manager",
     "/cloudsave_manager",
     "/memory_browser",
+    "/subconscious_maintenance",
     "/cookies_login",
     "/chat",
     "/subtitle",

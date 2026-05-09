@@ -1650,6 +1650,7 @@
         "storageRecoveryRequired": "É necessário recuperar o local de armazenamento",
         "changeStorageLocation": "Alterar local",
         "openCurrentStorageRoot": "Abrir diretório atual",
+        "subconsciousMaintenanceEntry": "Manutenção do Subconsciente / Window Glitcher",
         "storageLoadFailed": "Falha ao carregar o local de armazenamento",
         "storageManagementUnavailable": "O local de armazenamento está indisponível agora",
         "storageMemoryLimitedState": "O local de armazenamento ainda não está pronto. Conclua a seleção, recuperação ou migração antes de ver a memória.",
