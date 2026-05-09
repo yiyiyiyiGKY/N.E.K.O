@@ -191,6 +191,9 @@
         started: false,
         ended: false,
         startInFlight: false,
+        startPromise: null,
+        pendingEndReason: '',
+        pendingEndUseBeacon: false,
         generation: 0
     };
 
@@ -1405,17 +1408,39 @@
         routeState.startInFlight = true;
         var generation = routeState.generation;
         ensureSessionId();
-        postRouteEvent('start', 'ready', false).then(function () {
+        routeState.startPromise = postRouteEvent('start', 'ready', false).then(function () {
             if (generation !== routeState.generation || routeState.ended) {
                 return;
             }
             routeState.started = true;
-            routeState.startInFlight = false;
-            startRouteHeartbeat();
+        }).finally(function () {
+            if (generation === routeState.generation) {
+                routeState.startInFlight = false;
+                routeState.startPromise = null;
+                if (routeState.pendingEndReason) {
+                    var pendingReason = routeState.pendingEndReason;
+                    var pendingUseBeacon = routeState.pendingEndUseBeacon;
+                    routeState.pendingEndReason = '';
+                    routeState.pendingEndUseBeacon = false;
+                    endRouteSession(pendingReason, pendingUseBeacon);
+                } else if (routeState.started && !routeState.ended) {
+                    startRouteHeartbeat();
+                }
+            }
         });
     }
 
     function endRouteSession(reason, useBeacon) {
+        if (routeState.startInFlight && routeState.startPromise) {
+            routeState.pendingEndReason = reason || 'exit';
+            routeState.pendingEndUseBeacon = !!useBeacon;
+            if (useBeacon) {
+                return Promise.resolve();
+            }
+            return routeState.startPromise.finally(function () {
+                return endRouteSession(reason, useBeacon);
+            });
+        }
         if (!routeState.started || routeState.ended) {
             stopRouteHeartbeat();
             return Promise.resolve();
@@ -1448,6 +1473,9 @@
         routeState.started = false;
         routeState.ended = false;
         routeState.startInFlight = false;
+        routeState.startPromise = null;
+        routeState.pendingEndReason = '';
+        routeState.pendingEndUseBeacon = false;
         routeState.generation += 1;
         stopRouteHeartbeat();
         ensureSessionId();
@@ -1956,7 +1984,12 @@
         syncPhase();
         stopFrameLoop();
         endRouteSession('manual_exit', false).finally(function () {
-            window.location.assign('/memory_browser');
+            try {
+                window.close();
+            } catch (_) {}
+            if (!window.closed) {
+                window.location.assign('/memory_browser');
+            }
         });
     }
 

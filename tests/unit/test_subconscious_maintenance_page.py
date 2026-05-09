@@ -6,6 +6,7 @@ import pytest
 
 from main_routers.pages_router import subconscious_maintenance_page
 from main_routers.shared_state import init_shared_state
+from config import MINI_GAME_INVITE_AVAILABLE_GAMES
 
 
 class _DummyTemplates:
@@ -22,6 +23,13 @@ STYLE_PATH = REPO_ROOT / "static" / "css" / "subconscious_maintenance.css"
 SCRIPT_PATH = REPO_ROOT / "static" / "js" / "subconscious_maintenance.js"
 SPRITE_PATH = REPO_ROOT / "static" / "icons" / "subconscious_maintenance_sprites.png"
 VFX_PATH = REPO_ROOT / "static" / "icons" / "subconscious_maintenance_vfx.png"
+
+
+def _subconscious_maintenance_sources():
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (TEMPLATE_PATH, STYLE_PATH, SCRIPT_PATH)
+    )
 
 
 @pytest.mark.unit
@@ -102,7 +110,16 @@ def test_subconscious_maintenance_script_has_loading_ready_state_machine_and_spr
     assert "function startRouteSession" in script
     assert "function startRouteHeartbeat" in script
     assert "function endRouteSession" in script
+    assert "routeState.startPromise" in script
+    assert "pendingEndReason" in script
+    assert "pendingEndUseBeacon" in script
+    assert "return routeState.startPromise.finally(function () {" in script
+    assert "endRouteSession(pendingReason, pendingUseBeacon)" in script
     assert "navigator.sendBeacon" in script
+    assert "new Blob([payload], { type: 'application/json' })" in script
+    assert "keepalive: !!useBeacon" in script
+    assert "window.close()" in script
+    assert "if (!window.closed)" in script
     assert "getCanvasPointFromEvent" in script
     assert "pointermove" in script
     assert "getPointerState" in script
@@ -232,3 +249,31 @@ def test_subconscious_maintenance_script_uses_slower_clearer_combat_tuning():
     assert "return 126 + Math.min(24, state.combo * 0.9) + getComboBoostLevel() * 10;" in script
     assert "state.nekoIntent !== 'evade'" not in script
     assert "if (enemy.hidden) continue;" in script
+
+
+@pytest.mark.unit
+def test_subconscious_maintenance_keeps_reference_boundary_contracts():
+    source = _subconscious_maintenance_sources()
+
+    assert "subconscious_maintenance" not in MINI_GAME_INVITE_AVAILABLE_GAMES
+    assert MINI_GAME_INVITE_AVAILABLE_GAMES == ("soccer",)
+
+    forbidden_fragments = (
+        "/api/storage/location/",
+        "storage_policy",
+        "appStorageLocation",
+        "storage-location-overlay",
+        "storage maintenance",
+        "quick-lines",
+        "quick_lines",
+        "/api/game/soccer",
+        "/soccer_demo",
+        "yui-guide",
+        "cat-idle",
+    )
+    for forbidden in forbidden_fragments:
+        assert forbidden not in source
+
+    assert "ROUTE_BASE_URL = '/api/game/' + GAME_TYPE + '/route'" in source
+    assert "postgameProactive: false" in source
+    assert "gameMemoryEnabled: false" in source
