@@ -31,6 +31,7 @@ body.subconscious-maintenance-host {
     display: block;
     background: transparent;
     pointer-events: auto;
+    touch-action: none;
 }
 
 .sm-hud,
@@ -90,7 +91,8 @@ body.subconscious-maintenance-host {
     max-width: min(620px, calc(100vw - 24px));
 }
 
-.sm-hud-stat {
+.sm-hud-stat,
+.sm-hud-toggle {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -101,6 +103,23 @@ body.subconscious-maintenance-host {
     background: rgba(255, 255, 255, 0.74);
     border: 1px solid rgba(89, 187, 255, 0.22);
     backdrop-filter: blur(6px);
+}
+
+.sm-hud-toggle {
+    pointer-events: auto;
+    cursor: pointer;
+    font: inherit;
+}
+
+.sm-hud-toggle--mode {
+    min-width: 118px;
+    border-color: rgba(49, 168, 240, 0.5);
+    box-shadow: 0 0 0 1px rgba(49, 168, 240, 0.12) inset;
+}
+
+.sm-hud-toggle[aria-pressed="true"] {
+    background: rgba(216, 243, 255, 0.96);
+    border-color: rgba(49, 168, 240, 0.44);
 }
 
 .sm-hud-stat-label {
@@ -216,6 +235,14 @@ body.subconscious-maintenance-host {
     transform: translateY(-1px);
 }
 
+.sm-difficulty-btn:disabled,
+.sm-command-btn:disabled,
+.sm-icon-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+    transform: none;
+}
+
 .sm-difficulty-btn.is-active {
     background: linear-gradient(180deg, #62c7ff 0%, #31a8f0 100%);
     border-color: rgba(47, 154, 226, 0.82);
@@ -242,6 +269,7 @@ body.subconscious-maintenance-host {
     box-shadow: 0 8px 20px rgba(66, 167, 231, 0.22);
 }
 
+#subconscious-maintenance-loading,
 #subconscious-maintenance-setup {
     z-index: 30;
 }

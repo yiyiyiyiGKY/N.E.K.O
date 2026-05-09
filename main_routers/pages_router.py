@@ -46,6 +46,8 @@ _react_chat_asset_version_cache: tuple[float, str] = (0.0, "0")
 _SUBCONSCIOUS_MAINTENANCE_ASSET_VERSION_PATHS = (
     _PROJECT_ROOT / "static/css/subconscious_maintenance.css",
     _PROJECT_ROOT / "static/js/subconscious_maintenance.js",
+    _PROJECT_ROOT / "static/icons/subconscious_maintenance_sprites.png",
+    _PROJECT_ROOT / "static/icons/subconscious_maintenance_vfx.png",
 )
 _SUBCONSCIOUS_MAINTENANCE_ASSET_CACHE_TTL = 30.0
 _subconscious_maintenance_asset_version_cache: tuple[float, str] = (0.0, "0")

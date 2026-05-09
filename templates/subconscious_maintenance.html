@@ -6,7 +6,7 @@
     <title>N.E.K.O. 潜意识维护态</title>
     <link rel="stylesheet" href="/static/css/subconscious_maintenance.css?v={{ subconscious_maintenance_asset_version }}">
 </head>
-<body class="subconscious-maintenance-host" data-phase="setup">
+<body class="subconscious-maintenance-host" data-phase="loading">
     <main id="subconscious-maintenance-app" aria-label="潜意识维护态">
         <canvas id="subconscious-maintenance-canvas" aria-label="战场画布"></canvas>
 
@@ -16,16 +16,24 @@
                 <div class="sm-hud-title">潜意识维护态</div>
             </div>
             <div class="sm-hud-group sm-hud-group--stats">
+                <button type="button" id="subconscious-maintenance-neko-mode-btn" class="sm-hud-toggle sm-hud-toggle--mode" aria-pressed="false" aria-label="切换 NEKO 行动模式" title="切换 NEKO 自由行动 / 跟随玩家">
+                    <span class="sm-hud-stat-label">模式</span>
+                    <span class="sm-hud-stat-value" id="subconscious-maintenance-neko-mode">自由行动</span>
+                </button>
+                <div class="sm-hud-stat">
+                    <span class="sm-hud-stat-label">增益</span>
+                    <span class="sm-hud-stat-value" id="subconscious-maintenance-buff">无</span>
+                </div>
                 <div class="sm-hud-stat">
                     <span class="sm-hud-stat-label">稳定</span>
                     <span class="sm-hud-stat-value" id="subconscious-maintenance-stability">100</span>
                 </div>
                 <div class="sm-hud-stat">
-                    <span class="sm-hud-stat-label">碎片</span>
+                    <span class="sm-hud-stat-label">物品</span>
                     <span class="sm-hud-stat-value" id="subconscious-maintenance-fragments">0</span>
                 </div>
                 <div class="sm-hud-stat">
-                    <span class="sm-hud-stat-label">虫</span>
+                    <span class="sm-hud-stat-label">清理</span>
                     <span class="sm-hud-stat-value" id="subconscious-maintenance-worms">0</span>
                 </div>
                 <div class="sm-hud-stat">
@@ -35,7 +43,19 @@
             </div>
         </header>
 
-        <section id="subconscious-maintenance-setup" class="sm-layer sm-layer--setup" aria-label="难度选择">
+        <section id="subconscious-maintenance-loading" class="sm-layer sm-layer--loading" aria-label="资源加载">
+            <div class="sm-panel">
+                <div class="sm-panel-head">
+                    <div class="sm-panel-title">资源加载中</div>
+                    <div class="sm-panel-subtitle" id="subconscious-maintenance-loading-status">正在准备维护素材</div>
+                </div>
+                <div class="sm-panel-actions">
+                    <button type="button" id="subconscious-maintenance-loading-exit-btn" class="sm-command-btn">返回记忆界面</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="subconscious-maintenance-setup" class="sm-layer sm-layer--setup" hidden aria-label="难度选择">
             <div class="sm-panel">
                 <div class="sm-panel-head">
                     <div class="sm-panel-title">难度</div>
@@ -47,7 +67,7 @@
                     <button type="button" class="sm-difficulty-btn" data-difficulty="hard">高</button>
                 </div>
                 <div class="sm-panel-actions">
-                    <button type="button" id="subconscious-maintenance-start-btn" class="sm-command-btn sm-command-btn--primary">▶ 开始</button>
+                    <button type="button" id="subconscious-maintenance-start-btn" class="sm-command-btn sm-command-btn--primary" disabled>▶ 开始</button>
                 </div>
             </div>
         </section>
