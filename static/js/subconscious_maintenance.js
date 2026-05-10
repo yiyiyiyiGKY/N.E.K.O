@@ -33,6 +33,15 @@
     var NEKO_EVADE_EXIT_DISTANCE = 112;
     var NEKO_EVADE_PRESSURE_ENTER = 0.88;
     var NEKO_EVADE_LOCK_SECONDS = 0.85;
+    var NEKO_FIELD_MARGIN = 46;
+    var NEKO_WALL_AVOID_DISTANCE = 118;
+    var NEKO_TARGET_REPLAN_SECONDS = 0.28;
+    var DROP_FRAGMENT_SPEED_MIN = 18;
+    var DROP_FRAGMENT_SPEED_MAX = 48;
+    var DROP_FRAGMENT_MAX_SPEED = 58;
+    var DROP_SPECIAL_MAX_SPEED = 42;
+    var DROP_FRAGMENT_MAGNET_PULL = 92;
+    var DROP_SPECIAL_MAGNET_PULL = 54;
 
     var body = document.body;
     var canvas = document.getElementById('subconscious-maintenance-canvas');
@@ -71,7 +80,7 @@
     var field = { width: 1, height: 1, dpr: 1 };
     var scene = {
         player: { x: 0, y: 0, facingX: 1, facingY: 0 },
-        neko: { x: 0, y: 0, facingX: 1, facingY: 0 },
+        neko: { x: 0, y: 0, vx: 0, vy: 0, facingX: 1, facingY: 0 },
         target: { x: 0, y: 0 }
     };
     var difficultyConfig = {
@@ -154,6 +163,8 @@
         fragmentBuffProgress: 0,
         nekoEvadeTimer: 0,
         nekoEvadeTarget: null,
+        nekoTargetLock: null,
+        nekoTargetTimer: 0,
         attackQueued: false,
         resultLocked: false,
         maxStability: 100
@@ -262,6 +273,14 @@
 
     function randomRange(min, max) {
         return min + Math.random() * (max - min);
+    }
+
+    function clampEntityVelocity(entity, maxSpeed) {
+        var speed = Math.sqrt(entity.vx * entity.vx + entity.vy * entity.vy);
+        if (speed <= maxSpeed || speed <= 0) return;
+        var scale = maxSpeed / speed;
+        entity.vx *= scale;
+        entity.vy *= scale;
     }
 
     function distanceSquared(a, b) {
@@ -504,6 +523,8 @@
         battle.fragmentBuffProgress = 0;
         battle.nekoEvadeTimer = 0;
         battle.nekoEvadeTarget = null;
+        battle.nekoTargetLock = null;
+        battle.nekoTargetTimer = 0;
         battle.attackQueued = false;
         battle.resultLocked = false;
         battle.maxStability = difficulty.stability;
@@ -553,7 +574,7 @@
         var baseAngle = Math.random() * Math.PI * 2;
         for (var i = 0; i < lootCount; i++) {
             var angle = baseAngle + (Math.PI * 2 * i / lootCount);
-            var speed = randomRange(40, 96);
+            var speed = randomRange(DROP_FRAGMENT_SPEED_MIN, DROP_FRAGMENT_SPEED_MAX);
             spawnDropFragment(entity.x, entity.y, Math.cos(angle) * speed, Math.sin(angle) * speed);
         }
         if (Math.random() < (entity.specialChance || 0)) {
@@ -762,6 +783,36 @@
         return danger;
     }
 
+    function getNekoWallAvoidance() {
+        var steer = { x: 0, y: 0, pressure: 0 };
+        var left = scene.neko.x - NEKO_FIELD_MARGIN;
+        var right = field.width - NEKO_FIELD_MARGIN - scene.neko.x;
+        var top = scene.neko.y - NEKO_FIELD_MARGIN;
+        var bottom = field.height - NEKO_FIELD_MARGIN - scene.neko.y;
+
+        if (left < NEKO_WALL_AVOID_DISTANCE) {
+            var leftWeight = clamp((NEKO_WALL_AVOID_DISTANCE - left) / NEKO_WALL_AVOID_DISTANCE, 0, 1);
+            steer.x += leftWeight * leftWeight;
+            steer.pressure += leftWeight;
+        }
+        if (right < NEKO_WALL_AVOID_DISTANCE) {
+            var rightWeight = clamp((NEKO_WALL_AVOID_DISTANCE - right) / NEKO_WALL_AVOID_DISTANCE, 0, 1);
+            steer.x -= rightWeight * rightWeight;
+            steer.pressure += rightWeight;
+        }
+        if (top < NEKO_WALL_AVOID_DISTANCE) {
+            var topWeight = clamp((NEKO_WALL_AVOID_DISTANCE - top) / NEKO_WALL_AVOID_DISTANCE, 0, 1);
+            steer.y += topWeight * topWeight;
+            steer.pressure += topWeight;
+        }
+        if (bottom < NEKO_WALL_AVOID_DISTANCE) {
+            var bottomWeight = clamp((NEKO_WALL_AVOID_DISTANCE - bottom) / NEKO_WALL_AVOID_DISTANCE, 0, 1);
+            steer.y -= bottomWeight * bottomWeight;
+            steer.pressure += bottomWeight;
+        }
+        return steer;
+    }
+
     function getCoreItemThreat(item) {
         var threat = { count: 0, nearestDistance: Infinity };
         for (var i = 0; i < battle.enemies.length; i++) {
@@ -878,9 +929,11 @@
 
     function getNekoFollowAnchor() {
         var facing = scene.player.facingX < 0 ? -1 : 1;
+        var centerBiasX = (field.width * 0.5 - scene.player.x) * 0.16;
+        var centerBiasY = (field.height * 0.5 - scene.player.y) * 0.08;
         return {
-            x: clamp(scene.player.x - facing * 34, 24, field.width - 24),
-            y: clamp(scene.player.y + 18, 24, field.height - 24)
+            x: clamp(scene.player.x - facing * 34 + centerBiasX, NEKO_FIELD_MARGIN, field.width - NEKO_FIELD_MARGIN),
+            y: clamp(scene.player.y + 18 + centerBiasY, NEKO_FIELD_MARGIN, field.height - NEKO_FIELD_MARGIN)
         };
     }
 
@@ -891,14 +944,14 @@
         var d = Math.sqrt(dx * dx + dy * dy);
         if (!d || d <= maxDistance) {
             return {
-                x: clamp(target.x, 24, field.width - 24),
-                y: clamp(target.y, 24, field.height - 24)
+                x: clamp(target.x, NEKO_FIELD_MARGIN, field.width - NEKO_FIELD_MARGIN),
+                y: clamp(target.y, NEKO_FIELD_MARGIN, field.height - NEKO_FIELD_MARGIN)
             };
         }
         var ratio = maxDistance / d;
         return {
-            x: clamp(scene.player.x + dx * ratio, 24, field.width - 24),
-            y: clamp(scene.player.y + dy * ratio, 24, field.height - 24)
+            x: clamp(scene.player.x + dx * ratio, NEKO_FIELD_MARGIN, field.width - NEKO_FIELD_MARGIN),
+            y: clamp(scene.player.y + dy * ratio, NEKO_FIELD_MARGIN, field.height - NEKO_FIELD_MARGIN)
         };
     }
 
@@ -909,15 +962,17 @@
         var d = Math.sqrt(dx * dx + dy * dy);
         if (d <= NEKO_FOLLOW_MAX_DISTANCE) {
             state.nekoFollowSettled = true;
-            return;
+            return { x: 0, y: 0 };
         }
         if (!state.nekoFollowSettled) {
-            return;
+            return { x: 0, y: 0 };
         }
-        var pull = Math.min(d - NEKO_FOLLOW_MAX_DISTANCE, (180 + getDifficultyState().nekoSpeed) * dt);
+        var pull = Math.min(d - NEKO_FOLLOW_MAX_DISTANCE, (160 + getDifficultyState().nekoSpeed) * dt);
         var towardPlayer = normalizeVector(scene.player.x - scene.neko.x, scene.player.y - scene.neko.y);
-        scene.neko.x = clamp(scene.neko.x + towardPlayer.x * pull, 20, field.width - 20);
-        scene.neko.y = clamp(scene.neko.y + towardPlayer.y * pull, 20, field.height - 20);
+        return {
+            x: towardPlayer.x * pull,
+            y: towardPlayer.y * pull
+        };
     }
 
     function getNekoAttackRadius() {
@@ -1004,6 +1059,69 @@
         return true;
     }
 
+    function makeNekoTarget(kind, target, priority, ttl, entity, intent) {
+        var point = target || getNekoFollowAnchor();
+        return {
+            kind: kind || 'follow',
+            intent: intent || kind || 'follow',
+            x: clamp(point.x, NEKO_FIELD_MARGIN, field.width - NEKO_FIELD_MARGIN),
+            y: clamp(point.y, NEKO_FIELD_MARGIN, field.height - NEKO_FIELD_MARGIN),
+            priority: priority || 0,
+            ttl: ttl || NEKO_TARGET_REPLAN_SECONDS,
+            entity: entity || null
+        };
+    }
+
+    function refreshNekoTarget(lock) {
+        if (!lock) return null;
+        if (lock.entity) {
+            var owner = lock.kind === 'special' ? battle.specialItems : battle.fragments;
+            if (owner.indexOf(lock.entity) === -1) {
+                return null;
+            }
+            if (state.nekoMode === 'follow') {
+                var maxDistance = lock.kind === 'special' ? NEKO_FOLLOW_MAX_DISTANCE : NEKO_FOLLOW_SOFT_DISTANCE;
+                var followPoint = clampTargetNearPlayer(lock.entity, maxDistance);
+                lock.x = followPoint.x;
+                lock.y = followPoint.y;
+            } else {
+                lock.x = clamp(lock.entity.x, NEKO_FIELD_MARGIN, field.width - NEKO_FIELD_MARGIN);
+                lock.y = clamp(lock.entity.y, NEKO_FIELD_MARGIN, field.height - NEKO_FIELD_MARGIN);
+            }
+        }
+        return lock;
+    }
+
+    function keepNekoTarget(candidate, dt, danger) {
+        var lock = refreshNekoTarget(battle.nekoTargetLock);
+        if (!lock) {
+            battle.nekoTargetLock = null;
+            battle.nekoTargetTimer = 0;
+            return null;
+        }
+
+        battle.nekoTargetTimer = Math.max(0, battle.nekoTargetTimer - dt);
+        if (lock.kind === 'evade' && danger && danger.nearest && danger.nearestDistance < NEKO_EVADE_EXIT_DISTANCE) {
+            return lock;
+        }
+        if (candidate && candidate.entity && lock.entity === candidate.entity) {
+            battle.nekoTargetTimer = Math.max(battle.nekoTargetTimer, candidate.ttl * 0.5);
+            lock.priority = candidate.priority;
+            lock.intent = candidate.intent;
+            return lock;
+        }
+        if (battle.nekoTargetTimer > 0 && (!candidate || candidate.priority <= lock.priority)) {
+            return lock;
+        }
+        return null;
+    }
+
+    function commitNekoTarget(candidate) {
+        battle.nekoTargetLock = candidate;
+        battle.nekoTargetTimer = candidate.ttl;
+        return candidate;
+    }
+
     function getLockedNekoEvadeTarget(danger, dt) {
         if (battle.nekoEvadeTimer > 0) {
             battle.nekoEvadeTimer = Math.max(0, battle.nekoEvadeTimer - dt);
@@ -1034,8 +1152,8 @@
             away = { x: 1, y: 0 };
         }
         battle.nekoEvadeTarget = {
-            x: clamp(scene.neko.x + away.x * 150, 24, field.width - 24),
-            y: clamp(scene.neko.y + away.y * 150, 24, field.height - 24)
+            x: clamp(scene.neko.x + away.x * 150, NEKO_FIELD_MARGIN, field.width - NEKO_FIELD_MARGIN),
+            y: clamp(scene.neko.y + away.y * 150, NEKO_FIELD_MARGIN, field.height - NEKO_FIELD_MARGIN)
         };
         battle.nekoEvadeTimer = NEKO_EVADE_LOCK_SECONDS;
         return clampTargetNearPlayer(
@@ -1048,7 +1166,13 @@
         var evadeTarget = getLockedNekoEvadeTarget(danger, dt);
         if (evadeTarget) {
             state.nekoIntent = 'evade';
-            return evadeTarget;
+            return commitNekoTarget(makeNekoTarget('evade', evadeTarget, 4, 0.18, null, 'evade'));
+        }
+
+        var lockedTarget = keepNekoTarget(null, dt, danger);
+        if (lockedTarget) {
+            state.nekoIntent = lockedTarget.intent || lockedTarget.kind || 'follow';
+            return lockedTarget;
         }
 
         var nearestSpecial = findClosestEntity(battle.specialItems, scene.neko, Infinity);
@@ -1058,15 +1182,22 @@
                 state.nekoIntent = 'request';
                 setNekoHint('帮我开路');
                 if (state.nekoMode === 'follow' && distance(scene.neko, scene.player) > 170) {
-                    return getNekoFollowAnchor();
+                    return commitNekoTarget(makeNekoTarget('return', getNekoFollowAnchor(), 3, 0.22, null, 'request'));
                 }
             } else {
                 state.nekoIntent = 'core';
                 setNekoHint('我要拿那个大的', 1.55);
             }
-            return state.nekoMode === 'follow'
-                ? clampTargetNearPlayer(nearestSpecial, NEKO_FOLLOW_MAX_DISTANCE)
-                : nearestSpecial;
+            return commitNekoTarget(makeNekoTarget(
+                'special',
+                state.nekoMode === 'follow'
+                    ? clampTargetNearPlayer(nearestSpecial, NEKO_FOLLOW_MAX_DISTANCE)
+                    : nearestSpecial,
+                3,
+                threat.count > 0 ? 0.16 : 0.28,
+                nearestSpecial,
+                state.nekoIntent
+            ));
         }
 
         var nearestFragment = null;
@@ -1076,25 +1207,32 @@
         }
         if (nearestFragment) {
             state.nekoIntent = 'collect';
-            return state.nekoMode === 'follow'
-                ? clampTargetNearPlayer(nearestFragment, NEKO_FOLLOW_SOFT_DISTANCE)
-                : nearestFragment;
+            return commitNekoTarget(makeNekoTarget(
+                'fragment',
+                state.nekoMode === 'follow'
+                    ? clampTargetNearPlayer(nearestFragment, NEKO_FOLLOW_SOFT_DISTANCE)
+                    : nearestFragment,
+                2,
+                0.22,
+                nearestFragment,
+                'collect'
+            ));
         }
 
         var hotZone = getHotZoneCenter();
         if (state.nekoMode === 'free' && hotZone) {
             state.nekoIntent = 'anticipate';
-            return hotZone;
+            return commitNekoTarget(makeNekoTarget('anticipate', hotZone, 1, 0.24, null, 'anticipate'));
         }
 
         state.nekoIntent = 'follow';
         if (state.nekoMode === 'follow') {
-            return getNekoFollowAnchor();
+            return commitNekoTarget(makeNekoTarget('follow', getNekoFollowAnchor(), 0, 0.34, null, 'follow'));
         }
-        return {
+        return commitNekoTarget(makeNekoTarget('idle', {
             x: scene.player.x + 78,
             y: scene.player.y + 18
-        };
+        }, 0, 0.28, null, 'follow'));
     }
 
     function updateNeko(dt) {
@@ -1104,21 +1242,74 @@
             danger = getNekoDanger();
         }
         var target = chooseNekoTarget(danger, dt);
-        var speed = config.nekoSpeed + Math.min(18, state.combo * 1);
+        var targetSpeed = config.nekoSpeed + 8 + Math.min(18, state.combo * 1);
         if (state.nekoIntent === 'evade') {
-            speed += 28;
+            targetSpeed += 34;
         } else if (state.nekoIntent === 'core') {
-            speed += 14;
+            targetSpeed += 18;
         } else if (state.nekoIntent === 'anticipate') {
-            speed += 6;
+            targetSpeed += 10;
+        } else if (state.nekoIntent === 'collect') {
+            targetSpeed += 8;
         }
-        speed += getComboBoostLevel() * 5;
+        targetSpeed += getComboBoostLevel() * 6;
+        var targetDistance = distance(scene.neko, target);
+        var arrivalFactor = clamp((targetDistance - 18) / 120, 0.22, 1);
+        if (target.kind === 'special') {
+            arrivalFactor = clamp((targetDistance - 26) / 150, 0.25, 1);
+        } else if (target.kind === 'fragment') {
+            arrivalFactor = clamp((targetDistance - 20) / 110, 0.26, 1);
+        } else if (target.kind === 'return' || target.kind === 'follow' || target.kind === 'idle') {
+            arrivalFactor = clamp((targetDistance - 14) / 105, 0.18, 1);
+        } else if (target.kind === 'anticipate') {
+            arrivalFactor = clamp((targetDistance - 16) / 95, 0.2, 1);
+        } else if (target.kind === 'evade') {
+            arrivalFactor = clamp((targetDistance - 10) / 130, 0.3, 1);
+        }
+        var desired = normalizeVector(target.x - scene.neko.x, target.y - scene.neko.y);
+        var desiredVx = desired.x * targetSpeed * arrivalFactor;
+        var desiredVy = desired.y * targetSpeed * arrivalFactor;
+        var wall = getNekoWallAvoidance();
+        desiredVx += wall.x * (targetSpeed * 1.35);
+        desiredVy += wall.y * (targetSpeed * 1.35);
+        var leash = applyNekoFollowLeash(dt);
+        if (leash) {
+            desiredVx += leash.x * 2.2;
+            desiredVy += leash.y * 2.2;
+        }
+        var currentVx = scene.neko.vx || 0;
+        var currentVy = scene.neko.vy || 0;
+        var steerX = desiredVx - currentVx;
+        var steerY = desiredVy - currentVy;
+        var steerLen = Math.sqrt(steerX * steerX + steerY * steerY) || 1;
+        var maxAccel = 980 + targetSpeed * 3.2;
+        var accel = Math.min(maxAccel * dt, steerLen);
+        currentVx += (steerX / steerLen) * accel;
+        currentVy += (steerY / steerLen) * accel;
+        var drag = Math.pow(0.89, dt * 60);
+        scene.neko.vx = currentVx * drag;
+        scene.neko.vy = currentVy * drag;
+        var maxSpeed = targetSpeed + 96;
+        var speedMag = Math.sqrt(scene.neko.vx * scene.neko.vx + scene.neko.vy * scene.neko.vy);
+        if (speedMag > maxSpeed) {
+            var speedScale = maxSpeed / Math.max(speedMag, 1);
+            scene.neko.vx *= speedScale;
+            scene.neko.vy *= speedScale;
+        }
         var previousNekoX = scene.neko.x;
         var previousNekoY = scene.neko.y;
-        moveTowardPoint(scene.neko, target, speed * dt);
-        scene.neko.x = clamp(scene.neko.x, 20, field.width - 20);
-        scene.neko.y = clamp(scene.neko.y, 20, field.height - 20);
-        applyNekoFollowLeash(dt);
+        var nextNekoX = scene.neko.x + scene.neko.vx * dt;
+        var nextNekoY = scene.neko.y + scene.neko.vy * dt;
+        var clampedX = clamp(nextNekoX, NEKO_FIELD_MARGIN, field.width - NEKO_FIELD_MARGIN);
+        var clampedY = clamp(nextNekoY, NEKO_FIELD_MARGIN, field.height - NEKO_FIELD_MARGIN);
+        if (clampedX !== nextNekoX) {
+            scene.neko.vx *= 0.2;
+        }
+        if (clampedY !== nextNekoY) {
+            scene.neko.vy *= 0.2;
+        }
+        scene.neko.x = clampedX;
+        scene.neko.y = clampedY;
         updateEntityFacing(scene.neko, scene.neko.x - previousNekoX, scene.neko.y - previousNekoY);
         state.nekoHintTimer = Math.max(0, state.nekoHintTimer - dt);
         var nearestItem = null;
@@ -1132,8 +1323,8 @@
             var fragmentD = distanceSquared(fragment, scene.neko);
             if (fragmentD <= magnetRadius * magnetRadius) {
                 var pull = normalizeVector(scene.neko.x - fragment.x, scene.neko.y - fragment.y);
-                fragment.vx += pull.x * 160 * dt;
-                fragment.vy += pull.y * 160 * dt;
+                fragment.vx += pull.x * DROP_FRAGMENT_MAGNET_PULL * dt;
+                fragment.vy += pull.y * DROP_FRAGMENT_MAGNET_PULL * dt;
             }
             if (fragmentD < nearestItemDistance) {
                 nearestItemDistance = fragmentD;
@@ -1173,8 +1364,8 @@
             var specialDistance = distanceSquared(specialItem, scene.neko);
             var specialPull = normalizeVector(scene.neko.x - specialItem.x, scene.neko.y - specialItem.y);
             if (specialDistance < 120 * 120) {
-                specialItem.vx += specialPull.x * 90 * dt;
-                specialItem.vy += specialPull.y * 90 * dt;
+                specialItem.vx += specialPull.x * DROP_SPECIAL_MAGNET_PULL * dt;
+                specialItem.vy += specialPull.y * DROP_SPECIAL_MAGNET_PULL * dt;
             }
             if (specialDistance < 28 * 28) {
                 battle.specialItems.splice(s, 1);
@@ -1267,8 +1458,9 @@
         for (var i = battle.fragments.length - 1; i >= 0; i--) {
             var fragment = battle.fragments[i];
             fragment.ttl -= dt;
-            fragment.vx *= Math.max(0.82, 1 - dt * 0.22);
-            fragment.vy *= Math.max(0.82, 1 - dt * 0.22);
+            fragment.vx *= Math.max(0.68, 1 - dt * 1.65);
+            fragment.vy *= Math.max(0.68, 1 - dt * 1.65);
+            clampEntityVelocity(fragment, DROP_FRAGMENT_MAX_SPEED);
             fragment.x += fragment.vx * dt;
             fragment.y += fragment.vy * dt;
             if (fragment.ttl <= 0) {
@@ -1279,8 +1471,9 @@
         for (var j = battle.specialItems.length - 1; j >= 0; j--) {
             var specialItem = battle.specialItems[j];
             specialItem.ttl -= dt;
-            specialItem.vx *= Math.max(0.88, 1 - dt * 0.15);
-            specialItem.vy *= Math.max(0.88, 1 - dt * 0.15);
+            specialItem.vx *= Math.max(0.74, 1 - dt * 1.15);
+            specialItem.vy *= Math.max(0.74, 1 - dt * 1.15);
+            clampEntityVelocity(specialItem, DROP_SPECIAL_MAX_SPEED);
             specialItem.x += specialItem.vx * dt;
             specialItem.y += specialItem.vy * dt;
             if (specialItem.ttl <= 0) {
@@ -1527,6 +1720,8 @@
         scene.player.y = field.height * 0.58;
         scene.neko.x = field.width * 0.52;
         scene.neko.y = field.height * 0.58;
+        scene.neko.vx = 0;
+        scene.neko.vy = 0;
         if (!state.pointer) {
             scene.target.x = field.width * 0.52;
             scene.target.y = field.height * 0.58;
