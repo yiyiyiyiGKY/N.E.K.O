@@ -5,7 +5,17 @@
     var VFX_SHEET_URL = '/static/icons/subconscious_maintenance_vfx.png';
     var GAME_TYPE = 'subconscious_maintenance';
     var ROUTE_BASE_URL = '/api/game/' + GAME_TYPE + '/route';
+    var CHAT_URL = '/api/game/' + GAME_TYPE + '/chat';
+    var ROUTE_DRAIN_URL = ROUTE_BASE_URL + '/drain';
+    var SPEAK_URL = '/api/game/' + GAME_TYPE + '/speak';
+    var MIRROR_URL = '/api/game/' + GAME_TYPE + '/mirror-assistant';
+    var REALTIME_CONTEXT_URL = '/api/game/' + GAME_TYPE + '/realtime-context';
+    var VOICE_TRANSCRIPT_URL = ROUTE_BASE_URL + '/voice-transcript';
     var ROUTE_HEARTBEAT_INTERVAL_MS = 10000;
+    var ROUTE_DRAIN_INTERVAL_MS = 1400;
+    var REALTIME_CONTEXT_INTERVAL_MS = 6500;
+    var GAME_CHAT_MIN_INTERVAL_MS = 4500;
+    var GAME_CHAT_TIMEOUT_MS = 15000;
     var SPRITE_COLUMNS = 4;
     var SPRITE_ROWS = 2;
     var VFX_COLUMNS = 2;
@@ -22,10 +32,37 @@
     var ENEMY_SPRITES = ['glitchWorm', 'logicBomb', 'noiseSquid'];
     var FRAGMENTS_PER_BUFF = 10;
     var BUFFS = {
-        speed_up: { label: '加速', ttl: 10 },
-        range_up: { label: '扩距', ttl: 10 },
-        magnet_up: { label: '吸附', ttl: 10 }
+        speed_up: { labelKey: 'subconsciousMaintenance.buff.speed_up', ttl: 10 },
+        range_up: { labelKey: 'subconsciousMaintenance.buff.range_up', ttl: 10 },
+        magnet_up: { labelKey: 'subconsciousMaintenance.buff.magnet_up', ttl: 10 }
     };
+    var I18N_FALLBACKS = {
+        'subconsciousMaintenance.loading.ready': '维护素材已就绪',
+        'subconsciousMaintenance.loading.failed': '素材加载失败，可以返回记忆页后重试',
+        'subconsciousMaintenance.loading.preparingVfx': '正在准备特效素材',
+        'subconsciousMaintenance.loading.preparingSprites': '正在准备维护素材',
+        'subconsciousMaintenance.setup.sessionIdle': '待命',
+        'subconsciousMaintenance.nekoMode.free': '自由行动',
+        'subconsciousMaintenance.nekoMode.follow': '跟随玩家',
+        'subconsciousMaintenance.buff.none': '无',
+        'subconsciousMaintenance.buff.speed_up': '加速',
+        'subconsciousMaintenance.buff.range_up': '扩距',
+        'subconsciousMaintenance.buff.magnet_up': '吸附',
+        'subconsciousMaintenance.buffDisplay.active': '{{label}} {{seconds}}s',
+        'subconsciousMaintenance.buffDisplay.ended': '结束 · 碎片 {{count}}/{{total}}',
+        'subconsciousMaintenance.buffDisplay.progress': '碎片 {{count}}/{{total}}',
+        'subconsciousMaintenance.result.success': '成功',
+        'subconsciousMaintenance.result.failed': '失败',
+        'subconsciousMaintenance.result.successDetail': '特殊物品已集齐 {{count}} 个',
+        'subconsciousMaintenance.result.failedDetail': 'NEKO 稳定值已归零'
+    };
+    Object.assign(I18N_FALLBACKS, {
+        'subconsciousMaintenance.labels.voice': '台词声音',
+        'subconsciousMaintenance.voice.on': '开',
+        'subconsciousMaintenance.voice.off': '关',
+        'subconsciousMaintenance.voiceToggleLabel': '切换台词声音',
+        'subconsciousMaintenance.voiceToggleTitle': '用项目语音播放 NEKO 台词'
+    });
     var NEKO_FOLLOW_SOFT_DISTANCE = 92;
     var NEKO_FOLLOW_MAX_DISTANCE = 126;
     var NEKO_FOLLOW_COLLECT_RADIUS = 128;
@@ -57,6 +94,7 @@
     var startBtn = document.getElementById('subconscious-maintenance-start-btn');
     var continueBtn = document.getElementById('subconscious-maintenance-continue-btn');
     var restartBtn = document.getElementById('subconscious-maintenance-restart-btn');
+    var temporaryHideBtn = document.getElementById('subconscious-maintenance-hide-btn');
     var exitBtn = document.getElementById('subconscious-maintenance-exit-btn');
     var endRestartBtn = document.getElementById('subconscious-maintenance-end-restart-btn');
     var endExitBtn = document.getElementById('subconscious-maintenance-end-exit-btn');
@@ -65,7 +103,9 @@
     var sessionLabel = document.getElementById('subconscious-maintenance-session-label');
     var difficultyButtons = Array.prototype.slice.call(document.querySelectorAll('.sm-difficulty-btn'));
     var nekoModeBtn = document.getElementById('subconscious-maintenance-neko-mode-btn');
+    var voiceOutputBtn = document.getElementById('subconscious-maintenance-voice-btn');
     var nekoModeValue = document.getElementById('subconscious-maintenance-neko-mode');
+    var voiceOutputValue = document.getElementById('subconscious-maintenance-voice');
     var buffValue = document.getElementById('subconscious-maintenance-buff');
     var stabilityValue = document.getElementById('subconscious-maintenance-stability');
     var fragmentsValue = document.getElementById('subconscious-maintenance-fragments');
@@ -75,6 +115,9 @@
     var resizeRaf = 0;
     var frameRaf = 0;
     var heartbeatTimer = 0;
+    var routeDrainTimer = 0;
+    var realtimeContextTimer = 0;
+    var temporaryHideTimer = 0;
     var lastFrameTime = 0;
     var spriteSheet = null;
     var spriteCell = { width: 0, height: 0 };
@@ -181,6 +224,7 @@
         specialItems: 0,
         worms: 0,
         combo: 0,
+        weapon: 'sword',
         attackFlashTimer: 0,
         attackFlashX: 0,
         attackFlashY: 0,
@@ -194,8 +238,10 @@
         nekoIntent: 'follow',
         nekoFollowSettled: true,
         nekoHint: '',
+        nekoHintKey: '',
+        nekoHintParams: null,
         nekoHintTimer: 0,
-        buffLabel: '无',
+        buffLabel: '',
         pointer: null,
         spriteReady: false,
         loadError: ''
@@ -208,8 +254,29 @@
         startPromise: null,
         pendingEndReason: '',
         pendingEndUseBeacon: false,
-        generation: 0
+        generation: 0,
+        voiceOutputEnabled: false
     };
+    var gameEventState = {
+        inFlight: false,
+        drainInFlight: false,
+        realtimeInFlight: false,
+        voiceInFlight: false,
+        pendingVoice: null,
+        voiceRequestSeq: 0,
+        mirrorRequestSeq: 0,
+        activeEventKind: '',
+        activeEventPriority: 0,
+        activeAbortController: null,
+        ambientPulseAllowedAt: 0,
+        lastSentByKind: {},
+        seenKinds: {},
+        comboMilestones: {},
+        lowStabilityThresholds: {},
+        pendingEvent: null,
+        realtimeItems: []
+    };
+    routeState.voiceOutputEnabled = readInitialVoiceOutputEnabled();
 
     function readQuery() {
         var params = null;
@@ -274,10 +341,103 @@
         return query.source || 'direct';
     }
 
+    function getVoiceOutputEnabled() {
+        return routeState.voiceOutputEnabled === true;
+    }
+
+    function persistVoiceOutputEnabled(enabled) {
+        routeState.voiceOutputEnabled = !!enabled;
+    }
+
+    function readInitialVoiceOutputEnabled() {
+        try {
+            var params = new URLSearchParams(window.location.search);
+            var queryValue = params.get('voiceOutputEnabled') || params.get('voice_output_enabled') || params.get('voice');
+            if (queryValue) {
+                return /^(1|true|yes|on)$/i.test(queryValue);
+            }
+        } catch (_) {}
+        return true;
+    }
+
+    function syncVoiceOutputToggle() {
+        var enabled = getVoiceOutputEnabled();
+        if (voiceOutputBtn) {
+            voiceOutputBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        }
+        setTextByKey(
+            voiceOutputValue,
+            enabled ? 'subconsciousMaintenance.voice.on' : 'subconsciousMaintenance.voice.off'
+        );
+    }
+
+    function toggleVoiceOutput() {
+        persistVoiceOutputEnabled(!getVoiceOutputEnabled());
+        if (!getVoiceOutputEnabled()) {
+            gameEventState.pendingVoice = null;
+        } else {
+            flushProjectVoiceQueue();
+        }
+        syncVoiceOutputToggle();
+        postRealtimeContext('voice_toggle');
+    }
+
+    function formatTranslationFallback(template, params) {
+        var text = String(template || '');
+        var values = params || {};
+        return text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, function (_, name) {
+            return Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : '';
+        });
+    }
+
+    function translate(key, params, fallback) {
+        var values = params || {};
+        var fallbackText = fallback || I18N_FALLBACKS[key] || key;
+        try {
+            var translator = typeof window.t === 'function'
+                ? window.t
+                : (window.i18next && typeof window.i18next.t === 'function' ? window.i18next.t.bind(window.i18next) : null);
+            if (translator) {
+                var translated = translator(key, values);
+                if (translated && translated !== key) {
+                    return translated;
+                }
+            }
+        } catch (_) {}
+        return formatTranslationFallback(fallbackText, values);
+    }
+
     function setText(el, value) {
         if (el) {
             el.textContent = String(value);
         }
+    }
+
+    function setTextByKey(el, key, params, fallback) {
+        setText(el, translate(key, params, fallback));
+    }
+
+    function getBuffLabel(kind) {
+        var buff = BUFFS[kind] || null;
+        if (!buff) {
+            return translate('subconsciousMaintenance.buff.none');
+        }
+        return translate(buff.labelKey);
+    }
+
+    function setNekoHintByKey(key, params, ttl) {
+        if (!key) return;
+        state.nekoHintKey = key;
+        state.nekoHintParams = params || {};
+        state.nekoHint = translate(key, params || {});
+        state.nekoHintTimer = ttl || 1.8;
+    }
+
+    function getNekoHintText() {
+        if (state.nekoHintKey) {
+            return translate(state.nekoHintKey, state.nekoHintParams || {}, state.nekoHint);
+        }
+        return state.nekoHint || '';
     }
 
     function setLayerVisible(layer, visible) {
@@ -449,6 +609,12 @@
             ttl: 10,
             kind: 'special'
         });
+        emitGameEvent('special_drop', {
+            label: 'special item dropped',
+            eventContext: {
+                nearestThreatDistance: Math.round(getNearestThreatDistance({ x: x, y: y }))
+            }
+        }, { minIntervalMs: 2500 });
     }
 
     function getEnemySpawnSafeDistance() {
@@ -518,6 +684,14 @@
             spawnEdge: spawnPoint.edge
         };
         battle.enemies.push(enemy);
+        if (!gameEventState.seenKinds.first_bug_seen) {
+            gameEventState.seenKinds.first_bug_seen = true;
+            emitGameEvent('first_bug_seen', {
+                label: 'first bug seen',
+                enemyType: typeKey,
+                eventContext: { spawnEdge: spawnPoint.edge }
+            });
+        }
         return enemy;
     }
 
@@ -594,6 +768,7 @@
         state.specialItems = 0;
         state.worms = 0;
         state.combo = 0;
+        state.weapon = state.weapon || 'sword';
         state.attackFlashTimer = 0;
         state.attackFlashX = 0;
         state.attackFlashY = 0;
@@ -605,9 +780,24 @@
         state.nekoIntent = state.nekoMode === 'follow' ? 'follow' : 'collect';
         state.nekoFollowSettled = true;
         state.nekoHint = '';
+        state.nekoHintKey = '';
+        state.nekoHintParams = null;
         state.nekoHintTimer = 0;
-        state.buffLabel = '无';
+        state.buffLabel = translate('subconsciousMaintenance.buff.none');
         state.pointer = null;
+        gameEventState.inFlight = false;
+        gameEventState.voiceInFlight = false;
+        gameEventState.pendingVoice = null;
+        gameEventState.mirrorRequestSeq = 0;
+        gameEventState.activeEventKind = '';
+        gameEventState.activeEventPriority = 0;
+        gameEventState.activeAbortController = null;
+        gameEventState.ambientPulseAllowedAt = 0;
+        gameEventState.lastSentByKind = {};
+        gameEventState.seenKinds = {};
+        gameEventState.comboMilestones = {};
+        gameEventState.lowStabilityThresholds = {};
+        gameEventState.pendingEvent = null;
         setSceneDefaults();
         syncHud();
         renderScene();
@@ -668,6 +858,7 @@
             battle.comboDecayTimer = 2.2;
             state.worms += 1;
             state.combo = Math.min(state.combo + 1, 99);
+            maybeEmitComboMilestone();
             addHotZone(enemy.x, enemy.y, cause === 'player' ? 1.6 : 0.9);
             collectDrops(enemy, cause);
             if (enemy.type === 'logicBomb' && cause !== 'contact' && !fullClear) {
@@ -892,7 +1083,582 @@
         if (!text) return;
         if (state.nekoHint !== text || state.nekoHintTimer <= 0) {
             state.nekoHint = text;
+            state.nekoHintKey = '';
+            state.nekoHintParams = null;
             state.nekoHintTimer = ttl || 1.8;
+            renderScene();
+        }
+    }
+
+    function setNekoHintFromLine(line, ttl) {
+        var text = String(line || '').trim();
+        if (!text) return;
+        state.nekoHint = text.slice(0, 120);
+        state.nekoHintKey = '';
+        state.nekoHintParams = null;
+        state.nekoHintTimer = ttl || 2.4;
+        renderScene();
+    }
+
+    function getNearestThreatDistance(point) {
+        var anchor = point || scene.neko;
+        var nearest = Infinity;
+        for (var i = 0; i < battle.enemies.length; i++) {
+            nearest = Math.min(nearest, distance(anchor, battle.enemies[i]));
+        }
+        return nearest;
+    }
+
+    function buildGameEventContext(extra) {
+        var contextPayload = Object.assign({
+            threatLevel: state.stability <= 20 ? 'high' : (state.stability <= 40 ? 'normal' : 'low'),
+            nearestThreatDistance: Math.round(getNearestThreatDistance(scene.neko)),
+            isDesktopOverlay: !!(window.nekoWindowControl || window.__NEKO_DESKTOP_OVERLAY__)
+        }, extra || {});
+        if (!isFinite(contextPayload.nearestThreatDistance)) {
+            contextPayload.nearestThreatDistance = null;
+        }
+        return contextPayload;
+    }
+
+    function buildGameChatPayload(kind, payload) {
+        var eventPayload = Object.assign({}, payload || {});
+        var currentState = Object.assign({}, getBattleSnapshot(), eventPayload.currentState || {});
+        var eventContext = buildGameEventContext(eventPayload.eventContext || {});
+        delete eventPayload.currentState;
+        delete eventPayload.eventContext;
+        var event = Object.assign({
+            kind: kind,
+            currentState: currentState,
+            eventContext: eventContext
+        }, eventPayload);
+        event.gameMemoryEnabled = false;
+        event.game_memory_enabled = false;
+        event.voiceOutputEnabled = getVoiceOutputEnabled();
+        event.voice_output_enabled = getVoiceOutputEnabled();
+        return {
+            lanlan_name: query.lanlanName || '',
+            session_id: ensureSessionId(),
+            source: getLaunchSource(),
+            i18n_language: getCurrentLanguage(),
+            gameMemoryEnabled: false,
+            game_memory_enabled: false,
+            voiceOutputEnabled: getVoiceOutputEnabled(),
+            voice_output_enabled: getVoiceOutputEnabled(),
+            currentState: currentState,
+            event: event
+        };
+    }
+
+    function getControlDisplaySeconds(control) {
+        var seconds = control && Number(control.displaySeconds);
+        if (isFinite(seconds) && seconds > 0) {
+            return clamp(seconds, 1.2, 5.5);
+        }
+        return 2.4;
+    }
+
+    function extractGameLine(data) {
+        if (!data || typeof data !== 'object') return '';
+        if (typeof data.line === 'string') return data.line.trim();
+        if (data.result && typeof data.result.line === 'string') return data.result.line.trim();
+        return '';
+    }
+
+    function wrapCanvasText(ctx, text, maxWidth, maxLines) {
+        var source = String(text || '').replace(/\s+/g, ' ').trim();
+        if (!source) return [];
+        var lines = [];
+        var current = '';
+        var truncated = false;
+        for (var i = 0; i < source.length; i++) {
+            var next = current + source.charAt(i);
+            if (current && ctx.measureText(next).width > maxWidth) {
+                lines.push(current);
+                current = source.charAt(i);
+                if (lines.length >= maxLines) {
+                    truncated = true;
+                    break;
+                }
+            } else {
+                current = next;
+            }
+        }
+        if (lines.length < maxLines && current) {
+            lines.push(current);
+        }
+        if (truncated && lines.length === maxLines) {
+            var last = lines[lines.length - 1];
+            while (last && ctx.measureText(last + '...').width > maxWidth) {
+                last = last.slice(0, -1);
+            }
+            lines[lines.length - 1] = (last || lines[lines.length - 1].slice(0, 1)) + '...';
+        }
+        return lines;
+    }
+
+    function rememberRealtimeItem(kind, body) {
+        var event = body && body.event ? body.event : {};
+        var snapshot = event.currentState || (body && body.currentState) || getBattleSnapshot();
+        gameEventState.realtimeItems.push({
+            type: 'game_event',
+            kind: kind,
+            textRaw: event.label || event.textRaw || kind,
+            snapshot: snapshot
+        });
+        if (gameEventState.realtimeItems.length > 8) {
+            gameEventState.realtimeItems.splice(0, gameEventState.realtimeItems.length - 8);
+        }
+    }
+
+    function buildRealtimeContextPayload(reason) {
+        var snapshot = getBattleSnapshot();
+        return {
+            lanlan_name: query.lanlanName || '',
+            session_id: ensureSessionId(),
+            source: getLaunchSource(),
+            i18n_language: getCurrentLanguage(),
+            gameMemoryEnabled: false,
+            game_memory_enabled: false,
+            voiceOutputEnabled: getVoiceOutputEnabled(),
+            voice_output_enabled: getVoiceOutputEnabled(),
+            reason: reason || '',
+            state: Object.assign({
+                sessionId: ensureSessionId(),
+                source: getLaunchSource()
+            }, snapshot),
+            pendingItems: gameEventState.realtimeItems.slice(-3)
+        };
+    }
+
+    function postRealtimeContext(reason) {
+        if (!routeState.started || routeState.ended || gameEventState.realtimeInFlight) {
+            return Promise.resolve({ ok: false, reason: 'inactive' });
+        }
+        gameEventState.realtimeInFlight = true;
+        return fetch(REALTIME_CONTEXT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(buildRealtimeContextPayload(reason))
+        }).then(function (response) {
+            if (!response || !response.ok) return null;
+            return response.json();
+        }).catch(function (error) {
+            console.warn('[SubconsciousMaintenance] realtime context failed:', error);
+            return null;
+        }).finally(function () {
+            gameEventState.realtimeInFlight = false;
+        });
+    }
+
+    function stopRealtimeContextPump() {
+        if (realtimeContextTimer) {
+            window.clearInterval(realtimeContextTimer);
+            realtimeContextTimer = 0;
+        }
+    }
+
+    function startRealtimeContextPump() {
+        if (realtimeContextTimer) return;
+        realtimeContextTimer = window.setInterval(function () {
+            postRealtimeContext('interval');
+        }, REALTIME_CONTEXT_INTERVAL_MS);
+    }
+
+    function getProjectVoicePriority(data, kind) {
+        var controlPriority = data && data.control ? Number(data.control.priority) : NaN;
+        if (isFinite(controlPriority)) {
+            return controlPriority;
+        }
+        return getGameEventPriority(kind || '');
+    }
+
+    function isUserReplyEvent(event) {
+        return !!(
+            event &&
+            (event.hasUserSpeech === true ||
+                event.hasUserText === true ||
+                event.kind === 'user-voice' ||
+                event.kind === 'user-text')
+        );
+    }
+
+    function buildAssistantLineEvent(data, kind, originalEvent, voiceEnabled) {
+        var event = Object.assign({
+            kind: kind || 'game_llm_result',
+            currentState: getBattleSnapshot()
+        }, originalEvent || {}, data && data.event ? data.event : {});
+        var meta = data && data.meta ? data.meta : null;
+        if (meta) {
+            if (meta.hasUserSpeech === true) event.hasUserSpeech = true;
+            if (meta.hasUserText === true) event.hasUserText = true;
+            if (meta.priority !== undefined) event.priority = meta.priority;
+            if (meta.inputText && !event.textRaw) event.textRaw = meta.inputText;
+        }
+        event.gameMemoryEnabled = false;
+        event.game_memory_enabled = false;
+        event.voiceOutputEnabled = voiceEnabled === true;
+        event.voice_output_enabled = voiceEnabled === true;
+        return event;
+    }
+
+    function mirrorProjectText(line, data, kind, originalEvent) {
+        var text = String(line || '').trim();
+        if (!text || (data && data.meta && data.meta.textAlreadyMirrored)) {
+            return Promise.resolve({ ok: false, reason: 'mirror_skipped' });
+        }
+        gameEventState.mirrorRequestSeq += 1;
+        var requestId = 'subconscious-mirror-' + gameEventState.mirrorRequestSeq;
+        var event = buildAssistantLineEvent(data, kind, originalEvent, getVoiceOutputEnabled());
+        return fetch(MIRROR_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                lanlan_name: query.lanlanName || '',
+                session_id: ensureSessionId(),
+                source: 'game-llm-result',
+                i18n_language: getCurrentLanguage(),
+                request_id: requestId,
+                turn_id: 'subconscious-mirror-turn-' + gameEventState.mirrorRequestSeq,
+                finalize_turn: isUserReplyEvent(event),
+                line: text,
+                gameMemoryEnabled: false,
+                game_memory_enabled: false,
+                voiceOutputEnabled: getVoiceOutputEnabled(),
+                voice_output_enabled: getVoiceOutputEnabled(),
+                event: event
+            })
+        }).then(function (response) {
+            if (!response || !response.ok) return null;
+            return response.json();
+        }).catch(function (error) {
+            console.warn('[SubconsciousMaintenance] project text mirror failed:', error);
+            return null;
+        });
+    }
+
+    function queueProjectVoice(line, data, kind) {
+        var text = String(line || '').trim();
+        if (!text || !getVoiceOutputEnabled()) {
+            return Promise.resolve({ ok: false, reason: 'voice_output_disabled' });
+        }
+        var pending = {
+            line: text,
+            data: data || {},
+            kind: kind || '',
+            priority: getProjectVoicePriority(data, kind),
+            queuedAt: Date.now()
+        };
+        var current = gameEventState.pendingVoice;
+        if (!current || pending.priority >= current.priority || pending.kind === current.kind) {
+            gameEventState.pendingVoice = pending;
+        }
+        return Promise.resolve({ ok: true, reason: 'voice_output_queued' });
+    }
+
+    function flushProjectVoiceQueue() {
+        if (gameEventState.voiceInFlight || !getVoiceOutputEnabled()) {
+            return;
+        }
+        var pending = gameEventState.pendingVoice;
+        if (!pending) {
+            return;
+        }
+        gameEventState.pendingVoice = null;
+        sendProjectVoice(pending.line, pending.data, pending.kind);
+    }
+
+    function sendProjectVoice(line, data, kind) {
+        var text = String(line || '').trim();
+        if (!text || !getVoiceOutputEnabled()) {
+            return Promise.resolve({ ok: false, reason: 'voice_output_disabled' });
+        }
+        if (gameEventState.voiceInFlight) {
+            return queueProjectVoice(text, data, kind);
+        }
+        gameEventState.voiceRequestSeq += 1;
+        gameEventState.voiceInFlight = true;
+        var event = buildAssistantLineEvent(data, kind, data && data.originalEvent, true);
+        return fetch(SPEAK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                lanlan_name: query.lanlanName || '',
+                session_id: ensureSessionId(),
+                source: getLaunchSource(),
+                i18n_language: getCurrentLanguage(),
+                request_id: 'subconscious-voice-' + gameEventState.voiceRequestSeq,
+                line: text,
+                mirror_text: false,
+                emit_turn_end: false,
+                interrupt_audio: false,
+                gameMemoryEnabled: false,
+                game_memory_enabled: false,
+                voiceOutputEnabled: true,
+                voice_output_enabled: true,
+                event: event
+            })
+        }).then(function (response) {
+            if (!response || !response.ok) return null;
+            return response.json();
+        }).catch(function (error) {
+            console.warn('[SubconsciousMaintenance] project voice failed:', error);
+            return null;
+        }).finally(function () {
+            gameEventState.voiceInFlight = false;
+            window.setTimeout(flushProjectVoiceQueue, 0);
+        });
+    }
+
+    function requestProjectVoice(line, data, kind) {
+        if (gameEventState.voiceInFlight) {
+            return queueProjectVoice(line, data, kind);
+        }
+        return sendProjectVoice(line, data, kind);
+    }
+
+    function handleAssistantLine(line, data, kind, originalEvent) {
+        var text = String(line || '').trim();
+        if (!text) {
+            return;
+        }
+        var lineData = Object.assign({}, data || {});
+        if (originalEvent && !lineData.event) {
+            lineData.event = originalEvent;
+        }
+        lineData.originalEvent = originalEvent || lineData.originalEvent;
+        setNekoHintFromLine(text, getControlDisplaySeconds(lineData.control || {}));
+        mirrorProjectText(text, lineData, kind, originalEvent);
+        if (!(lineData.meta && lineData.meta.voiceAlreadyHandled)) {
+            requestProjectVoice(text, lineData, kind);
+        }
+    }
+
+    function submitVoiceTranscript(transcript, requestId) {
+        var text = String(transcript || '').trim();
+        if (!text || routeState.ended) {
+            return Promise.resolve({ ok: false, reason: 'missing_transcript' });
+        }
+        return fetch(VOICE_TRANSCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(Object.assign(buildRoutePayload('voice-transcript'), {
+                transcript: text,
+                request_id: requestId || ('subconscious-transcript-' + Date.now())
+            }))
+        }).then(function (response) {
+            if (!response || !response.ok) return null;
+            return response.json();
+        }).catch(function (error) {
+            console.warn('[SubconsciousMaintenance] voice transcript failed:', error);
+            return null;
+        });
+    }
+
+    function getGameEventPriority(kind) {
+        var priorityMap = {
+            battle_pulse: 1,
+            battle_start: 2,
+            first_bug_seen: 3,
+            combo_milestone: 3,
+            buff_triggered: 4,
+            special_drop: 5,
+            special_collected: 6,
+            neko_hit: 8,
+            low_stability: 9,
+            success: 10,
+            failed: 10
+        };
+        return priorityMap[kind] || 4;
+    }
+
+    function queueGameEvent(kind, payload, options) {
+        var pending = gameEventState.pendingEvent;
+        var priority = getGameEventPriority(kind);
+        return new Promise(function (resolve) {
+            var nextEvent = {
+                kind: kind,
+                payload: payload || {},
+                options: options || {},
+                priority: priority,
+                queuedAt: Date.now(),
+                resolve: resolve
+            };
+            if (!pending || nextEvent.priority >= pending.priority || pending.kind === kind) {
+                if (pending && typeof pending.resolve === 'function') {
+                    pending.resolve({ ok: false, reason: 'replaced', replacedBy: kind });
+                }
+                gameEventState.pendingEvent = nextEvent;
+            } else {
+                resolve({ ok: false, reason: 'lower_priority_queued_event_ignored' });
+            }
+            if (
+                gameEventState.inFlight &&
+                priority > (gameEventState.activeEventPriority || 0) &&
+                gameEventState.activeAbortController
+            ) {
+                try {
+                    gameEventState.activeAbortController.abort();
+                } catch (_) {}
+            }
+        });
+    }
+
+    function flushQueuedGameEvent() {
+        if (!routeState.started || routeState.ended || state.phase === 'exiting' || gameEventState.inFlight) {
+            return;
+        }
+        var pending = gameEventState.pendingEvent;
+        if (!pending) {
+            return;
+        }
+        gameEventState.pendingEvent = null;
+        window.setTimeout(function () {
+            emitGameEvent(pending.kind, pending.payload, pending.options).then(function (result) {
+                if (typeof pending.resolve === 'function') {
+                    pending.resolve(result);
+                }
+            }, function (error) {
+                if (typeof pending.resolve === 'function') {
+                    pending.resolve({ ok: false, reason: 'queued_event_failed', error: String(error) });
+                }
+            });
+        }, 0);
+    }
+
+    function maybeEmitAmbientPulse() {
+        if (!routeState.started || routeState.ended || state.phase !== 'playing' || gameEventState.inFlight) {
+            return;
+        }
+        var now = Date.now();
+        if (now < gameEventState.ambientPulseAllowedAt) {
+            return;
+        }
+        var activePressure = !!(
+            battle.enemies.length ||
+            battle.specialItems.length ||
+            battle.fragments.length ||
+            state.combo > 0 ||
+            battle.buffType ||
+            state.stability < battle.maxStability
+        );
+        if (!activePressure) {
+            return;
+        }
+        gameEventState.ambientPulseAllowedAt = now + 12000;
+        emitGameEvent('battle_pulse', {
+            label: 'battle pulse',
+            eventContext: {
+                activePressure: activePressure,
+                enemyCount: battle.enemies.length,
+                specialCount: battle.specialItems.length,
+                fragmentCount: battle.fragments.length
+            }
+        }, { minIntervalMs: 12000 });
+    }
+
+    function emitGameEvent(kind, payload, options) {
+        options = options || {};
+        if (!kind || state.phase === 'exiting') {
+            return Promise.resolve({ ok: false, reason: 'inactive' });
+        }
+        var now = Date.now();
+        var minInterval = options.minIntervalMs === 0 ? 0 : (Number(options.minIntervalMs) || GAME_CHAT_MIN_INTERVAL_MS);
+        var previousKindAt = gameEventState.lastSentByKind[kind] || 0;
+        if (gameEventState.inFlight) {
+            return queueGameEvent(kind, payload, options);
+        }
+        if (!options.force && now - previousKindAt < minInterval) {
+            return Promise.resolve({ ok: false, reason: 'throttled' });
+        }
+
+        gameEventState.inFlight = true;
+        gameEventState.activeEventKind = kind;
+        gameEventState.activeEventPriority = getGameEventPriority(kind);
+        gameEventState.lastSentByKind[kind] = now;
+        var body = buildGameChatPayload(kind, payload);
+        rememberRealtimeItem(kind, body);
+        var controller = null;
+        var timeoutId = 0;
+        if (typeof AbortController === 'function') {
+            controller = new AbortController();
+            gameEventState.activeAbortController = controller;
+            timeoutId = window.setTimeout(function () {
+                try {
+                    controller.abort();
+                } catch (_) {}
+            }, GAME_CHAT_TIMEOUT_MS);
+        }
+        return fetch(CHAT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(body),
+            signal: controller ? controller.signal : undefined
+        }).then(function (response) {
+            if (!response || !response.ok) {
+                return null;
+            }
+            return response.json();
+        }).then(function (data) {
+            var line = extractGameLine(data);
+            if (line) {
+                handleAssistantLine(line, data, kind, body.event);
+            }
+            return data || { ok: false, reason: 'empty' };
+        }).catch(function (error) {
+            if (!error || error.name !== 'AbortError') {
+                console.warn('[SubconsciousMaintenance] game chat failed:', error);
+            }
+            return { ok: false, reason: 'chat_failed' };
+        }).finally(function () {
+            if (timeoutId) {
+                window.clearTimeout(timeoutId);
+            }
+            if (gameEventState.activeAbortController === controller) {
+                gameEventState.activeAbortController = null;
+                gameEventState.activeEventKind = '';
+                gameEventState.activeEventPriority = 0;
+            }
+            gameEventState.inFlight = false;
+            flushQueuedGameEvent();
+        });
+    }
+
+    function maybeEmitComboMilestone() {
+        var milestones = [10, 20];
+        for (var i = 0; i < milestones.length; i++) {
+            var milestone = milestones[i];
+            if (state.combo >= milestone && !gameEventState.comboMilestones[milestone]) {
+                gameEventState.comboMilestones[milestone] = true;
+                emitGameEvent('combo_milestone', {
+                    label: 'combo milestone',
+                    params: { combo: milestone },
+                    combo: milestone
+                });
+                return;
+            }
+        }
+    }
+
+    function maybeEmitLowStability() {
+        var thresholds = [20];
+        for (var i = 0; i < thresholds.length; i++) {
+            var threshold = thresholds[i];
+            if (state.stability <= threshold && !gameEventState.lowStabilityThresholds[threshold]) {
+                gameEventState.lowStabilityThresholds[threshold] = true;
+                emitGameEvent('low_stability', {
+                    label: 'low stability',
+                    params: { stability: state.stability, threshold: threshold },
+                    stability: state.stability,
+                    threshold: threshold
+                }, { force: threshold <= 20, minIntervalMs: 2500 });
+                return;
+            }
         }
     }
 
@@ -901,7 +1667,7 @@
         battle.buffTimer = ttl || buff.ttl || 0;
         battle.buffType = kind || '';
         battle.buffEndedTimer = 0;
-        state.buffLabel = label || buff.label || '无';
+        state.buffLabel = label || getBuffLabel(kind);
         if (kind) {
             addEffect(makeEffect(scene.neko.x, scene.neko.y, {
                 kind: 'buff',
@@ -918,9 +1684,8 @@
         if (battle.buffTimer <= 0) {
             if (battle.buffType) {
                 battle.buffType = '';
-                state.buffLabel = '无';
+                state.buffLabel = translate('subconsciousMaintenance.buff.none');
                 battle.buffEndedTimer = 0.75;
-                setNekoHint('增益结束', 0.85);
                 syncHud();
             } else if (battle.buffEndedTimer > 0) {
                 battle.buffEndedTimer = Math.max(0, battle.buffEndedTimer - dt);
@@ -933,9 +1698,8 @@
         battle.buffTimer = Math.max(0, battle.buffTimer - dt);
         if (battle.buffTimer <= 0) {
             battle.buffType = '';
-            state.buffLabel = '无';
+            state.buffLabel = translate('subconsciousMaintenance.buff.none');
             battle.buffEndedTimer = 0.75;
-            setNekoHint('增益结束', 0.85);
             syncHud();
         }
     }
@@ -951,8 +1715,12 @@
         var kind = chooseFragmentBuff();
         var buff = BUFFS[kind];
         battle.fragmentBuffProgress = 0;
-        setBuff(kind, buff.ttl, buff.label);
-        setNekoHint(buff.label + ' 10 秒', 1.35);
+        setBuff(kind, buff.ttl, getBuffLabel(kind));
+        emitGameEvent('buff_triggered', {
+            label: 'buff triggered',
+            buff: kind,
+            params: { label: getBuffLabel(kind), seconds: buff.ttl }
+        }, { minIntervalMs: 3000 });
     }
 
     function triggerSpecialFullScreenAttack(origin) {
@@ -1241,13 +2009,11 @@
             var threat = getCoreItemThreat(nearestSpecial);
             if (threat.count > 0 || threat.nearestDistance < 145) {
                 state.nekoIntent = 'request';
-                setNekoHint('帮我开路');
                 if (state.nekoMode === 'follow' && distance(scene.neko, scene.player) > 170) {
                     return commitNekoTarget(makeNekoTarget('return', getNekoFollowAnchor(), 3, 0.22, null, 'request'));
                 }
             } else {
                 state.nekoIntent = 'core';
-                setNekoHint('我要拿那个大的', 1.55);
             }
             return commitNekoTarget(makeNekoTarget(
                 'special',
@@ -1398,15 +2164,13 @@
                 battle.fragments.splice(fragmentIndex, 1);
                 state.fragments = Math.min(state.fragments + 1, 999);
                 state.combo = Math.min(state.combo + 1, 99);
+                maybeEmitComboMilestone();
                 if (battle.buffType) {
                     state.stability = Math.min(battle.maxStability, state.stability + 1);
-                    setNekoHint('稳定 +1', 0.95);
                 } else {
                     battle.fragmentBuffProgress = Math.min(FRAGMENTS_PER_BUFF, battle.fragmentBuffProgress + 1);
                     if (battle.fragmentBuffProgress >= FRAGMENTS_PER_BUFF) {
                         grantFragmentBuff();
-                    } else {
-                        setNekoHint('碎片 ' + battle.fragmentBuffProgress + '/' + FRAGMENTS_PER_BUFF, 1.0);
                     }
                 }
                 addEffect(makeEffect(nearestItem.x, nearestItem.y, {
@@ -1433,8 +2197,13 @@
                 s -= 1;
                 state.specialItems += 1;
                 state.combo = Math.min(state.combo + 2, 99);
+                maybeEmitComboMilestone();
+                emitGameEvent('special_collected', {
+                    label: 'special item collected',
+                    count: state.specialItems,
+                    params: { count: state.specialItems }
+                }, { minIntervalMs: 2500 });
                 triggerSpecialFullScreenAttack(specialItem);
-                setNekoHint('全域清理', 1.6);
                 addEffect(makeEffect(specialItem.x, specialItem.y, {
                     kind: 'burst',
                     radius: 12,
@@ -1502,6 +2271,12 @@
                 }));
                 applyEnemyDeath(enemy, 'contact');
                 syncHud();
+                emitGameEvent('neko_hit', {
+                    label: 'neko hit',
+                    damage: enemy.damage || config.contactDamage,
+                    stability: state.stability
+                }, { minIntervalMs: 3500 });
+                maybeEmitLowStability();
                 if (state.stability <= 0) {
                     state.stability = 0;
                     syncHud();
@@ -1590,6 +2365,7 @@
         updateBuffState(dt);
         updateAttackFlash(dt);
         updateComboDecay(dt);
+        maybeEmitAmbientPulse();
         maybeFinishBattle();
         syncHud();
     }
@@ -1603,6 +2379,7 @@
             wormsCleared: state.worms,
             fragmentsCollected: state.fragments,
             combo: state.combo,
+            weapon: state.weapon || 'sword',
             activeBuff: battle.buffType,
             buffSecondsRemaining: battle.buffTimer,
             fragmentBuffProgress: battle.fragmentBuffProgress,
@@ -1626,7 +2403,9 @@
             reason: reason || '',
             postgameProactive: false,
             gameMemoryEnabled: false,
-            game_memory_enabled: false
+            game_memory_enabled: false,
+            voiceOutputEnabled: getVoiceOutputEnabled(),
+            voice_output_enabled: getVoiceOutputEnabled()
         };
     }
 
@@ -1650,6 +2429,61 @@
         }
     }
 
+    function handleRouteOutput(output) {
+        if (!output || typeof output !== 'object') return;
+        if (output.type === 'game_llm_result') {
+            var result = output.result || {};
+            var line = extractGameLine(result);
+            if (line) {
+                var lineData = Object.assign({}, result, {
+                    event: output.event || {},
+                    meta: output.meta || {},
+                    originalEvent: output.event || {}
+                });
+                handleAssistantLine(line, lineData, output.event && output.event.kind, output.event || {});
+            }
+            return;
+        }
+        if (output.type === 'game_external_input') {
+            return;
+        }
+    }
+
+    function drainRouteOutputs() {
+        if (!routeState.started || routeState.ended || gameEventState.drainInFlight) return;
+        gameEventState.drainInFlight = true;
+        return fetch(ROUTE_DRAIN_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(buildRoutePayload('drain'))
+        }).then(function (response) {
+            if (!response || !response.ok) return null;
+            return response.json();
+        }).then(function (data) {
+            var outputs = data && Array.isArray(data.outputs) ? data.outputs : [];
+            outputs.forEach(handleRouteOutput);
+            return data;
+        }).catch(function (error) {
+            console.warn('[SubconsciousMaintenance] route drain failed:', error);
+            return null;
+        }).finally(function () {
+            gameEventState.drainInFlight = false;
+        });
+    }
+
+    function stopRouteOutputDrain() {
+        if (routeDrainTimer) {
+            window.clearInterval(routeDrainTimer);
+            routeDrainTimer = 0;
+        }
+    }
+
+    function startRouteOutputDrain() {
+        if (routeDrainTimer) return;
+        routeDrainTimer = window.setInterval(drainRouteOutputs, ROUTE_DRAIN_INTERVAL_MS);
+    }
+
     function startRouteHeartbeat() {
         if (heartbeatTimer) return;
         heartbeatTimer = window.setInterval(function () {
@@ -1670,6 +2504,9 @@
                 return;
             }
             routeState.started = true;
+            startRouteOutputDrain();
+            startRealtimeContextPump();
+            postRealtimeContext('route_start');
         }).finally(function () {
             if (generation === routeState.generation) {
                 routeState.startInFlight = false;
@@ -1700,10 +2537,14 @@
         }
         if (!routeState.started || routeState.ended) {
             stopRouteHeartbeat();
+            stopRouteOutputDrain();
+            stopRealtimeContextPump();
             return Promise.resolve();
         }
         routeState.ended = true;
         stopRouteHeartbeat();
+        stopRouteOutputDrain();
+        stopRealtimeContextPump();
         var payload = JSON.stringify(buildRoutePayload(reason || 'exit'));
         var url = ROUTE_BASE_URL + '/end';
         if (useBeacon && navigator.sendBeacon) {
@@ -1734,7 +2575,12 @@
         routeState.pendingEndReason = '';
         routeState.pendingEndUseBeacon = false;
         routeState.generation += 1;
+        gameEventState.pendingEvent = null;
+        gameEventState.pendingVoice = null;
+        gameEventState.voiceInFlight = false;
         stopRouteHeartbeat();
+        stopRouteOutputDrain();
+        stopRealtimeContextPump();
         ensureSessionId();
     }
 
@@ -1821,12 +2667,21 @@
 
     function getBuffDisplayText() {
         if (battle.buffType && battle.buffTimer > 0) {
-            return state.buffLabel + ' ' + battle.buffTimer.toFixed(1) + 's';
+            return translate('subconsciousMaintenance.buffDisplay.active', {
+                label: getBuffLabel(battle.buffType),
+                seconds: battle.buffTimer.toFixed(1)
+            });
         }
         if (battle.buffEndedTimer > 0) {
-            return '结束 · 碎片 ' + battle.fragmentBuffProgress + '/' + FRAGMENTS_PER_BUFF;
+            return translate('subconsciousMaintenance.buffDisplay.ended', {
+                count: battle.fragmentBuffProgress,
+                total: FRAGMENTS_PER_BUFF
+            });
         }
-        return '碎片 ' + battle.fragmentBuffProgress + '/' + FRAGMENTS_PER_BUFF;
+        return translate('subconsciousMaintenance.buffDisplay.progress', {
+            count: battle.fragmentBuffProgress,
+            total: FRAGMENTS_PER_BUFF
+        });
     }
 
     function syncHud() {
@@ -1835,15 +2690,21 @@
         setText(wormsValue, state.worms);
         setText(comboValue, state.combo);
         setText(buffValue, getBuffDisplayText());
-        setText(nekoModeValue, state.nekoMode === 'follow' ? '跟随玩家' : '自由行动');
+        setTextByKey(
+            nekoModeValue,
+            state.nekoMode === 'follow'
+                ? 'subconsciousMaintenance.nekoMode.follow'
+                : 'subconsciousMaintenance.nekoMode.free'
+        );
         if (nekoModeBtn) {
             nekoModeBtn.setAttribute('aria-pressed', state.nekoMode === 'follow' ? 'true' : 'false');
         }
+        syncVoiceOutputToggle();
         if (sessionLabel) {
             var parts = [];
             if (query.lanlanName) parts.push(query.lanlanName);
             if (query.sessionId) parts.push(query.sessionId);
-            setText(sessionLabel, parts.length ? parts.join(' · ') : '待命');
+            setText(sessionLabel, parts.length ? parts.join(' · ') : translate('subconsciousMaintenance.setup.sessionIdle'));
         }
     }
 
@@ -1857,6 +2718,37 @@
         syncHud();
     }
 
+    function refreshLocalizedText() {
+        state.buffLabel = battle.buffType
+            ? getBuffLabel(battle.buffType)
+            : translate('subconsciousMaintenance.buff.none');
+        if (state.nekoHintKey) {
+            state.nekoHint = translate(state.nekoHintKey, state.nekoHintParams || {}, state.nekoHint);
+        }
+        if (state.phase === 'success' || state.phase === 'failed') {
+            var success = state.phase === 'success';
+            setTextByKey(
+                resultTitle,
+                success ? 'subconsciousMaintenance.result.success' : 'subconsciousMaintenance.result.failed'
+            );
+            setTextByKey(
+                resultDetail,
+                success ? 'subconsciousMaintenance.result.successDetail' : 'subconsciousMaintenance.result.failedDetail',
+                { count: 5 }
+            );
+        } else if (state.phase === 'loading') {
+            if (state.loadError) {
+                setTextByKey(loadingStatus, 'subconsciousMaintenance.loading.failed');
+            } else if (state.spriteReady) {
+                setTextByKey(loadingStatus, 'subconsciousMaintenance.loading.ready');
+            } else {
+                setTextByKey(loadingStatus, 'subconsciousMaintenance.loading.preparingSprites');
+            }
+        }
+        syncHud();
+        renderScene();
+    }
+
     function toggleNekoMode() {
         state.nekoMode = state.nekoMode === 'follow' ? 'free' : 'follow';
         state.nekoIntent = state.nekoMode === 'follow' ? 'follow' : 'collect';
@@ -1865,14 +2757,53 @@
         } else {
             state.nekoFollowSettled = true;
         }
-        state.nekoHint = state.nekoMode === 'follow' ? '我跟紧你' : '我去捡东西';
-        state.nekoHintTimer = 1.25;
         syncHud();
         renderScene();
     }
 
     function resetFrameClock() {
         lastFrameTime = 0;
+    }
+
+    function setOverlayTemporarilyHidden(hidden) {
+        body.classList.toggle('is-temporarily-hidden', !!hidden);
+    }
+
+    function finishTemporaryHide() {
+        if (temporaryHideTimer) {
+            window.clearTimeout(temporaryHideTimer);
+            temporaryHideTimer = 0;
+        }
+        setOverlayTemporarilyHidden(false);
+        resetFrameClock();
+        renderScene();
+    }
+
+    function temporaryHideOverlay(durationMs) {
+        if (state.phase === 'playing') {
+            setPhase('paused');
+        }
+        if (state.phase !== 'paused') {
+            return Promise.resolve({ ok: false, reason: 'not_paused' });
+        }
+        var duration = Math.max(1000, Math.min(30000, Number(durationMs) || 8000));
+        stopFrameLoop();
+        resetFrameClock();
+        setOverlayTemporarilyHidden(true);
+
+        var api = window.nekoWindowControl;
+        if (api && typeof api.temporarilyHide === 'function') {
+            return Promise.resolve(api.temporarilyHide(duration)).finally(finishTemporaryHide);
+        }
+        if (api && typeof api.minimize === 'function' && typeof api.restore === 'function') {
+            return Promise.resolve(api.minimize()).finally(function () {
+                temporaryHideTimer = window.setTimeout(function () {
+                    Promise.resolve(api.restore()).finally(finishTemporaryHide);
+                }, duration);
+            });
+        }
+        temporaryHideTimer = window.setTimeout(finishTemporaryHide, duration);
+        return Promise.resolve({ ok: true, action: 'css_temporary_hide', duration_ms: duration });
     }
 
     function stopFrameLoop() {
@@ -2121,22 +3052,31 @@
         }
         if (state.nekoHint && state.nekoHintTimer > 0) {
             context.save();
-            context.font = '12px "Segoe UI", "PingFang SC", sans-serif';
-            var bubbleText = state.nekoHint;
-            var bubbleWidth = Math.min(132, Math.max(76, context.measureText(bubbleText).width + 22));
+            context.font = '12px "Segoe UI", "Microsoft YaHei", "Noto Sans CJK SC", "PingFang SC", sans-serif';
+            var bubbleText = getNekoHintText();
+            var bubbleMaxTextWidth = Math.min(220, Math.max(120, field.width - 38));
+            var bubbleLines = wrapCanvasText(context, bubbleText, bubbleMaxTextWidth, 2);
+            var bubbleTextWidth = 0;
+            for (var lineIndex = 0; lineIndex < bubbleLines.length; lineIndex++) {
+                bubbleTextWidth = Math.max(bubbleTextWidth, context.measureText(bubbleLines[lineIndex]).width);
+            }
+            var bubbleWidth = Math.min(bubbleMaxTextWidth + 22, Math.max(84, bubbleTextWidth + 22));
+            var bubbleHeight = 18 + bubbleLines.length * 16;
             var bubbleX = clamp(scene.neko.x + 18, 8, field.width - bubbleWidth - 8);
-            var bubbleY = clamp(scene.neko.y - 62, 8, field.height - 32);
+            var bubbleY = clamp(scene.neko.y - 62, 8, field.height - bubbleHeight - 8);
             context.globalAlpha = clamp(state.nekoHintTimer / 0.35, 0, 1);
             context.fillStyle = 'rgba(248, 253, 255, 0.9)';
             context.strokeStyle = 'rgba(89, 187, 255, 0.42)';
             context.lineWidth = 1;
-            context.fillRect(bubbleX, bubbleY, bubbleWidth, 28);
-            context.strokeRect(bubbleX, bubbleY, bubbleWidth, 28);
+            context.fillRect(bubbleX, bubbleY, bubbleWidth, bubbleHeight);
+            context.strokeRect(bubbleX, bubbleY, bubbleWidth, bubbleHeight);
             context.fillStyle = '#1979b7';
-            context.fillText(bubbleText, bubbleX + 11, bubbleY + 18);
+            for (var bubbleLineIndex = 0; bubbleLineIndex < bubbleLines.length; bubbleLineIndex++) {
+                context.fillText(bubbleLines[bubbleLineIndex], bubbleX + 11, bubbleY + 18 + bubbleLineIndex * 16);
+            }
             context.restore();
         }
-        if (state.buffLabel !== '无') {
+        if (battle.buffType) {
             context.save();
             context.strokeStyle = 'rgba(92, 194, 255, 0.58)';
             context.lineWidth = 1.5;
@@ -2220,13 +3160,26 @@
     function showResult(result) {
         var success = result === 'success';
         if (resultTitle) {
-            setText(resultTitle, success ? '成功' : '失败');
+            setTextByKey(
+                resultTitle,
+                success ? 'subconsciousMaintenance.result.success' : 'subconsciousMaintenance.result.failed'
+            );
         }
         if (resultDetail) {
-            setText(resultDetail, success ? '特殊物品已集齐 5 个' : 'NEKO 稳定值已归零');
+            setTextByKey(
+                resultDetail,
+                success ? 'subconsciousMaintenance.result.successDetail' : 'subconsciousMaintenance.result.failedDetail',
+                { count: 5 }
+            );
         }
         setPhase(success ? 'success' : 'failed');
-        endRouteSession(success ? 'success' : 'failed', false);
+        emitGameEvent(success ? 'success' : 'failed', {
+            label: success ? 'success' : 'failed',
+            result: result,
+            params: { count: state.specialItems }
+        }, { force: true, minIntervalMs: 0 }).finally(function () {
+            endRouteSession(success ? 'success' : 'failed', false);
+        });
     }
 
     function restartToReady() {
@@ -2242,20 +3195,29 @@
         state.phase = 'exiting';
         syncPhase();
         stopFrameLoop();
-        endRouteSession('manual_exit', false).finally(function () {
+        endRouteSession('manual_exit', true);
+        window.setTimeout(function () {
             try {
                 window.close();
             } catch (_) {}
             if (!window.closed) {
                 window.location.assign('/memory_browser');
             }
-        });
+        }, 0);
     }
 
     function enterPlaying() {
         if (!state.spriteReady || state.phase !== 'ready') return;
         resetBattleState();
         setPhase('playing');
+        emitGameEvent('battle_start', {
+            label: 'battle start',
+            difficulty: state.difficulty,
+            eventContext: {
+                activePressure: true,
+                opening: true
+            }
+        }, { minIntervalMs: 0 });
     }
 
     function togglePauseFromKeyboard() {
@@ -2293,20 +3255,20 @@
         state.spriteReady = true;
         state.loadError = '';
         state.stability = getDifficultyState().stability;
-        setText(loadingStatus, '维护素材已就绪');
+        setTextByKey(loadingStatus, 'subconsciousMaintenance.loading.ready');
         setPhase('ready');
     }
 
     function markSpriteSheetFailed() {
         state.spriteReady = false;
         state.loadError = 'sprite_load_failed';
-        setText(loadingStatus, '素材加载失败，可以返回记忆界面后重试');
+        setTextByKey(loadingStatus, 'subconsciousMaintenance.loading.failed');
         setButtonDisabled(startBtn, true);
         setPhase('loading');
     }
 
     function preloadVfxSheet() {
-        setText(loadingStatus, '正在准备特效素材');
+        setTextByKey(loadingStatus, 'subconsciousMaintenance.loading.preparingVfx');
         var image = new Image();
         image.onload = function () {
             if (image.naturalWidth < VFX_COLUMNS || image.naturalHeight < VFX_ROWS) {
@@ -2321,7 +3283,7 @@
 
     function preloadSpriteSheet() {
         setPhase('loading');
-        setText(loadingStatus, '正在准备维护素材');
+        setTextByKey(loadingStatus, 'subconsciousMaintenance.loading.preparingSprites');
         state.spriteReady = false;
         var image = new Image();
         image.onload = function () {
@@ -2400,6 +3362,9 @@
     if (nekoModeBtn) {
         nekoModeBtn.addEventListener('click', toggleNekoMode);
     }
+    if (voiceOutputBtn) {
+        voiceOutputBtn.addEventListener('click', toggleVoiceOutput);
+    }
     if (continueBtn) {
         continueBtn.addEventListener('click', function () {
             if (state.phase === 'paused') {
@@ -2409,6 +3374,11 @@
     }
     if (restartBtn) {
         restartBtn.addEventListener('click', restartToReady);
+    }
+    if (temporaryHideBtn) {
+        temporaryHideBtn.addEventListener('click', function () {
+            temporaryHideOverlay();
+        });
     }
     if (exitBtn) {
         exitBtn.addEventListener('click', exitToMemoryBrowser);
@@ -2430,6 +3400,7 @@
     });
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('localechange', refreshLocalizedText);
     window.addEventListener('pagehide', function () {
         endRouteSession('pagehide', true);
     });
@@ -2459,6 +3430,12 @@
         getBattleSnapshot: getBattleSnapshot,
         getCanvasPointFromEvent: getCanvasPointFromEvent,
         toggleNekoMode: toggleNekoMode,
+        emitGameEvent: emitGameEvent,
+        drainRouteOutputs: drainRouteOutputs,
+        postRealtimeContext: postRealtimeContext,
+        submitVoiceTranscript: submitVoiceTranscript,
+        getVoiceOutputEnabled: getVoiceOutputEnabled,
+        toggleVoiceOutput: toggleVoiceOutput,
         getSpriteManifest: function () {
             return Object.assign({}, SPRITES);
         },
@@ -2467,6 +3444,8 @@
         },
         setDifficulty: setDifficulty,
         setPhase: setPhase,
+        temporaryHideOverlay: temporaryHideOverlay,
+        finishTemporaryHide: finishTemporaryHide,
         showResult: showResult,
         syncHud: syncHud,
         resizeCanvas: resizeCanvas,
@@ -2474,6 +3453,7 @@
     };
 
     syncDifficultyButtons();
+    refreshLocalizedText();
     syncHud();
     syncPhase();
     resizeCanvas();
