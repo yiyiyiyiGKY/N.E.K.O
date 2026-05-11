@@ -767,6 +767,7 @@
         if (normalizedSessionId) {
             params.set('session_id', normalizedSessionId);
         }
+        params.set('source', 'memory_browser');
         const query = params.toString();
         return query ? '/subconscious_maintenance?' + query : '/subconscious_maintenance';
     }
@@ -784,7 +785,7 @@
         const sessionId = createSubconsciousMaintenanceSessionId();
         const url = buildSubconsciousMaintenanceUrl(lanlanName, sessionId);
         const windowName = 'neko_subconscious_maintenance';
-        const features = 'width=1200,height=800,scrollbars=yes,resizable=yes';
+        const features = 'width=1200,height=800,scrollbars=yes,resizable=yes,nekoOverlay=subconscious_maintenance';
 
         if (typeof window.openOrFocusWindow === 'function') {
             window.openOrFocusWindow(url, windowName, features);

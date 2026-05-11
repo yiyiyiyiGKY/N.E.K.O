@@ -17,6 +17,7 @@
     var GALGAME_STORAGE_KEY = 'neko.reactChatWindow.galgameMode';
     var GALGAME_HISTORY_LIMIT = 6;
     var EVENT_PREFIX = 'react-chat-window:';
+    var SUBCONSCIOUS_MAINTENANCE_OVERLAY_FEATURE = 'nekoOverlay=subconscious_maintenance';
 
     var loadedPromise = null;
     var mounted = false;
@@ -99,6 +100,13 @@
     function applyAttachmentsBodyClass(hasAttachments) {
         if (typeof document === 'undefined' || !document.body) return;
         document.body.classList.toggle('composer-has-attachments', !!hasAttachments);
+    }
+
+    function getMiniGameWindowFeatures(gameType) {
+        if (String(gameType || '') !== 'subconscious_maintenance') {
+            return '';
+        }
+        return SUBCONSCIOUS_MAINTENANCE_OVERLAY_FEATURE;
     }
     // No module-eval apply: state defaults to off here; init() resolves the
     // persisted preference and calls setGalgameModeEnabled(...) which flips
@@ -1460,9 +1468,12 @@
         // （codex P2 指出原版 fetch 后 window.open 失败时 state 已 responded
         // 用户失去重试入口）。decline / later 路径不开窗口，无此处理。
         var preOpenedWindow = null;
+        var preOpenFeatures = getMiniGameWindowFeatures(prompt.gameType);
         if (option.choice === 'accept') {
             try {
-                preOpenedWindow = window.open('', '_blank');
+                preOpenedWindow = preOpenFeatures
+                    ? window.open('', '_blank', preOpenFeatures)
+                    : window.open('', '_blank');
                 if (preOpenedWindow) {
                     // 给个临时占位文本免得用户看到 about:blank 一闪
                     try {
@@ -1641,6 +1652,7 @@
     function launchMiniGameInternal(payload) {
         if (!payload || !payload.url) return;
         var sessionId = String(payload.sessionId || '');
+        var windowFeatures = getMiniGameWindowFeatures(payload.gameType);
         // 同一 session 只 open 一次：按钮 endpoint 直接 open 后，backend 还会 push
         // mini_game_invite_resolved（cross-window 一致性广播）；不 dedupe 会双开。
         if (sessionId && state._launchedMiniGameSessionIds[sessionId]) return;
@@ -1651,7 +1663,9 @@
         // 永远被 dedupe 锁死，prompt 已清掉用户彻底失去入口)。
         var opened = false;
         try {
-            var w = window.open(payload.url, '_blank');
+            var w = windowFeatures
+                ? window.open(payload.url, '_blank', windowFeatures)
+                : window.open(payload.url, '_blank');
             if (!w) {
                 console.warn('[MiniGameInvite] window.open returned null (popup blocked?)');
             } else {

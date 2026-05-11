@@ -86,6 +86,8 @@ def test_subconscious_maintenance_css_uses_blue_white_setup_panel_and_centered_s
     assert '.sm-hud-toggle--mode' in css
     assert '.sm-difficulty-btn.is-active' in css
     assert '.sm-command-btn:disabled' in css
+    assert '.sm-layer {' in css
+    assert 'background: transparent;' in css
     assert 'linear-gradient(180deg, #62c7ff 0%, #31a8f0 100%)' in css
 
 
@@ -245,6 +247,15 @@ def test_subconscious_maintenance_script_uses_slower_clearer_combat_tuning():
     assert "nekoSpeed: 75" in script
     assert "nekoAttackCooldown: 2.2" in script
     assert "specialChance: 0.008" in script
+    assert "var NEKO_SPAWN_SAFE_DISTANCE = 220;" in script
+    assert "var NEKO_SPAWN_EDGE_PADDING = 26;" in script
+    assert "var NEKO_SPAWN_RETRY_COUNT = 10;" in script
+    assert "function getEnemySpawnSafeDistance" in script
+    assert "function isEnemySpawnPointTooCloseToNeko" in script
+    assert "function makeEnemySpawnPointOnEdge" in script
+    assert "function getEnemySpawnPoint" in script
+    assert "spawnPoint.edge" in script
+    assert "spawnEdge: spawnPoint.edge" in script
     assert "var magnetRadius = 26 + Math.min(18, state.combo * 0.8) + getComboBoostLevel() * 5;" in script
     assert "return 126 + Math.min(24, state.combo * 0.9) + getComboBoostLevel() * 10;" in script
     assert "state.nekoIntent !== 'evade'" not in script
@@ -277,3 +288,6 @@ def test_subconscious_maintenance_keeps_reference_boundary_contracts():
     assert "ROUTE_BASE_URL = '/api/game/' + GAME_TYPE + '/route'" in source
     assert "postgameProactive: false" in source
     assert "gameMemoryEnabled: false" in source
+    assert "game_memory_enabled: false" in source
+    assert "source: getLaunchSource()" in source
+    assert "i18n_language: getCurrentLanguage()" in source

@@ -126,6 +126,7 @@ def test_subconscious_maintenance_opens_from_memory_browser_and_reuses_window_he
     assert {call["name"] for call in calls} == {"neko_subconscious_maintenance"}
     assert all(call["url"].startswith("/subconscious_maintenance?") for call in calls)
     assert all("lanlan_name=" in call["url"] and "session_id=subconscious-" in call["url"] for call in calls)
+    assert all("source=memory_browser" in call["url"] for call in calls)
 
 
 @pytest.mark.frontend
@@ -153,6 +154,10 @@ def test_subconscious_maintenance_popup_reaches_ready_canvas_and_input(
     assert route_events[0]["body"]["pageVisible"] is True
     assert route_events[0]["body"]["visibilityState"] in {"visible", "prerender"}
     assert route_events[0]["body"]["currentState"]["phase"] == "ready"
+    assert route_events[0]["body"]["source"] == "memory_browser"
+    assert route_events[0]["body"]["gameMemoryEnabled"] is False
+    assert route_events[0]["body"]["game_memory_enabled"] is False
+    assert route_events[0]["body"]["i18n_language"]
 
     popup.locator("#subconscious-maintenance-start-btn").click()
     popup.wait_for_function("() => window.appSubconsciousMaintenance.getState().phase === 'playing'")
@@ -227,6 +232,7 @@ def test_subconscious_maintenance_difficulties_and_result_routes(
     route_events = _install_subconscious_route_mocks(mock_page)
     mock_page.goto(f"{running_server}/subconscious_maintenance?lanlan_name=测试猫娘&session_id=flow-test")
     _wait_for_ready(mock_page)
+    assert mock_page.evaluate("window.__nekoSubconsciousMaintenanceQuery.source") == "direct"
 
     for difficulty in ("easy", "normal", "hard"):
         mock_page.locator(f".sm-difficulty-btn[data-difficulty='{difficulty}']").click()
@@ -244,6 +250,9 @@ def test_subconscious_maintenance_difficulties_and_result_routes(
     mock_page.evaluate("window.appSubconsciousMaintenance.showResult('success')")
     mock_page.wait_for_function("() => window.appSubconsciousMaintenance.getState().phase === 'success'")
     assert any(event["kind"] == "end" and event["body"]["reason"] == "success" for event in route_events)
+    assert route_events[0]["body"]["source"] == "direct"
+    assert route_events[0]["body"]["gameMemoryEnabled"] is False
+    assert route_events[0]["body"]["game_memory_enabled"] is False
 
     mock_page.locator("#subconscious-maintenance-end-restart-btn").click()
     _wait_for_ready(mock_page)

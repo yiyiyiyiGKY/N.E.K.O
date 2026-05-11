@@ -89,6 +89,10 @@ _SOCCER_QUICK_LINE_KEYS = {
     "free-ball", "startle", "zoneout",
 }
 
+_SUBCONSCIOUS_MAINTENANCE_GAME_TYPE = "subconscious_maintenance"
+_DEFAULT_GAME_LAUNCH_SOURCE = "direct"
+_VALID_GAME_LAUNCH_SOURCES = {"direct", "memory_browser", "mini_game_invite"}
+
 _DEFAULT_GAME_MEMORY_TAIL_COUNT = 6
 _MAX_GAME_MEMORY_TAIL_COUNT = 50
 
@@ -256,6 +260,20 @@ def _log_game_debug_material(
         truncated,
         body,
     )
+
+
+def _is_subconscious_maintenance_game(game_type: str | None) -> bool:
+    return str(game_type or "").strip() == _SUBCONSCIOUS_MAINTENANCE_GAME_TYPE
+
+
+def _normalize_game_launch_source(value: Any, default: str = _DEFAULT_GAME_LAUNCH_SOURCE) -> str:
+    source = str(value or "").strip()
+    if source in _VALID_GAME_LAUNCH_SOURCES:
+        return source
+    default_source = str(default or "").strip()
+    if default_source in _VALID_GAME_LAUNCH_SOURCES:
+        return default_source
+    return _DEFAULT_GAME_LAUNCH_SOURCE
 
 
 def _infer_service_source(base_url: str, model: str = "", api_type: str = "") -> Dict[str, str]:
@@ -614,6 +632,16 @@ _SOCCER_GAME_MEMORY_PAYLOAD_KEYS = {
 def _soccer_game_memory_policy(value: Any) -> dict:
     if not isinstance(value, dict):
         value = {}
+    if _is_subconscious_maintenance_game(value.get("game_type")):
+        return {
+            "soccer_game_memory_enabled": False,
+            "soccer_game_memory_player_interaction_enabled": False,
+            "soccer_game_memory_event_reply_enabled": False,
+            "soccer_game_memory_archive_enabled": False,
+            "soccer_game_memory_postgame_context_enabled": False,
+            "game_memory_enabled": False,
+            "gameMemoryEnabled": False,
+        }
     master = _payload_bool_from_keys(value, _SOCCER_GAME_MEMORY_PAYLOAD_KEYS["soccer_game_memory_enabled"])
     if master is None:
         master = _DEFAULT_SOCCER_GAME_MEMORY_ENABLED
@@ -629,6 +657,16 @@ def _soccer_game_memory_policy(value: Any) -> dict:
 def _soccer_game_memory_policy_from_payload(data: dict, current: dict | None = None) -> dict | None:
     if not isinstance(data, dict):
         return None
+    if isinstance(current, dict) and _is_subconscious_maintenance_game(current.get("game_type")):
+        return {
+            "soccer_game_memory_enabled": False,
+            "soccer_game_memory_player_interaction_enabled": False,
+            "soccer_game_memory_event_reply_enabled": False,
+            "soccer_game_memory_archive_enabled": False,
+            "soccer_game_memory_postgame_context_enabled": False,
+            "game_memory_enabled": False,
+            "gameMemoryEnabled": False,
+        }
     contains_policy_key = any(
         key in data
         for keys in _SOCCER_GAME_MEMORY_PAYLOAD_KEYS.values()
@@ -672,12 +710,23 @@ def _soccer_game_memory_postgame_context_enabled(value: Any) -> bool:
 def _game_memory_enabled(value: Any) -> bool:
     """Legacy aggregate accessor retained for old callers and payloads."""
     if isinstance(value, dict):
+        if _is_subconscious_maintenance_game(value.get("game_type")):
+            return False
         return _soccer_game_memory_policy(value)["soccer_game_memory_enabled"]
     return _DEFAULT_SOCCER_GAME_MEMORY_ENABLED
 
 
 def _attach_game_memory_flag_to_event(event: dict, state: dict | None) -> dict:
     event_payload = dict(event) if isinstance(event, dict) else {}
+    if state is not None and _is_subconscious_maintenance_game(state.get("game_type")):
+        for field in _SOCCER_GAME_MEMORY_POLICY_FIELDS:
+            event_payload.setdefault(field, False)
+        event_payload.setdefault("soccerGameMemoryEnabled", False)
+        event_payload.setdefault("soccerGameMemoryPlayerInteractionEnabled", False)
+        event_payload.setdefault("soccerGameMemoryEventReplyEnabled", False)
+        event_payload.setdefault("gameMemoryEnabled", False)
+        event_payload.setdefault("game_memory_enabled", False)
+        return event_payload
     has_policy_key = any(
         key in event_payload
         for keys in _SOCCER_GAME_MEMORY_PAYLOAD_KEYS.values()
@@ -1355,6 +1404,7 @@ def _build_route_state(
         "game_external_voice_route_active": False,
         "game_external_text_route_active": False,
         "game_input_mode": "none",
+        "source": _DEFAULT_GAME_LAUNCH_SOURCE,
         "activation_source": "game_event",
         "external_suspended_by_game": False,
         "should_resume_external_on_exit": before_mode == "audio" and before_active,
@@ -1381,6 +1431,7 @@ def _build_route_state(
         "soccer_game_memory_archive_enabled": _DEFAULT_SOCCER_GAME_MEMORY_ENABLED,
         "soccer_game_memory_postgame_context_enabled": _DEFAULT_SOCCER_GAME_MEMORY_ENABLED,
         "game_memory_enabled": _DEFAULT_SOCCER_GAME_MEMORY_ENABLED,
+        "gameMemoryEnabled": _DEFAULT_SOCCER_GAME_MEMORY_ENABLED,
         "last_state": {},
         "finalScore": {},
         "preGameContext": {},
@@ -1825,12 +1876,31 @@ def _update_route_visibility_from_payload(state: dict, data: dict) -> None:
 
 
 def _update_game_memory_enabled_from_payload(state: dict, data: dict) -> None:
+    if _is_subconscious_maintenance_game(state.get("game_type")):
+        for field in _SOCCER_GAME_MEMORY_POLICY_FIELDS:
+            state[field] = False
+        state["game_memory_enabled"] = False
+        state["gameMemoryEnabled"] = False
+        return
     policy = _soccer_game_memory_policy_from_payload(data, current=state)
     if policy is not None:
         for field in _SOCCER_GAME_MEMORY_POLICY_FIELDS:
             state[field] = policy[field]
         state["game_memory_enabled"] = policy["soccer_game_memory_enabled"]
         state["gameMemoryEnabled"] = policy["soccer_game_memory_enabled"]
+
+
+def _update_game_launch_source_from_payload(state: dict, data: dict) -> None:
+    if not isinstance(state, dict):
+        return
+    current_source = _normalize_game_launch_source(state.get("source"))
+    if not isinstance(data, dict):
+        state["source"] = current_source
+        return
+    if "source" in data:
+        state["source"] = _normalize_game_launch_source(data.get("source"), default=current_source)
+    elif not current_source:
+        state["source"] = _DEFAULT_GAME_LAUNCH_SOURCE
 
 
 def _coerce_payload_bool(value: Any) -> bool | None:
@@ -1910,6 +1980,8 @@ def _route_game_started_elapsed_ms(state: dict, *, prefer_exit_elapsed: bool = F
 def _game_archive_memory_skip_reason(state: dict, reason: str = "") -> str:
     """Return why game-produced content should not be written to memory."""
     reason_text = str(reason or "").strip()
+    if _is_subconscious_maintenance_game(state.get("game_type")):
+        return "subconscious_maintenance_no_memory"
     if state.get("accidental_game_entry_exit") or reason_text == "accidental_page_entry":
         return "accidental_page_entry"
     if state.get("game_started") is not True:
@@ -1928,6 +2000,8 @@ def _game_archive_memory_skip_reason(state: dict, reason: str = "") -> str:
 
 def _build_game_archive_memory_skipped_result(reason: str) -> dict:
     message = "game archive memory skipped"
+    if reason == "subconscious_maintenance_no_memory":
+        message = "subconscious maintenance never writes game archive memory"
     if reason in {"game_memory_disabled", "soccer_game_memory_archive_disabled"}:
         message = (
             "soccer game archive memory disabled; game user input mirrors, assistant replies, "
@@ -2038,6 +2112,7 @@ def _build_game_archive(state: dict) -> dict:
         "game_type": state.get("game_type"),
         "session_id": state.get("session_id"),
         "lanlan_name": state.get("lanlan_name"),
+        "source": _normalize_game_launch_source(state.get("source")),
         "user_language": _resolve_game_prompt_language(str(state.get("lanlan_name") or "")),
         "dialog_count": len(dialog),
         "full_dialogues": dialog,
@@ -2749,6 +2824,7 @@ def _build_game_postgame_event(game_type: str, archive: dict, options: dict) -> 
     return {
         "kind": "postgame",
         "lanlan_name": archive.get("lanlan_name") or "",
+        "source": _normalize_game_launch_source(archive.get("source")),
         "label": texts["label"],
         "gameType": game_type,
         "summary": archive.get("summary") or "",
@@ -3163,6 +3239,8 @@ async def _deliver_game_postgame(
 
 async def _submit_game_archive_to_memory(archive: dict) -> dict:
     """Persist a compact game archive into recent memory without blocking exit semantics."""
+    if _is_subconscious_maintenance_game(archive.get("game_type")):
+        return _build_game_archive_memory_skipped_result("subconscious_maintenance_no_memory")
     if _soccer_game_memory_archive_enabled(archive) is False:
         return _build_game_archive_memory_skipped_result("soccer_game_memory_archive_disabled")
     lanlan_name = str(archive.get("lanlan_name") or "").strip()
@@ -4286,6 +4364,7 @@ async def game_chat(game_type: str, request: Request):
     _absorb_request_language(data, lanlan_name)
     state = _get_active_game_route_state(lanlan_name, game_type) if lanlan_name else None
     if state and state.get("session_id") == session_id:
+        _update_game_launch_source_from_payload(state, data)
         _update_game_memory_enabled_from_payload(state, data)
         if isinstance(event, dict):
             _update_game_memory_enabled_from_payload(state, event)
@@ -4406,6 +4485,7 @@ async def game_route_start(game_type: str, request: Request):
             state["game_memory_tail_count"] = _normalize_game_memory_tail_count(
                 data.get("game_memory_tail_count", data.get("gameMemoryTailCount"))
             )
+            _update_game_launch_source_from_payload(state, data)
             _update_game_memory_enabled_from_payload(state, data)
             state["nekoInitiated"] = neko_initiated
             state["nekoInviteText"] = neko_invite_text
@@ -4545,6 +4625,7 @@ async def game_route_voice_transcript(game_type: str, request: Request):
     if isinstance(current_state, dict):
         state["last_state"] = current_state
     _update_route_start_state_from_payload(state, data)
+    _update_game_launch_source_from_payload(state, data)
     _update_game_memory_enabled_from_payload(state, data)
 
     handled = await route_external_voice_transcript(
@@ -4580,6 +4661,7 @@ async def game_route_heartbeat(game_type: str, request: Request):
     state["last_activity"] = now
     _update_route_visibility_from_payload(state, data)
     _update_route_start_state_from_payload(state, data)
+    _update_game_launch_source_from_payload(state, data)
     _update_game_memory_enabled_from_payload(state, data)
     current_state = data.get("currentState")
     if isinstance(current_state, dict):
@@ -4796,6 +4878,16 @@ def _build_external_user_event(state: dict, text: str, *, kind: str, source: str
         score_diff = 0
     event_type = "user_text" if kind == "user-text" else "user_voice"
     policy = _soccer_game_memory_policy(state)
+    if _is_subconscious_maintenance_game(state.get("game_type")):
+        policy = {
+            "soccer_game_memory_enabled": False,
+            "soccer_game_memory_player_interaction_enabled": False,
+            "soccer_game_memory_event_reply_enabled": False,
+            "soccer_game_memory_archive_enabled": False,
+            "soccer_game_memory_postgame_context_enabled": False,
+            "game_memory_enabled": False,
+            "gameMemoryEnabled": False,
+        }
     memory_enabled = policy["soccer_game_memory_player_interaction_enabled"]
     return {
         "kind": kind,
@@ -5265,6 +5357,11 @@ async def game_realtime_context(game_type: str, request: Request):
     if not lanlan_name:
         return {"ok": False, "reason": "missing_lanlan_name"}
 
+    state = _get_active_game_route_state(lanlan_name, game_type)
+    if state:
+        _update_game_launch_source_from_payload(state, data)
+        _update_game_memory_enabled_from_payload(state, data)
+
     session_manager = get_session_manager()
     mgr = session_manager.get(lanlan_name)
     if not mgr:
@@ -5354,6 +5451,7 @@ async def _complete_game_end_from_payload(
             state["game_memory_tail_count"] = _normalize_game_memory_tail_count(
                 data.get("game_memory_tail_count", data.get("gameMemoryTailCount"))
             )
+        _update_game_launch_source_from_payload(state, data)
         _update_game_memory_enabled_from_payload(state, data)
         # B1: serialize against /route/start supersede + heartbeat sweep
         # finalize. ``_finalize_game_route_state`` itself dedupes via the
@@ -5369,10 +5467,11 @@ async def _complete_game_end_from_payload(
             )
         archive = finalized["archive"]
         archive_memory = finalized["archive_memory"]
-        if _soccer_game_memory_postgame_context_enabled(archive) is False:
-            postgame_options["enabled"] = False
-        if isinstance(archive_memory, dict) and archive_memory.get("status") == "skipped":
-            postgame_options["enabled"] = False
+        if not _is_subconscious_maintenance_game(game_type):
+            if _soccer_game_memory_postgame_context_enabled(archive) is False:
+                postgame_options["enabled"] = False
+            if isinstance(archive_memory, dict) and archive_memory.get("status") == "skipped":
+                postgame_options["enabled"] = False
         postgame_result = await _deliver_game_postgame(
             game_type,
             session_id,

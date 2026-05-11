@@ -42,6 +42,9 @@
     var DROP_SPECIAL_MAX_SPEED = 42;
     var DROP_FRAGMENT_MAGNET_PULL = 92;
     var DROP_SPECIAL_MAGNET_PULL = 54;
+    var NEKO_SPAWN_SAFE_DISTANCE = 220;
+    var NEKO_SPAWN_EDGE_PADDING = 26;
+    var NEKO_SPAWN_RETRY_COUNT = 10;
 
     var body = document.body;
     var canvas = document.getElementById('subconscious-maintenance-canvas');
@@ -217,11 +220,15 @@
         }
         return {
             lanlanName: params ? String(params.get('lanlan_name') || '') : '',
-            sessionId: params ? String(params.get('session_id') || '') : ''
+            sessionId: params ? String(params.get('session_id') || '') : '',
+            source: params ? String(params.get('source') || '') : ''
         };
     }
 
     var query = readQuery();
+    if (!query.source) {
+        query.source = 'direct';
+    }
     window.__nekoSubconsciousMaintenanceQuery = query;
 
     function withAssetVersion(url) {
@@ -240,6 +247,31 @@
         if (query.sessionId) return query.sessionId;
         query.sessionId = 'subconscious-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
         return query.sessionId;
+    }
+
+    function getCurrentLanguage() {
+        try {
+            if (window.i18next && typeof window.i18next.language === 'string' && window.i18next.language) {
+                return window.i18next.language;
+            }
+            if (window.i18n && typeof window.i18n.language === 'string' && window.i18n.language) {
+                return window.i18n.language;
+            }
+            if (typeof localStorage !== 'undefined') {
+                var cached = localStorage.getItem('i18nextLng');
+                if (cached) {
+                    return cached;
+                }
+            }
+            if (typeof navigator !== 'undefined' && navigator.language) {
+                return navigator.language;
+            }
+        } catch (_) {}
+        return (document.documentElement && document.documentElement.lang) || 'zh-CN';
+    }
+
+    function getLaunchSource() {
+        return query.source || 'direct';
     }
 
     function setText(el, value) {
@@ -419,23 +451,51 @@
         });
     }
 
+    function getEnemySpawnSafeDistance() {
+        return clamp(Math.min(field.width, field.height) * 0.22, 180, NEKO_SPAWN_SAFE_DISTANCE);
+    }
+
+    function isEnemySpawnPointTooCloseToNeko(point, safeDistance) {
+        return distance(point, scene.neko) < safeDistance;
+    }
+
+    function makeEnemySpawnPointOnEdge(typeKey) {
+        var cfg = enemyConfig[typeKey] || enemyConfig.glitchWorm;
+        var inset = Math.max(18, Math.round((cfg.radius || 24) * 0.8));
+        var edgePadding = Math.max(NEKO_SPAWN_EDGE_PADDING, Math.round(Math.min(field.width, field.height) * 0.05));
+        var horizontalMin = edgePadding;
+        var horizontalMax = Math.max(horizontalMin + 1, field.width - edgePadding);
+        var verticalMin = edgePadding;
+        var verticalMax = Math.max(verticalMin + 1, field.height - edgePadding);
+        var side = Math.floor(Math.random() * 4);
+        if (side === 0) {
+            return { x: -inset, y: randomRange(verticalMin, verticalMax), edge: 'left' };
+        }
+        if (side === 1) {
+            return { x: field.width + inset, y: randomRange(verticalMin, verticalMax), edge: 'right' };
+        }
+        if (side === 2) {
+            return { x: randomRange(horizontalMin, horizontalMax), y: -inset, edge: 'top' };
+        }
+        return { x: randomRange(horizontalMin, horizontalMax), y: field.height + inset, edge: 'bottom' };
+    }
+
+    function getEnemySpawnPoint(typeKey) {
+        var safeDistance = getEnemySpawnSafeDistance();
+        var fallback = null;
+        for (var i = 0; i < NEKO_SPAWN_RETRY_COUNT; i++) {
+            var candidate = makeEnemySpawnPointOnEdge(typeKey);
+            fallback = fallback || candidate;
+            if (!isEnemySpawnPointTooCloseToNeko(candidate, safeDistance)) {
+                return candidate;
+            }
+        }
+        return fallback || makeEnemySpawnPointOnEdge(typeKey);
+    }
+
     function spawnEnemy(typeKey) {
         var cfg = enemyConfig[typeKey] || enemyConfig.glitchWorm;
-        var side = Math.floor(Math.random() * 4);
-        var spawnPoint = { x: 0, y: 0 };
-        if (side === 0) {
-            spawnPoint.x = -24;
-            spawnPoint.y = randomRange(0, field.height);
-        } else if (side === 1) {
-            spawnPoint.x = field.width + 24;
-            spawnPoint.y = randomRange(0, field.height);
-        } else if (side === 2) {
-            spawnPoint.x = randomRange(0, field.width);
-            spawnPoint.y = -24;
-        } else {
-            spawnPoint.x = randomRange(0, field.width);
-            spawnPoint.y = field.height + 24;
-        }
+        var spawnPoint = getEnemySpawnPoint(typeKey);
         var enemy = {
             type: typeKey,
             spriteKey: cfg.spriteKey,
@@ -454,7 +514,8 @@
             hidden: false,
             phaseTimer: typeKey === 'noiseSquid' ? randomRange(0.55, 1.35) : 0,
             invulnerable: false,
-            drift: randomRange(0, Math.PI * 2)
+            drift: randomRange(0, Math.PI * 2),
+            spawnEdge: spawnPoint.edge
         };
         battle.enemies.push(enemy);
         return enemy;
@@ -1557,12 +1618,15 @@
         return {
             lanlan_name: query.lanlanName || '',
             session_id: ensureSessionId(),
+            source: getLaunchSource(),
+            i18n_language: getCurrentLanguage(),
             pageVisible: !document.hidden,
             visibilityState: document.visibilityState || (document.hidden ? 'hidden' : 'visible'),
             currentState: getBattleSnapshot(),
             reason: reason || '',
             postgameProactive: false,
-            gameMemoryEnabled: false
+            gameMemoryEnabled: false,
+            game_memory_enabled: false
         };
     }
 

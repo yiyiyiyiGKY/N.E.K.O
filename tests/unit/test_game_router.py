@@ -1240,12 +1240,118 @@ async def test_route_start_accepts_neko_invite_context(monkeypatch):
     assert state["pre_game_context_source"] == "ai"
     assert state["pre_game_context_error"] == ""
     assert state["game_memory_tail_count"] == 3
+    assert state["source"] == "direct"
     assert state["soccer_game_memory_enabled"] is False
     assert state["soccer_game_memory_player_interaction_enabled"] is False
     assert state["soccer_game_memory_event_reply_enabled"] is False
     assert state["soccer_game_memory_archive_enabled"] is False
     assert state["soccer_game_memory_postgame_context_enabled"] is False
     assert state["game_memory_enabled"] is False
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_subconscious_route_start_forces_source_and_memory_off(monkeypatch):
+    monkeypatch.setattr(game_router, "get_session_manager", lambda: {})
+
+    result = await game_router.game_route_start(
+        "subconscious_maintenance",
+        _FakeRequest({
+            "lanlan_name": "Lan",
+            "session_id": "sm_1",
+            "source": "memory_browser",
+            "gameMemoryEnabled": True,
+            "game_memory_enabled": True,
+        }),
+    )
+
+    assert result["ok"] is True
+    state = result["state"]
+    assert state["source"] == "memory_browser"
+    assert state["soccer_game_memory_enabled"] is False
+    assert state["soccer_game_memory_player_interaction_enabled"] is False
+    assert state["soccer_game_memory_event_reply_enabled"] is False
+    assert state["soccer_game_memory_archive_enabled"] is False
+    assert state["soccer_game_memory_postgame_context_enabled"] is False
+    assert state["game_memory_enabled"] is False
+    assert state["gameMemoryEnabled"] is False
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_subconscious_game_end_skips_memory_but_keeps_postgame_independent(monkeypatch):
+    monkeypatch.setattr(game_router, "get_session_manager", lambda: {})
+    state = game_router._activate_game_route("subconscious_maintenance", "match_1", "Lan")
+    _mark_game_started(state)
+    state["source"] = "memory_browser"
+
+    async def fake_submit(archive):
+        raise AssertionError("subconscious maintenance must never submit game archive memory")
+
+    captured = {}
+
+    async def fake_postgame(game_type, session_id, lanlan_name, archive, options, **kwargs):
+        captured["game_type"] = game_type
+        captured["session_id"] = session_id
+        captured["lanlan_name"] = lanlan_name
+        captured["options"] = dict(options)
+        captured["archive"] = dict(archive)
+        return {"ok": True, "mode": "text", "action": "chat", "reason": "delivered"}
+
+    monkeypatch.setattr(game_router, "_submit_game_archive_to_memory", fake_submit)
+    monkeypatch.setattr(game_router, "_deliver_game_postgame", fake_postgame)
+
+    result = await game_router.game_end(
+        "subconscious_maintenance",
+        _FakeRequest({
+            "session_id": "match_1",
+            "lanlan_name": "Lan",
+            "reason": "manual",
+            "source": "memory_browser",
+            "postgameProactive": {
+                "enabled": True,
+                "mode": "text",
+                "triggerVoice": False,
+            },
+            "gameMemoryEnabled": True,
+            "game_memory_enabled": True,
+            "gameStarted": True,
+            "gameStartedElapsedMs": 15_000,
+        }),
+    )
+
+    assert result["archive_memory"]["status"] == "skipped"
+    assert result["archive_memory"]["reason"] == "subconscious_maintenance_no_memory"
+    assert result["postgame"] == {"ok": True, "mode": "text", "action": "chat", "reason": "delivered"}
+    assert captured["game_type"] == "subconscious_maintenance"
+    assert captured["options"]["enabled"] is True
+    assert captured["archive"]["source"] == "memory_browser"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_subconscious_heartbeat_timeout_skips_archive_memory(monkeypatch):
+    monkeypatch.setattr(game_router, "get_session_manager", lambda: {})
+    state = game_router._activate_game_route("subconscious_maintenance", "match_1", "Lan")
+    _mark_game_started(state)
+    state["source"] = "memory_browser"
+
+    async def fake_submit(_archive):
+        raise AssertionError("subconscious maintenance must never submit game archive memory")
+
+    monkeypatch.setattr(game_router, "_submit_game_archive_to_memory", fake_submit)
+
+    result = await game_router._finalize_game_route_state(
+        state,
+        reason="heartbeat_timeout",
+        close_game_session=False,
+    )
+
+    assert result["archive_memory"]["status"] == "skipped"
+    assert result["archive_memory"]["reason"] == "subconscious_maintenance_no_memory"
+    assert result["archive"]["memory_skipped"] is True
+    assert result["archive"]["memory_skip_reason"] == "subconscious_maintenance_no_memory"
+    assert result["archive"]["exit_reason"] == "heartbeat_timeout"
 
 
 @pytest.mark.unit
@@ -1292,6 +1398,41 @@ async def test_route_start_finalizes_old_active_route_before_replacing(monkeypat
     assert submitted[0]["exit_reason"] == "superseded_by_route_start"
     fake_session.close.assert_awaited_once()
     assert game_router._game_route_states[game_router._route_state_key("Lan", "soccer")]["session_id"] == "new_match"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_subconscious_route_start_supersedes_old_route_without_memory_archive(monkeypatch):
+    fake_session = type("FakeSession", (), {"close": AsyncMock()})()
+    game_router._game_sessions[game_router._game_session_key("Lan", "subconscious_maintenance", "old_match")] = {
+        "session": fake_session,
+        "reply_chunks": [],
+        "last_activity": game_router.time.time(),
+        "lock": None,
+    }
+    monkeypatch.setattr(game_router, "get_session_manager", lambda: {})
+    old_state = game_router._activate_game_route("subconscious_maintenance", "old_match", "Lan")
+    _mark_game_started(old_state)
+    old_state["source"] = "memory_browser"
+
+    async def fake_submit(_archive):
+        raise AssertionError("subconscious maintenance must never submit game archive memory")
+
+    monkeypatch.setattr(game_router, "_submit_game_archive_to_memory", fake_submit)
+
+    result = await game_router.game_route_start(
+        "subconscious_maintenance",
+        _FakeRequest({"lanlan_name": "Lan", "session_id": "new_match"}),
+    )
+
+    assert result["ok"] is True
+    assert old_state["game_route_active"] is False
+    assert old_state["exit_reason"] == "superseded_by_route_start"
+    assert old_state["archive_memory_result"]["status"] == "skipped"
+    assert old_state["archive_memory_result"]["reason"] == "subconscious_maintenance_no_memory"
+    assert old_state["archive"]["memory_skipped"] is True
+    fake_session.close.assert_awaited_once()
+    assert game_router._game_route_states[game_router._route_state_key("Lan", "subconscious_maintenance")]["session_id"] == "new_match"
 
 
 @pytest.mark.unit
