@@ -78,7 +78,8 @@ def test_subconscious_maintenance_template_contains_required_skeleton():
     assert 'data-weapon="bow"' in template
     assert 'data-weapon="dagger"' in template
     assert 'id="subconscious-maintenance-start-btn" class="sm-command-btn sm-command-btn--primary" disabled' in template
-    assert 'id="subconscious-maintenance-voice-output-toggle"' in template
+    assert 'id="subconscious-maintenance-voice-btn"' in template
+    assert 'id="subconscious-maintenance-voice"' in template
     assert 'data-i18n="memory.subconsciousVoiceOutputLabel"' in template
     assert '/static/i18n-i18next.js?v={{ subconscious_maintenance_asset_version }}' in template
     assert '/static/css/subconscious_maintenance.css?v={{ subconscious_maintenance_asset_version }}' in template
@@ -125,9 +126,11 @@ def test_subconscious_maintenance_script_has_loading_ready_state_machine_and_spr
     assert "function startRouteSession" in script
     assert "function startRouteHeartbeat" in script
     assert "function endRouteSession" in script
-    assert "function sendGameSpeech" in script
+    assert "function sendProjectVoice" in script
+    assert "function requestProjectVoice" in script
     assert "function drainRouteOutputs" in script
-    assert "function sendRealtimeContext" in script
+    assert "function buildRealtimeContextPayload" in script
+    assert "function postRealtimeContext" in script
     assert "var WEAPON_ORDER = ['sword', 'bow', 'dagger'];" in script
     assert "function setWeapon(nextWeapon, options)" in script
     assert "function cycleWeapon()" in script
@@ -148,13 +151,13 @@ def test_subconscious_maintenance_script_has_loading_ready_state_machine_and_spr
     assert "pointermove" in script
     assert "getPointerState" in script
     assert "updateAttackFlash" in script
-    assert "/api/game/' + GAME_TYPE + '/route/drain" in script
-    assert "/api/game/' + GAME_TYPE + '/realtime-context" in script
-    assert "/api/game/' + GAME_TYPE + '/speak" in script
-    assert "voiceOutputEnabled: isVoiceOutputEnabled()" in script
-    assert "requestRouteDrain: drainRouteOutputs" in script
-    assert "requestRealtimeContext: function (source, items)" in script
-    assert "isVoiceOutputEnabled: isVoiceOutputEnabled" in script
+    assert "var ROUTE_DRAIN_URL = ROUTE_BASE_URL + '/drain';" in script
+    assert "var REALTIME_CONTEXT_URL = '/api/game/' + GAME_TYPE + '/realtime-context';" in script
+    assert "var SPEAK_URL = '/api/game/' + GAME_TYPE + '/speak';" in script
+    assert "voiceOutputEnabled: getVoiceOutputEnabled()" in script
+    assert "drainRouteOutputs: drainRouteOutputs" in script
+    assert "postRealtimeContext: postRealtimeContext" in script
+    assert "getVoiceOutputEnabled: getVoiceOutputEnabled" in script
     assert "state.phase !== 'ready' || !state.spriteReady" in script
     assert "document.addEventListener('visibilitychange', handleVisibilityChange)" in script
     assert "resetFrameClock()" in script
@@ -233,12 +236,11 @@ def test_subconscious_maintenance_script_balances_neko_collecting_evasion_and_mo
     assert "state.nekoIntent = 'evade'" in script
     assert "state.nekoIntent = 'request'" in script
     assert "state.nekoIntent = 'anticipate'" in script
-    assert "setNekoHint('帮我开路')" in script
-    assert "setNekoHint('我要拿那个大的'" in script
+    assert "state.nekoIntent = 'core'" in script
     assert "state.nekoMode === 'follow'" in script
     assert "state.buffLabel" in script
     assert "var FRAGMENTS_PER_BUFF = 10;" in script
-    assert "speed_up: { label: '加速', ttl: 10 }" in script
+    assert "speed_up: { labelKey: 'subconsciousMaintenance.buff.speed_up', ttl: 10 }" in script
     assert "var NEKO_FOLLOW_MAX_DISTANCE = 126;" in script
     assert "var NEKO_EVADE_ENTER_DISTANCE = 76;" in script
     assert "var NEKO_EVADE_EXIT_DISTANCE = 112;" in script

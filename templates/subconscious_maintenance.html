@@ -25,6 +25,10 @@
                     <span class="sm-hud-stat-label">模式</span>
                     <span class="sm-hud-stat-value" id="subconscious-maintenance-neko-mode">自由行动</span>
                 </button>
+                <button type="button" id="subconscious-maintenance-voice-btn" class="sm-hud-toggle sm-hud-toggle--voice" aria-pressed="true" aria-label="切换台词声音" title="用项目语音播放 NEKO 台词">
+                    <span class="sm-hud-stat-label" data-i18n="memory.subconsciousVoiceOutputLabel">朗读 LLM 台词（项目语音）</span>
+                    <span class="sm-hud-stat-value" id="subconscious-maintenance-voice">开</span>
+                </button>
                 <div class="sm-hud-stat">
                     <span class="sm-hud-stat-label">增益</span>
                     <span class="sm-hud-stat-value" id="subconscious-maintenance-buff">无</span>
@@ -78,10 +82,6 @@
                 </div>
                 <div class="sm-panel-actions">
                     <button type="button" id="subconscious-maintenance-start-btn" class="sm-command-btn sm-command-btn--primary" disabled>▶ 开始</button>
-                    <label class="sm-voice-option">
-                        <input type="checkbox" id="subconscious-maintenance-voice-output-toggle" checked>
-                        <span data-i18n="memory.subconsciousVoiceOutputLabel">朗读 LLM 台词（项目语音）</span>
-                    </label>
                 </div>
             </div>
         </section>

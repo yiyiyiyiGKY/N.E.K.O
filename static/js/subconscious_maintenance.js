@@ -30,6 +30,33 @@
         specialItem: { col: 2, row: 1, label: 'Special Item' }
     };
     var ENEMY_SPRITES = ['glitchWorm', 'logicBomb', 'noiseSquid'];
+    var WEAPON_ORDER = ['sword', 'bow', 'dagger'];
+    var WEAPON_CONFIGS = {
+        sword: {
+            labelKey: 'memory.subconsciousWeaponSword',
+            fallbackLabel: '长剑',
+            rangeScale: 1,
+            widthScale: 1,
+            cooldownScale: 1,
+            attackColor: 'rgba(255, 164, 121, 0.92)'
+        },
+        bow: {
+            labelKey: 'memory.subconsciousWeaponBow',
+            fallbackLabel: '弓箭',
+            rangeScale: 5,
+            widthScale: 0.72,
+            cooldownScale: 1.43,
+            attackColor: 'rgba(112, 206, 255, 0.92)'
+        },
+        dagger: {
+            labelKey: 'memory.subconsciousWeaponDagger',
+            fallbackLabel: '小刀',
+            rangeScale: 0.5,
+            widthScale: 0.74,
+            cooldownScale: 0.5,
+            attackColor: 'rgba(255, 236, 150, 0.92)'
+        }
+    };
     var FRAGMENTS_PER_BUFF = 10;
     var BUFFS = {
         speed_up: { labelKey: 'subconsciousMaintenance.buff.speed_up', ttl: 10 },
@@ -54,7 +81,11 @@
         'subconsciousMaintenance.result.success': '成功',
         'subconsciousMaintenance.result.failed': '失败',
         'subconsciousMaintenance.result.successDetail': '特殊物品已集齐 {{count}} 个',
-        'subconsciousMaintenance.result.failedDetail': 'NEKO 稳定值已归零'
+        'subconsciousMaintenance.result.failedDetail': 'NEKO 稳定值已归零',
+        'memory.subconsciousWeaponSword': '长剑',
+        'memory.subconsciousWeaponBow': '弓箭',
+        'memory.subconsciousWeaponDagger': '小刀',
+        'memory.subconsciousWeaponChanged': '切换为{{weapon}}'
     };
     Object.assign(I18N_FALLBACKS, {
         'subconsciousMaintenance.labels.voice': '台词声音',
@@ -102,6 +133,9 @@
     var resultDetail = document.getElementById('subconscious-maintenance-result-detail');
     var sessionLabel = document.getElementById('subconscious-maintenance-session-label');
     var difficultyButtons = Array.prototype.slice.call(document.querySelectorAll('.sm-difficulty-btn'));
+    var weaponButtons = Array.prototype.slice.call(document.querySelectorAll('.sm-weapon-btn'));
+    var weaponBtn = document.getElementById('subconscious-maintenance-weapon-btn');
+    var weaponValue = document.getElementById('subconscious-maintenance-weapon');
     var nekoModeBtn = document.getElementById('subconscious-maintenance-neko-mode-btn');
     var voiceOutputBtn = document.getElementById('subconscious-maintenance-voice-btn');
     var nekoModeValue = document.getElementById('subconscious-maintenance-neko-mode');
@@ -527,6 +561,62 @@
         return difficultyConfig[state.difficulty] || difficultyConfig.easy;
     }
 
+    function getWeaponKey(value) {
+        var key = String(value || '').trim().toLowerCase();
+        return Object.prototype.hasOwnProperty.call(WEAPON_CONFIGS, key) ? key : 'sword';
+    }
+
+    function getWeaponConfig(value) {
+        return WEAPON_CONFIGS[getWeaponKey(value || state.weapon)];
+    }
+
+    function getWeaponLabel(value) {
+        var config = getWeaponConfig(value);
+        return translate(config.labelKey, {}, config.fallbackLabel);
+    }
+
+    function getWeaponChangedText(value) {
+        return translate(
+            'memory.subconsciousWeaponChanged',
+            { weapon: getWeaponLabel(value) },
+            '切换为{{weapon}}'
+        );
+    }
+
+    function normalizeCommandText(text) {
+        return String(text || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, '');
+    }
+
+    function resolveWeaponCommand(text) {
+        var compact = normalizeCommandText(text);
+        if (!compact) return '';
+        if (
+            compact.indexOf('弓箭') !== -1
+            || compact.indexOf('bow') !== -1
+            || compact.indexOf('longbow') !== -1
+        ) {
+            return 'bow';
+        }
+        if (
+            compact.indexOf('小刀') !== -1
+            || compact.indexOf('匕首') !== -1
+            || compact.indexOf('dagger') !== -1
+            || compact.indexOf('knife') !== -1
+        ) {
+            return 'dagger';
+        }
+        if (
+            compact.indexOf('长剑') !== -1
+            || compact.indexOf('sword') !== -1
+        ) {
+            return 'sword';
+        }
+        return '';
+    }
+
     function addEffect(effect) {
         battle.effects.push(effect);
     }
@@ -888,8 +978,9 @@
 
     function getPlayerAttackStats() {
         var config = getDifficultyState();
-        var range = 90;
-        var width = 42;
+        var weapon = getWeaponConfig();
+        var range = 90 * weapon.rangeScale;
+        var width = 42 * weapon.widthScale;
         if (battle.buffType === 'range_up') {
             range += 22;
             width += 10;
@@ -900,7 +991,9 @@
         return {
             range: range,
             width: width,
-            cooldown: config.playerAttackCooldown
+            cooldown: config.playerAttackCooldown * weapon.cooldownScale,
+            weapon: getWeaponKey(state.weapon),
+            attackColor: weapon.attackColor
         };
     }
 
@@ -971,7 +1064,7 @@
                     color: 'rgba(255, 255, 255, 0.88)',
                     stroke: false
                 }));
-                battle.playerAttackCooldown = config.playerAttackCooldown;
+                battle.playerAttackCooldown = attackStats.cooldown;
                 battle.attackQueued = false;
                 if (!hit) {
                     battle.comboDecayTimer = 0.7;
@@ -2011,11 +2104,13 @@
             var threat = getCoreItemThreat(nearestSpecial);
             if (threat.count > 0 || threat.nearestDistance < 145) {
                 state.nekoIntent = 'request';
+                setNekoHint('帮我开路');
                 if (state.nekoMode === 'follow' && distance(scene.neko, scene.player) > 170) {
                     return commitNekoTarget(makeNekoTarget('return', getNekoFollowAnchor(), 3, 0.22, null, 'request'));
                 }
             } else {
                 state.nekoIntent = 'core';
+                setNekoHint('我要拿那个大的', 1.55);
             }
             return commitNekoTarget(makeNekoTarget(
                 'special',
@@ -2169,10 +2264,13 @@
                 maybeEmitComboMilestone();
                 if (battle.buffType) {
                     state.stability = Math.min(battle.maxStability, state.stability + 1);
+                    setNekoHint('稳定 +1', 0.95);
                 } else {
                     battle.fragmentBuffProgress = Math.min(FRAGMENTS_PER_BUFF, battle.fragmentBuffProgress + 1);
                     if (battle.fragmentBuffProgress >= FRAGMENTS_PER_BUFF) {
                         grantFragmentBuff();
+                    } else {
+                        setNekoHint('碎片 ' + battle.fragmentBuffProgress + '/' + FRAGMENTS_PER_BUFF, 1.0);
                     }
                 }
                 addEffect(makeEffect(nearestItem.x, nearestItem.y, {
@@ -2205,6 +2303,7 @@
                     count: state.specialItems,
                     params: { count: state.specialItems }
                 }, { minIntervalMs: 2500 });
+                setNekoHint('全域清理', 1.6);
                 triggerSpecialFullScreenAttack(specialItem);
                 addEffect(makeEffect(specialItem.x, specialItem.y, {
                     kind: 'burst',
@@ -2439,18 +2538,29 @@
         if (!output || typeof output !== 'object') return;
         if (output.type === 'game_llm_result') {
             var result = output.result || {};
+            var event = output.event || {};
+            applyWeaponCommandText(
+                event.textRaw || event.userVoiceText || event.userText || '',
+                'route_llm_result'
+            );
             var line = extractGameLine(result);
             if (line) {
                 var lineData = Object.assign({}, result, {
-                    event: output.event || {},
+                    event: event,
                     meta: output.meta || {},
-                    originalEvent: output.event || {}
+                    originalEvent: event
                 });
-                handleAssistantLine(line, lineData, output.event && output.event.kind, output.event || {});
+                handleAssistantLine(line, lineData, event && event.kind, event || {});
             }
             return;
         }
         if (output.type === 'game_external_input') {
+            if (output.event && typeof output.event === 'object') {
+                applyWeaponCommandText(
+                    output.event.textRaw || output.event.userVoiceText || output.event.userText || '',
+                    'route_external_input'
+                );
+            }
             return;
         }
     }
@@ -2671,6 +2781,25 @@
         }
     }
 
+    function syncWeaponButtons() {
+        var label = getWeaponLabel();
+        if (weaponValue) {
+            setText(weaponValue, label);
+        }
+        if (weaponBtn) {
+            weaponBtn.setAttribute('data-weapon', state.weapon);
+            weaponBtn.setAttribute('title', getWeaponChangedText(state.weapon));
+        }
+        for (var i = 0; i < weaponButtons.length; i++) {
+            var button = weaponButtons[i];
+            var weapon = getWeaponKey(button.getAttribute('data-weapon'));
+            var active = weapon === state.weapon;
+            button.classList.toggle('is-active', active);
+            button.setAttribute('aria-checked', active ? 'true' : 'false');
+            setText(button, getWeaponLabel(weapon));
+        }
+    }
+
     function getBuffDisplayText() {
         if (battle.buffType && battle.buffTimer > 0) {
             return translate('subconsciousMaintenance.buffDisplay.active', {
@@ -2696,6 +2825,7 @@
         setText(wormsValue, state.worms);
         setText(comboValue, state.combo);
         setText(buffValue, getBuffDisplayText());
+        syncWeaponButtons();
         setTextByKey(
             nekoModeValue,
             state.nekoMode === 'follow'
@@ -2712,6 +2842,32 @@
             if (query.sessionId) parts.push(query.sessionId);
             setText(sessionLabel, parts.length ? parts.join(' · ') : translate('subconsciousMaintenance.setup.sessionIdle'));
         }
+    }
+
+    function setWeapon(nextWeapon, options) {
+        var normalized = getWeaponKey(nextWeapon);
+        var changed = state.weapon !== normalized;
+        state.weapon = normalized;
+        if (changed && options && options.announce !== false) {
+            setNekoHint(getWeaponChangedText(normalized), 1.15);
+        }
+        syncHud();
+        renderScene();
+        return normalized;
+    }
+
+    function cycleWeapon() {
+        var index = WEAPON_ORDER.indexOf(getWeaponKey(state.weapon));
+        var next = WEAPON_ORDER[(index + 1 + WEAPON_ORDER.length) % WEAPON_ORDER.length];
+        return setWeapon(next, { announce: true });
+    }
+
+    function applyWeaponCommandText(text, source) {
+        var weapon = resolveWeaponCommand(text);
+        if (!weapon) return '';
+        return setWeapon(weapon, {
+            announce: source !== 'system',
+        });
     }
 
     function syncPhase() {
@@ -3363,8 +3519,21 @@
         })(difficultyButtons[i]);
     }
 
+    for (var w = 0; w < weaponButtons.length; w++) {
+        (function (button) {
+            button.setAttribute('role', 'radio');
+            button.addEventListener('click', function () {
+                if (state.phase !== 'ready') return;
+                setWeapon(button.getAttribute('data-weapon') || 'sword', { announce: false });
+            });
+        })(weaponButtons[w]);
+    }
+
     if (startBtn) {
         startBtn.addEventListener('click', enterPlaying);
+    }
+    if (weaponBtn) {
+        weaponBtn.addEventListener('click', cycleWeapon);
     }
     if (nekoModeBtn) {
         nekoModeBtn.addEventListener('click', toggleNekoMode);
@@ -3435,8 +3604,13 @@
             return state.pointer ? Object.assign({}, state.pointer) : null;
         },
         getBattleSnapshot: getBattleSnapshot,
+        getWeaponStats: getPlayerAttackStats,
+        getWeaponConfig: function () {
+            return Object.assign({}, getWeaponConfig());
+        },
         getCanvasPointFromEvent: getCanvasPointFromEvent,
         toggleNekoMode: toggleNekoMode,
+        applyWeaponCommandText: applyWeaponCommandText,
         emitGameEvent: emitGameEvent,
         drainRouteOutputs: drainRouteOutputs,
         postRealtimeContext: postRealtimeContext,
@@ -3450,6 +3624,7 @@
             return ENEMY_SPRITES.slice();
         },
         setDifficulty: setDifficulty,
+        setWeapon: setWeapon,
         setPhase: setPhase,
         temporaryHideOverlay: temporaryHideOverlay,
         finishTemporaryHide: finishTemporaryHide,
