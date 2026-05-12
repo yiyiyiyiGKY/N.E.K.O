@@ -36,6 +36,9 @@ from config.prompts.prompts_game import (
     get_soccer_quick_lines_user_prompt,
     get_soccer_system_prompt,
 )
+from config.prompts.prompts_subconscious_maintenance import (
+    get_subconscious_maintenance_system_prompt,
+)
 from config.prompts.prompts_game_route import (
     GAME_CONTEXT_SIGNAL_GROUP_KEYS,
     get_compact_realtime_context_texts,
@@ -69,6 +72,7 @@ from utils.game_route_state import (
 )
 from utils.language_utils import get_global_language, normalize_language_code, is_supported_language_code
 from utils.logger_config import get_module_logger
+from utils.subconscious_maintenance_store import get_subconscious_maintenance_store
 
 logger = get_module_logger(__name__, "Game")
 
@@ -92,6 +96,7 @@ _SOCCER_QUICK_LINE_KEYS = {
 _SUBCONSCIOUS_MAINTENANCE_GAME_TYPE = "subconscious_maintenance"
 _DEFAULT_GAME_LAUNCH_SOURCE = "direct"
 _VALID_GAME_LAUNCH_SOURCES = {"direct", "memory_browser", "mini_game_invite"}
+_DEFAULT_GAME_VOICE_OUTPUT_ENABLED = True
 
 _DEFAULT_GAME_MEMORY_TAIL_COUNT = 6
 _MAX_GAME_MEMORY_TAIL_COUNT = 50
@@ -338,6 +343,13 @@ def _build_game_prompt(
         context_prompt = _format_soccer_pregame_context_for_prompt(pre_game_context, language)
         in_game_context_prompt = _format_game_context_for_prompt(game_context, language)
         return f"{prompt}{context_prompt}{in_game_context_prompt}"
+    if game_type == "subconscious_maintenance":
+        prompt = get_subconscious_maintenance_system_prompt(language).format(
+            name=lanlan_name,
+            personality=lanlan_prompt,
+        )
+        in_game_context_prompt = _format_game_context_for_prompt(game_context, language)
+        return f"{prompt}{in_game_context_prompt}"
     # 未来其他游戏在这里扩展
     output_language = str(language or get_global_language() or "en")
     return (
@@ -1453,6 +1465,8 @@ def _build_route_state(
         "hidden_heartbeat_timeout_seconds": _GAME_ROUTE_HIDDEN_HEARTBEAT_TIMEOUT_SECONDS,
         "page_visible": True,
         "visibility_state": "visible",
+        "voice_output_enabled": _DEFAULT_GAME_VOICE_OUTPUT_ENABLED,
+        "voiceOutputEnabled": _DEFAULT_GAME_VOICE_OUTPUT_ENABLED,
     }
 
 
@@ -1890,6 +1904,20 @@ def _update_game_memory_enabled_from_payload(state: dict, data: dict) -> None:
         state["gameMemoryEnabled"] = policy["soccer_game_memory_enabled"]
 
 
+def _update_voice_output_enabled_from_payload(state: dict, data: dict) -> None:
+    if not isinstance(state, dict) or not isinstance(data, dict):
+        return
+    for key in ("voiceOutputEnabled", "voice_output_enabled"):
+        if key not in data:
+            continue
+        enabled = _coerce_payload_bool(data.get(key))
+        if enabled is None:
+            return
+        state["voice_output_enabled"] = enabled
+        state["voiceOutputEnabled"] = enabled
+        return
+
+
 def _update_game_launch_source_from_payload(state: dict, data: dict) -> None:
     if not isinstance(state, dict):
         return
@@ -1975,6 +2003,102 @@ def _route_game_started_elapsed_ms(state: dict, *, prefer_exit_elapsed: bool = F
     if elapsed is not None:
         return max(0.0, elapsed)
     return None
+
+
+def _subconscious_run_stats(snapshot: Any) -> dict:
+    return dict(snapshot) if isinstance(snapshot, dict) else {}
+
+
+def _subconscious_run_result(reason: str, snapshot: dict | None = None) -> str:
+    current_phase = ""
+    if isinstance(snapshot, dict):
+        current_phase = str(snapshot.get("phase") or "").strip().lower()
+    reason_text = str(reason or "").strip().lower()
+    if current_phase in {"success", "failed"}:
+        return current_phase
+    if reason_text in {"success", "failed"}:
+        return reason_text
+    return "ended"
+
+
+async def _persist_subconscious_maintenance_run_start(state: dict) -> dict | None:
+    if not isinstance(state, dict) or not _is_subconscious_maintenance_game(state.get("game_type")):
+        return None
+    if state.get("game_started") is not True:
+        return None
+    if state.get("_sm_run_start_save_attempted"):
+        return state.get("subconscious_run_save_start_result")
+
+    state["_sm_run_start_save_attempted"] = True
+    snapshot = state.get("last_state") if isinstance(state.get("last_state"), dict) else {}
+    try:
+        store = get_subconscious_maintenance_store(get_config_manager())
+        result = await store.record_run_started({
+            "run_id": str(state.get("session_id") or ""),
+            "session_id": str(state.get("session_id") or ""),
+            "game_type": str(state.get("game_type") or _SUBCONSCIOUS_MAINTENANCE_GAME_TYPE),
+            "lanlan_name": str(state.get("lanlan_name") or ""),
+            "source": _normalize_game_launch_source(state.get("source")),
+            "difficulty": str(snapshot.get("difficulty") or "easy"),
+            "weapon": str(snapshot.get("weapon") or "sword"),
+            "started_at": state.get("game_started_at"),
+            "stats": _subconscious_run_stats(snapshot),
+        })
+        state["_sm_run_start_saved"] = True
+        state["subconscious_run_save_start_result"] = result
+        return result
+    except Exception as exc:
+        result = {"ok": False, "reason": type(exc).__name__, "message": str(exc)}
+        state["subconscious_run_save_start_result"] = result
+        logger.warning(
+            "🎮 潜意识维护 run start 存档失败: session=%s lanlan=%s err=%s",
+            state.get("session_id"),
+            state.get("lanlan_name"),
+            exc,
+            exc_info=True,
+        )
+        return result
+
+
+async def _persist_subconscious_maintenance_run_end(state: dict, archive: dict) -> dict | None:
+    if not isinstance(state, dict) or not _is_subconscious_maintenance_game(state.get("game_type")):
+        return None
+    if state.get("_sm_run_end_save_attempted"):
+        return state.get("subconscious_run_save_end_result")
+
+    state["_sm_run_end_save_attempted"] = True
+    snapshot = archive.get("last_state") if isinstance(archive, dict) and isinstance(archive.get("last_state"), dict) else {}
+    exit_reason = str(archive.get("exit_reason") or state.get("exit_reason") or "").strip()
+    try:
+        store = get_subconscious_maintenance_store(get_config_manager())
+        result = await store.record_run_ended({
+            "run_id": str(state.get("session_id") or ""),
+            "session_id": str(state.get("session_id") or ""),
+            "game_type": str(state.get("game_type") or _SUBCONSCIOUS_MAINTENANCE_GAME_TYPE),
+            "lanlan_name": str(state.get("lanlan_name") or ""),
+            "source": _normalize_game_launch_source(archive.get("source") or state.get("source")),
+            "difficulty": str(snapshot.get("difficulty") or "easy"),
+            "weapon": str(snapshot.get("weapon") or "sword"),
+            "started_at": state.get("game_started_at"),
+            "ended_at": archive.get("ended_at"),
+            "result": _subconscious_run_result(exit_reason, snapshot),
+            "exit_reason": exit_reason,
+            "duration_ms": _route_game_started_elapsed_ms(state, prefer_exit_elapsed=True),
+            "stats": _subconscious_run_stats(snapshot),
+        })
+        state["subconscious_run_save_end_result"] = result
+        return result
+    except Exception as exc:
+        result = {"ok": False, "reason": type(exc).__name__, "message": str(exc)}
+        state["subconscious_run_save_end_result"] = result
+        logger.warning(
+            "🎮 潜意识维护 run end 存档失败: session=%s lanlan=%s err=%s",
+            state.get("session_id"),
+            state.get("lanlan_name"),
+            exc,
+            exc_info=True,
+        )
+        return result
 
 
 def _game_archive_memory_skip_reason(state: dict, reason: str = "") -> str:
@@ -3468,6 +3592,8 @@ async def _finalize_game_route_state_inner(
             str(state.get("lanlan_name") or ""),
         )
 
+    await _persist_subconscious_maintenance_run_end(state, archive)
+
     return {
         "archive": archive,
         "archive_memory": memory_result,
@@ -4487,9 +4613,12 @@ async def game_route_start(game_type: str, request: Request):
             )
             _update_game_launch_source_from_payload(state, data)
             _update_game_memory_enabled_from_payload(state, data)
+            _update_voice_output_enabled_from_payload(state, data)
             state["nekoInitiated"] = neko_initiated
             state["nekoInviteText"] = neko_invite_text
-            _update_route_start_state_from_payload(state, data)
+            route_started_now = _update_route_start_state_from_payload(state, data)
+            if route_started_now:
+                await _persist_subconscious_maintenance_run_start(state)
     # 推 WS 让多窗口前端联动收缩 chat.html（触发其内部 collapse 按钮态 + 移
     # 至工作区左下角）+ 隐藏 pet (live2d/vrm/mmd) 容器。这只是 UX 联动事件，
     # 不参与 game-route 状态判定；前端在 game_window_state_change=closed 时
@@ -4592,6 +4721,7 @@ async def game_route_drain(game_type: str, request: Request):
     if session_id and session_id != str(state.get("session_id") or ""):
         return {"ok": True, "outputs": [], "state": _public_route_state(state)}
 
+    _update_voice_output_enabled_from_payload(state, data)
     outputs = list(state.get("pending_outputs") or [])
     state["pending_outputs"] = []
     return {"ok": True, "outputs": outputs, "state": _public_route_state(state)}
@@ -4624,9 +4754,12 @@ async def game_route_voice_transcript(game_type: str, request: Request):
     current_state = data.get("currentState")
     if isinstance(current_state, dict):
         state["last_state"] = current_state
-    _update_route_start_state_from_payload(state, data)
+    route_started_now = _update_route_start_state_from_payload(state, data)
     _update_game_launch_source_from_payload(state, data)
     _update_game_memory_enabled_from_payload(state, data)
+    _update_voice_output_enabled_from_payload(state, data)
+    if route_started_now:
+        await _persist_subconscious_maintenance_run_start(state)
 
     handled = await route_external_voice_transcript(
         lanlan_name,
@@ -4660,12 +4793,15 @@ async def game_route_heartbeat(game_type: str, request: Request):
     state["last_heartbeat_at"] = now
     state["last_activity"] = now
     _update_route_visibility_from_payload(state, data)
-    _update_route_start_state_from_payload(state, data)
+    route_started_now = _update_route_start_state_from_payload(state, data)
     _update_game_launch_source_from_payload(state, data)
     _update_game_memory_enabled_from_payload(state, data)
+    _update_voice_output_enabled_from_payload(state, data)
     current_state = data.get("currentState")
     if isinstance(current_state, dict):
         state["last_state"] = current_state
+    if route_started_now:
+        await _persist_subconscious_maintenance_run_start(state)
 
     heartbeat_timeout = _route_heartbeat_timeout_seconds(state)
     return {
@@ -5361,6 +5497,7 @@ async def game_realtime_context(game_type: str, request: Request):
     if state:
         _update_game_launch_source_from_payload(state, data)
         _update_game_memory_enabled_from_payload(state, data)
+        _update_voice_output_enabled_from_payload(state, data)
 
     session_manager = get_session_manager()
     mgr = session_manager.get(lanlan_name)
@@ -5438,7 +5575,7 @@ async def _complete_game_end_from_payload(
     archive_memory = None
     postgame_result = None
     if state and str(state.get("session_id") or "") == session_id:
-        _update_route_start_state_from_payload(state, data, exiting=True)
+        route_started_now = _update_route_start_state_from_payload(state, data, exiting=True)
         current_state = data.get("currentState")
         if isinstance(current_state, dict):
             state["last_state"] = current_state
@@ -5453,6 +5590,10 @@ async def _complete_game_end_from_payload(
             )
         _update_game_launch_source_from_payload(state, data)
         _update_game_memory_enabled_from_payload(state, data)
+        if route_started_now or (
+            state.get("game_started") is True and not state.get("_sm_run_start_save_attempted")
+        ):
+            await _persist_subconscious_maintenance_run_start(state)
         # B1: serialize against /route/start supersede + heartbeat sweep
         # finalize. ``_finalize_game_route_state`` itself dedupes via the
         # state-attached ``_exit_task``, but acquiring the lock first

@@ -587,7 +587,10 @@ async def test_maybe_deliver_uses_localized_template(monkeypatch):
     history = sr._proactive_chat_history[LANLAN]
     _, message, _ = history[0]
     assert 'Alice' in message
-    assert 'soccer' in message.lower()
+    if out['game_type'] == 'soccer':
+        assert 'soccer' in message.lower()
+    else:
+        assert 'subconscious maintenance' in message.lower()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -990,6 +993,24 @@ def test_apply_choice_accept_returns_open_game_with_url():
     assert state['chats_since_response'] == 0
 
 
+def test_apply_choice_accept_adds_source_for_subconscious_maintenance_without_double_question_mark():
+    state = sr._mini_game_invite_get_state(LANLAN)
+    state['delivered_at'] = time.time() - 30
+    state['responded_at'] = None
+    state['pending_session_id'] = 'sess-sub'
+    state['last_game_type'] = 'subconscious_maintenance'
+
+    result = sr._apply_mini_game_invite_choice(LANLAN, 'accept', source='button')
+
+    assert result['action'] == 'open_game'
+    assert result['game_type'] == 'subconscious_maintenance'
+    assert result['game_url'].startswith('/subconscious_maintenance?')
+    assert result['game_url'].count('?') == 1
+    assert 'lanlan_name=' + LANLAN in result['game_url']
+    assert 'session_id=sess-sub' in result['game_url']
+    assert 'source=mini_game_invite' in result['game_url']
+
+
 def test_apply_choice_decline_starts_cooldown_no_url():
     """decline → mark responded（同样启动冷却），不开游戏。"""
     state = sr._mini_game_invite_get_state(LANLAN)
@@ -1323,7 +1344,7 @@ async def test_invite_delivery_pushes_options_via_websocket(monkeypatch):
     payload = mgr.websocket.send_json.await_args.args[0]
     assert payload['type'] == 'mini_game_invite_options'
     assert payload['session_id'] == out['invite_session_id']
-    assert payload['game_type'] == 'soccer'
+    assert payload['game_type'] == out['game_type']
     assert isinstance(payload['options'], list) and len(payload['options']) == 3
     choices = [opt['choice'] for opt in payload['options']]
     assert choices == ['accept', 'decline', 'later']

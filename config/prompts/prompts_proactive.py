@@ -3259,6 +3259,15 @@ MINI_GAME_INVITE_LINES_BY_GAME: dict[str, dict[str, str]] = {
         "es": "{master_name}, ¿quieres jugar una ronda rápida del minijuego de fútbol conmigo?",
         "pt": "{master_name}, quer jogar uma rodada rápida do minijogo de futebol comigo?",
     },
+    "subconscious_maintenance": {
+        "zh": "{master_name}，要不要现在跟我一起去清理一下潜意识维护空间？",
+        "en": "{master_name}, want to help me tidy up the subconscious maintenance space for a moment?",
+        "ja": "{master_name}、今ちょっと一緒に潜在メンテ空間を片づけに行かない？",
+        "ko": "{master_name}, 지금 같이 잠재의식 정비 공간을 한번 정리하러 갈래?",
+        "ru": "{master_name}, хочешь сейчас ненадолго помочь мне прибраться в пространстве подсознательного обслуживания?",
+        "es": "{master_name}, ¿quieres ayudarme un momento a ordenar el espacio de mantenimiento subconsciente?",
+        "pt": "{master_name}, quer me ajudar por um instante a arrumar o espaço de manutenção subconsciente?",
+    },
 }
 
 # ---------- Mini-game 邀请三选项按钮 ----------

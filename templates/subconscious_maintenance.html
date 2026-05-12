@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>N.E.K.O. 潜意识维护态</title>
+    <script src="/static/i18n-i18next.js?v={{ subconscious_maintenance_asset_version }}"></script>
     <link rel="stylesheet" href="/static/css/subconscious_maintenance.css?v={{ subconscious_maintenance_asset_version }}">
 </head>
 <body class="subconscious-maintenance-host" data-phase="loading">
@@ -16,6 +17,10 @@
                 <div class="sm-hud-title">潜意识维护态</div>
             </div>
             <div class="sm-hud-group sm-hud-group--stats">
+                <button type="button" id="subconscious-maintenance-weapon-btn" class="sm-hud-toggle sm-hud-toggle--weapon" aria-label="切换武器">
+                    <span class="sm-hud-stat-label" data-i18n="memory.subconsciousWeaponLabel">武器</span>
+                    <span class="sm-hud-stat-value" id="subconscious-maintenance-weapon">长剑</span>
+                </button>
                 <button type="button" id="subconscious-maintenance-neko-mode-btn" class="sm-hud-toggle sm-hud-toggle--mode" aria-pressed="false" aria-label="切换 NEKO 行动模式" title="切换 NEKO 自由行动 / 跟随玩家">
                     <span class="sm-hud-stat-label">模式</span>
                     <span class="sm-hud-stat-value" id="subconscious-maintenance-neko-mode">自由行动</span>
@@ -66,8 +71,17 @@
                     <button type="button" class="sm-difficulty-btn" data-difficulty="normal">中</button>
                     <button type="button" class="sm-difficulty-btn" data-difficulty="hard">高</button>
                 </div>
+                <div class="sm-weapon-list" role="radiogroup" aria-label="武器选择">
+                    <button type="button" class="sm-weapon-btn is-active" data-weapon="sword">长剑</button>
+                    <button type="button" class="sm-weapon-btn" data-weapon="bow">弓箭</button>
+                    <button type="button" class="sm-weapon-btn" data-weapon="dagger">小刀</button>
+                </div>
                 <div class="sm-panel-actions">
                     <button type="button" id="subconscious-maintenance-start-btn" class="sm-command-btn sm-command-btn--primary" disabled>▶ 开始</button>
+                    <label class="sm-voice-option">
+                        <input type="checkbox" id="subconscious-maintenance-voice-output-toggle" checked>
+                        <span data-i18n="memory.subconsciousVoiceOutputLabel">朗读 LLM 台词（项目语音）</span>
+                    </label>
                 </div>
             </div>
         </section>

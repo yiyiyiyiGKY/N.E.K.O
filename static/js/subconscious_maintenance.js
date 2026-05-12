@@ -242,6 +242,7 @@
         nekoHintParams: null,
         nekoHintTimer: 0,
         buffLabel: '',
+        gameStartedAtMs: 0,
         pointer: null,
         spriteReady: false,
         loadError: ''
@@ -784,6 +785,7 @@
         state.nekoHintParams = null;
         state.nekoHintTimer = 0;
         state.buffLabel = translate('subconsciousMaintenance.buff.none');
+        state.gameStartedAtMs = 0;
         state.pointer = null;
         gameEventState.inFlight = false;
         gameEventState.voiceInFlight = false;
@@ -2392,6 +2394,8 @@
     }
 
     function buildRoutePayload(reason) {
+        var gameStarted = state.gameStartedAtMs > 0;
+        var gameStartedElapsedMs = gameStarted ? Math.max(0, Date.now() - state.gameStartedAtMs) : 0;
         return {
             lanlan_name: query.lanlanName || '',
             session_id: ensureSessionId(),
@@ -2404,6 +2408,8 @@
             postgameProactive: false,
             gameMemoryEnabled: false,
             game_memory_enabled: false,
+            gameStarted: gameStarted,
+            gameStartedElapsedMs: gameStartedElapsedMs,
             voiceOutputEnabled: getVoiceOutputEnabled(),
             voice_output_enabled: getVoiceOutputEnabled()
         };
@@ -3209,6 +3215,7 @@
     function enterPlaying() {
         if (!state.spriteReady || state.phase !== 'ready') return;
         resetBattleState();
+        state.gameStartedAtMs = Date.now();
         setPhase('playing');
         emitGameEvent('battle_start', {
             label: 'battle start',

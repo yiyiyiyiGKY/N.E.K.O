@@ -1,4 +1,6 @@
 import asyncio
+import json
+import sqlite3
 from unittest.mock import AsyncMock
 
 import pytest
@@ -30,6 +32,23 @@ def _put_game_session(lanlan_name, game_type, session_id, session):
         "lock": None,
     }
     return key
+
+
+class _FakeSubconsciousSaveConfigManager:
+    def __init__(self, root):
+        self.app_docs_dir = root / "N.E.K.O"
+
+    @property
+    def game_saves_dir(self):
+        return self.app_docs_dir / "game_saves"
+
+    @property
+    def subconscious_maintenance_save_dir(self):
+        return self.game_saves_dir / "subconscious_maintenance"
+
+    def ensure_subconscious_maintenance_save_directory(self):
+        self.subconscious_maintenance_save_dir.mkdir(parents=True, exist_ok=True)
+        return True
 
 
 @pytest.mark.unit
@@ -278,6 +297,27 @@ def test_game_prompt_includes_pregame_context():
     assert "开局上下文" in prompt
     assert '"gameStance":"withdrawn"' in prompt
     assert "不要把 neutral_play 强行解释成哄开心或关系修复" in prompt
+
+
+@pytest.mark.unit
+def test_subconscious_game_prompt_uses_dedicated_prompt_branch():
+    prompt = game_router._build_game_prompt(
+        "subconscious_maintenance",
+        "Lan",
+        "喜欢陪玩家玩。",
+        game_context={
+            "summary": "这一局正在清理记忆角落。",
+            "recent_dialogues": [{"id": "glog_0001", "type": "assistant", "line": "先别慌。"}],
+            "signals": {},
+            "degraded": False,
+        },
+        language="zh-CN",
+    )
+
+    assert "潜意识维护小游戏" in prompt
+    assert "不是在操作真实文件" in prompt
+    assert "开局上下文" not in prompt
+    assert "先别慌。" in prompt
 
 
 @pytest.mark.unit
@@ -1352,6 +1392,165 @@ async def test_subconscious_heartbeat_timeout_skips_archive_memory(monkeypatch):
     assert result["archive"]["memory_skipped"] is True
     assert result["archive"]["memory_skip_reason"] == "subconscious_maintenance_no_memory"
     assert result["archive"]["exit_reason"] == "heartbeat_timeout"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_subconscious_heartbeat_persists_run_start_to_game_saves(tmp_path, monkeypatch):
+    monkeypatch.setattr(game_router, "get_session_manager", lambda: {})
+    monkeypatch.setattr(game_router, "get_config_manager", lambda: _FakeSubconsciousSaveConfigManager(tmp_path))
+    state = game_router._activate_game_route("subconscious_maintenance", "match_1", "Lan")
+
+    result = await game_router.game_route_heartbeat(
+        "subconscious_maintenance",
+        _FakeRequest({
+            "lanlan_name": "Lan",
+            "session_id": "match_1",
+            "source": "memory_browser",
+            "gameStarted": True,
+            "gameStartedElapsedMs": 15_000,
+            "currentState": {
+                "phase": "playing",
+                "difficulty": "hard",
+                "weapon": "dagger",
+                "stability": 88,
+                "combo": 3,
+                "textRaw": "不要保存",
+            },
+        }),
+    )
+
+    assert result["ok"] is True
+    assert state["game_started"] is True
+    db_path = tmp_path / "N.E.K.O" / "game_saves" / "subconscious_maintenance" / "subconscious_maintenance.db"
+    assert db_path.exists()
+
+    with sqlite3.connect(str(db_path)) as conn:
+        row = conn.execute(
+            "SELECT source, difficulty, weapon, result, exit_reason, stats_json FROM sm_runs WHERE run_id = 'match_1'"
+        ).fetchone()
+
+    assert row[:5] == ("memory_browser", "hard", "dagger", "", "")
+    stats = json.loads(row[5])
+    assert stats == {
+        "phase": "playing",
+        "difficulty": "hard",
+        "weapon": "dagger",
+        "stability": 88,
+        "combo": 3,
+    }
+    assert "不要保存" not in row[5]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_subconscious_game_end_persists_minimal_run_history_without_dialog_text(tmp_path, monkeypatch):
+    monkeypatch.setattr(game_router, "get_session_manager", lambda: {})
+    monkeypatch.setattr(game_router, "get_config_manager", lambda: _FakeSubconsciousSaveConfigManager(tmp_path))
+    state = game_router._activate_game_route("subconscious_maintenance", "match_1", "Lan")
+    _mark_game_started(state, elapsed_ms=15_000)
+    state["source"] = "mini_game_invite"
+    state["last_state"] = {
+        "phase": "failed",
+        "difficulty": "normal",
+        "weapon": "bow",
+        "stability": 0,
+        "specialItems": 2,
+        "combo": 7,
+    }
+    game_router._append_game_dialog(state, {
+        "type": "user",
+        "text": "完整玩家文本不该进存档",
+    })
+    game_router._append_game_dialog(state, {
+        "type": "assistant",
+        "line": "NEKO 原话也不该进存档",
+    })
+
+    result = await game_router.game_end(
+        "subconscious_maintenance",
+        _FakeRequest({
+            "session_id": "match_1",
+            "lanlan_name": "Lan",
+            "reason": "failed",
+            "source": "mini_game_invite",
+            "gameStarted": True,
+            "gameStartedElapsedMs": 15_000,
+            "currentState": {
+                "phase": "failed",
+                "difficulty": "normal",
+                "weapon": "bow",
+                "stability": 0,
+                "specialItems": 2,
+                "combo": 7,
+                "textRaw": "不要落盘的事件原文",
+                "userVoiceText": "也不要保存语音全文",
+                "line": "也不要保存台词原文",
+            },
+        }),
+    )
+
+    assert result["ok"] is True
+    assert result["archive_memory"]["status"] == "skipped"
+    db_path = tmp_path / "N.E.K.O" / "game_saves" / "subconscious_maintenance" / "subconscious_maintenance.db"
+    with sqlite3.connect(str(db_path)) as conn:
+        row = conn.execute(
+            "SELECT source, difficulty, weapon, result, exit_reason, duration_ms, stats_json FROM sm_runs WHERE run_id = 'match_1'"
+        ).fetchone()
+
+    assert row[:6] == ("mini_game_invite", "normal", "bow", "failed", "failed", 15_000)
+    stats = json.loads(row[6])
+    assert stats == {
+        "phase": "failed",
+        "difficulty": "normal",
+        "weapon": "bow",
+        "stability": 0,
+        "specialItems": 2,
+        "combo": 7,
+    }
+    serialized = row[6]
+    assert "完整玩家文本" not in serialized
+    assert "NEKO 原话" not in serialized
+    assert "不要落盘" not in serialized
+    assert "语音全文" not in serialized
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_subconscious_game_end_store_failure_does_not_block_close(monkeypatch):
+    monkeypatch.setattr(game_router, "get_session_manager", lambda: {})
+
+    class _BrokenConfigManager:
+        def ensure_subconscious_maintenance_save_directory(self):
+            return False
+
+        @property
+        def subconscious_maintenance_save_dir(self):
+            return "broken"
+
+    monkeypatch.setattr(game_router, "get_config_manager", lambda: _BrokenConfigManager())
+    state = game_router._activate_game_route("subconscious_maintenance", "match_1", "Lan")
+    _mark_game_started(state, elapsed_ms=8_000)
+
+    result = await game_router.game_route_end(
+        "subconscious_maintenance",
+        _FakeRequest({
+            "session_id": "match_1",
+            "lanlan_name": "Lan",
+            "reason": "manual_exit",
+            "gameStarted": True,
+            "gameStartedElapsedMs": 8_000,
+            "currentState": {
+                "phase": "paused",
+                "difficulty": "easy",
+                "weapon": "sword",
+            },
+        }),
+    )
+
+    assert result["ok"] is True
+    assert result["route_closed"] is True
+    assert state["subconscious_run_save_end_result"]["ok"] is False
 
 
 @pytest.mark.unit

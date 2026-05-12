@@ -314,6 +314,8 @@ def test_subconscious_maintenance_popup_reaches_ready_canvas_and_input(
     assert route_events[0]["body"]["game_memory_enabled"] is False
     assert route_events[0]["body"]["voiceOutputEnabled"] is True
     assert route_events[0]["body"]["voice_output_enabled"] is True
+    assert route_events[0]["body"]["gameStarted"] is False
+    assert route_events[0]["body"]["gameStartedElapsedMs"] == 0
     assert route_events[0]["body"]["i18n_language"]
 
     popup.locator("#subconscious-maintenance-start-btn").click()
@@ -384,6 +386,9 @@ def test_subconscious_maintenance_popup_reaches_ready_canvas_and_input(
         timeout=5_000,
     )
     assert any(event["kind"] == "end" and event["body"]["reason"] == "manual_exit" for event in route_events)
+    end_event = next(event for event in route_events if event["kind"] == "end" and event["body"]["reason"] == "manual_exit")
+    assert end_event["body"]["gameStarted"] is True
+    assert end_event["body"]["gameStartedElapsedMs"] >= 0
 
 
 @pytest.mark.frontend
@@ -454,6 +459,9 @@ def test_subconscious_maintenance_difficulties_and_result_routes(
     assert route_events[0]["body"]["source"] == "direct"
     assert route_events[0]["body"]["gameMemoryEnabled"] is False
     assert route_events[0]["body"]["game_memory_enabled"] is False
+    success_end = next(event for event in route_events if event["kind"] == "end" and event["body"]["reason"] == "success")
+    assert success_end["body"]["gameStarted"] is True
+    assert success_end["body"]["gameStartedElapsedMs"] >= 0
 
     mock_page.locator("#subconscious-maintenance-end-restart-btn").click()
     _wait_for_ready(mock_page)
@@ -463,6 +471,9 @@ def test_subconscious_maintenance_difficulties_and_result_routes(
     mock_page.wait_for_function("() => window.appSubconsciousMaintenance.getState().phase === 'failed'")
     mock_page.wait_for_function("() => (window.__subconsciousRouteEndReasons || []).includes('failed')")
     assert any(event["kind"] == "end" and event["body"]["reason"] == "failed" for event in route_events)
+    failed_end = next(event for event in reversed(route_events) if event["kind"] == "end" and event["body"]["reason"] == "failed")
+    assert failed_end["body"]["gameStarted"] is True
+    assert failed_end["body"]["gameStartedElapsedMs"] >= 0
 
 
 @pytest.mark.frontend
@@ -639,6 +650,8 @@ def test_subconscious_maintenance_voice_output_realtime_and_transcript_payloads(
     assert route_events[0]["body"]["voice_output_enabled"] is False
     assert route_events[0]["body"]["gameMemoryEnabled"] is False
     assert route_events[0]["body"]["game_memory_enabled"] is False
+    assert route_events[0]["body"]["gameStarted"] is False
+    assert route_events[0]["body"]["gameStartedElapsedMs"] == 0
 
     mock_page.locator("#subconscious-maintenance-start-btn").click()
     mock_page.wait_for_function("() => window.appSubconsciousMaintenance.getState().phase === 'playing'")

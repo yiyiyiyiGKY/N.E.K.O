@@ -34,7 +34,7 @@ from collections import deque
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qsl, urlencode, unquote, urlsplit, urlunsplit
 from uuid import uuid4
 
 from fastapi import APIRouter, Request
@@ -6267,12 +6267,21 @@ def _apply_mini_game_invite_choice(
                 "fallback /soccer_demo", lanlan_name, game_type,
             )
             url_template = '/soccer_demo'
-        from urllib.parse import urlencode as _urlencode
-        query = _urlencode({
+        query = {
             'lanlan_name': lanlan_name,
             'session_id': invite_session_id,
-        })
-        game_url = f"{url_template}?{query}"
+            'source': 'mini_game_invite',
+        }
+        parsed = urlsplit(url_template)
+        merged_query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        merged_query.update(query)
+        game_url = urlunsplit((
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            urlencode(merged_query),
+            parsed.fragment,
+        ))
         logger.info(
             "[%s] mini-game invite accepted via %s -> %s",
             lanlan_name, source, url_template,

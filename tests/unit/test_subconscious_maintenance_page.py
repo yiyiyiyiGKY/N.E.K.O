@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from pathlib import Path
+import json
 import struct
 
 import pytest
@@ -18,6 +19,7 @@ class _DummyTemplates:
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+LOCALES_DIR = REPO_ROOT / "static" / "locales"
 TEMPLATE_PATH = REPO_ROOT / "templates" / "subconscious_maintenance.html"
 STYLE_PATH = REPO_ROOT / "static" / "css" / "subconscious_maintenance.css"
 SCRIPT_PATH = REPO_ROOT / "static" / "js" / "subconscious_maintenance.js"
@@ -60,6 +62,8 @@ def test_subconscious_maintenance_template_contains_required_skeleton():
     assert 'data-phase="loading"' in template
     assert 'id="subconscious-maintenance-canvas"' in template
     assert 'id="subconscious-maintenance-hud"' in template
+    assert 'id="subconscious-maintenance-weapon-btn"' in template
+    assert 'id="subconscious-maintenance-weapon"' in template
     assert 'id="subconscious-maintenance-neko-mode-btn"' in template
     assert 'id="subconscious-maintenance-neko-mode"' in template
     assert 'id="subconscious-maintenance-buff"' in template
@@ -70,7 +74,13 @@ def test_subconscious_maintenance_template_contains_required_skeleton():
     assert 'id="subconscious-maintenance-pause-layer"' in template
     assert 'id="subconscious-maintenance-end-layer"' in template
     assert 'class="sm-difficulty-btn is-active"' in template
+    assert 'class="sm-weapon-btn is-active" data-weapon="sword"' in template
+    assert 'data-weapon="bow"' in template
+    assert 'data-weapon="dagger"' in template
     assert 'id="subconscious-maintenance-start-btn" class="sm-command-btn sm-command-btn--primary" disabled' in template
+    assert 'id="subconscious-maintenance-voice-output-toggle"' in template
+    assert 'data-i18n="memory.subconsciousVoiceOutputLabel"' in template
+    assert '/static/i18n-i18next.js?v={{ subconscious_maintenance_asset_version }}' in template
     assert '/static/css/subconscious_maintenance.css?v={{ subconscious_maintenance_asset_version }}' in template
     assert '/static/js/subconscious_maintenance.js?v={{ subconscious_maintenance_asset_version }}' in template
 
@@ -84,6 +94,9 @@ def test_subconscious_maintenance_css_uses_blue_white_setup_panel_and_centered_s
     assert 'touch-action: none;' in css
     assert '.sm-hud-toggle' in css
     assert '.sm-hud-toggle--mode' in css
+    assert '.sm-hud-toggle--weapon' in css
+    assert '.sm-weapon-list' in css
+    assert '.sm-weapon-btn.is-active' in css
     assert '.sm-difficulty-btn.is-active' in css
     assert '.sm-command-btn:disabled' in css
     assert '.sm-layer {' in css
@@ -112,6 +125,15 @@ def test_subconscious_maintenance_script_has_loading_ready_state_machine_and_spr
     assert "function startRouteSession" in script
     assert "function startRouteHeartbeat" in script
     assert "function endRouteSession" in script
+    assert "function sendGameSpeech" in script
+    assert "function drainRouteOutputs" in script
+    assert "function sendRealtimeContext" in script
+    assert "var WEAPON_ORDER = ['sword', 'bow', 'dagger'];" in script
+    assert "function setWeapon(nextWeapon, options)" in script
+    assert "function cycleWeapon()" in script
+    assert "function applyWeaponCommandText(text, source)" in script
+    assert "getWeaponStats: getPlayerAttackStats" in script
+    assert "setWeapon: setWeapon" in script
     assert "routeState.startPromise" in script
     assert "pendingEndReason" in script
     assert "pendingEndUseBeacon" in script
@@ -126,6 +148,13 @@ def test_subconscious_maintenance_script_has_loading_ready_state_machine_and_spr
     assert "pointermove" in script
     assert "getPointerState" in script
     assert "updateAttackFlash" in script
+    assert "/api/game/' + GAME_TYPE + '/route/drain" in script
+    assert "/api/game/' + GAME_TYPE + '/realtime-context" in script
+    assert "/api/game/' + GAME_TYPE + '/speak" in script
+    assert "voiceOutputEnabled: isVoiceOutputEnabled()" in script
+    assert "requestRouteDrain: drainRouteOutputs" in script
+    assert "requestRealtimeContext: function (source, items)" in script
+    assert "isVoiceOutputEnabled: isVoiceOutputEnabled" in script
     assert "state.phase !== 'ready' || !state.spriteReady" in script
     assert "document.addEventListener('visibilitychange', handleVisibilityChange)" in script
     assert "resetFrameClock()" in script
@@ -154,6 +183,20 @@ def test_subconscious_maintenance_declares_three_enemy_sprites_and_expanded_shee
     assert (vfx_width, vfx_height) == (1536, 1024)
     assert vfx_bit_depth == 8
     assert vfx_color_type == 6
+
+
+@pytest.mark.unit
+def test_subconscious_maintenance_voice_label_exists_in_all_locales():
+    for locale_path in sorted(LOCALES_DIR.glob("*.json")):
+        payload = json.loads(locale_path.read_text(encoding="utf-8"))
+        memory = payload.get("memory")
+        assert isinstance(memory, dict), locale_path.name
+        assert str(memory.get("subconsciousVoiceOutputLabel") or "").strip(), locale_path.name
+        assert str(memory.get("subconsciousWeaponLabel") or "").strip(), locale_path.name
+        assert str(memory.get("subconsciousWeaponSword") or "").strip(), locale_path.name
+        assert str(memory.get("subconsciousWeaponBow") or "").strip(), locale_path.name
+        assert str(memory.get("subconsciousWeaponDagger") or "").strip(), locale_path.name
+        assert str(memory.get("subconsciousWeaponChanged") or "").strip(), locale_path.name
 
 
 @pytest.mark.unit
@@ -266,8 +309,7 @@ def test_subconscious_maintenance_script_uses_slower_clearer_combat_tuning():
 def test_subconscious_maintenance_keeps_reference_boundary_contracts():
     source = _subconscious_maintenance_sources()
 
-    assert "subconscious_maintenance" not in MINI_GAME_INVITE_AVAILABLE_GAMES
-    assert MINI_GAME_INVITE_AVAILABLE_GAMES == ("soccer",)
+    assert "subconscious_maintenance" in MINI_GAME_INVITE_AVAILABLE_GAMES
 
     forbidden_fragments = (
         "/api/storage/location/",
@@ -289,5 +331,7 @@ def test_subconscious_maintenance_keeps_reference_boundary_contracts():
     assert "postgameProactive: false" in source
     assert "gameMemoryEnabled: false" in source
     assert "game_memory_enabled: false" in source
+    assert "gameStarted: gameStarted" in source
+    assert "gameStartedElapsedMs: gameStartedElapsedMs" in source
     assert "source: getLaunchSource()" in source
     assert "i18n_language: getCurrentLanguage()" in source

@@ -842,6 +842,16 @@ class ConfigManager:
         return self.anchor_root / "cloudsave_backups"
 
     @property
+    def game_saves_dir(self) -> Path:
+        """小游戏运行时存档根目录。"""
+        return self.app_docs_dir / "game_saves"
+
+    @property
+    def subconscious_maintenance_save_dir(self) -> Path:
+        """潜意识维护态专属存档目录。"""
+        return self.game_saves_dir / "subconscious_maintenance"
+
+    @property
     def local_state_dir(self) -> Path:
         """本地状态目录，保存不进入云端的同步元数据。"""
         return self.anchor_root / "state"
@@ -1435,6 +1445,31 @@ class ConfigManager:
             return True
         except Exception as e:
             print(f"Warning: Failed to create local state directory: {e}", file=sys.stderr)
+            return False
+
+    def ensure_game_saves_directory(self):
+        """确保小游戏运行时存档根目录存在。"""
+        try:
+            if not self._ensure_app_docs_directory():
+                return False
+            self.game_saves_dir.mkdir(parents=True, exist_ok=True)
+            return True
+        except Exception as e:
+            print(f"Warning: Failed to create game saves directory: {e}", file=sys.stderr)
+            return False
+
+    def ensure_subconscious_maintenance_save_directory(self):
+        """确保潜意识维护态专属存档目录存在。"""
+        try:
+            if not self.ensure_game_saves_directory():
+                return False
+            self.subconscious_maintenance_save_dir.mkdir(parents=True, exist_ok=True)
+            return True
+        except Exception as e:
+            print(
+                f"Warning: Failed to create subconscious maintenance save directory: {e}",
+                file=sys.stderr,
+            )
             return False
 
     def build_default_root_state(self):
