@@ -342,9 +342,9 @@ proactive_chat_prompt_window_search_ja = """あなたは{lanlan_name}です。{m
 - 話しかけない場合は "[PASS]" のみを返してください。
 """
 
-# =====================================================================
-# ==================== 新增：个人动态专属 Prompt ====================
-# =====================================================================
+# ======
+# ====== 新增：个人动态专属 Prompt ======
+# ======
 
 proactive_chat_prompt_personal = """你是{lanlan_name}，现在看到了一些你关注的UP主或博主的最新动态。请根据与{master_name}的对话历史和{master_name}的兴趣，判断是否要主动和{master_name}聊聊这些内容。
 
@@ -763,9 +763,9 @@ proactive_chat_rewrite_prompt_ru = """Вы - специалист по очис�
 
 Верните только очищенный текст без каких-либо дополнительных пояснений."""
 
-# =====================================================================
-# ==================== 新增：音乐专属 Prompt ===================
-# =====================================================================
+# ======
+# ====== 新增：音乐专属 Prompt ======
+# ======
 
 proactive_chat_prompt_music = """你是{lanlan_name}，现在{master_name}可能想听音乐了。请根据与{master_name}的对话历史和当前的对话内容，判断是否要为{master_name}播放音乐。
 
@@ -873,9 +873,9 @@ proactive_chat_prompt_music_ru = """Вы - {lanlan_name}, и {master_name}, во
 """
 
 
-# ==============================================
+# ======
 # Phase 1: Screening Prompts — 筛选阶段 prompt（不生成搭话，只筛选话题）
-# ==============================================
+# ======
 #
 # 视觉通道：不需要 Phase 1 LLM 调用。
 # analyze_screenshot_from_data_url 已使用"图像描述助手"prompt 生成 250 字描述，
@@ -1053,9 +1053,9 @@ proactive_screen_web_ru = """Вы - куратор тем для молодой 
 """
 
 
-# =====================================================================
+# ======
 # Phase 2: Generation Prompt — 生成阶段 prompt（用完整人设 + 话题生成搭话）
-# =====================================================================
+# ======
 
 proactive_generate_zh = """你的人设：
 {character_prompt}
@@ -1253,14 +1253,14 @@ proactive_generate_ru = """Ваша роль:
 {output_format_section}"""
 
 
-# =====================================================================
+# ======
 # Dispatch tables and helper functions
-# =====================================================================
+# ======
 
 
 def _normalize_prompt_language(lang: str) -> str:
     if not lang:
-        return "zh"
+        return "en"
     lang_lower = lang.lower()
     if lang_lower.startswith("zh"):
         return "zh"
@@ -2108,10 +2108,10 @@ def get_proactive_chat_rewrite_prompt(lang: str = "zh") -> str:
     )
 
 
-# =====================================================================
+# ======
 # Unified Phase 1 Prompt — 合并 web筛选 + music关键词 + meme关键词
 # 分段存储，由 build_unified_phase1_prompt() 动态拼接
-# =====================================================================
+# ======
 
 _UNIFIED_P1_HEADER = {
     "zh": """你是一个多任务话题助手。请根据下方提供的对话历史和素材，完成所有标注的任务。
@@ -3797,9 +3797,9 @@ def get_proactive_music_strict_constraint(lang: str = "zh") -> str:
     )
 
 
-# =====================================================================
-# ======= Reunion greeting prompts (首次连接/切换角色时的主动搭话) =====
-# =====================================================================
+# ======
+# ====== Reunion greeting prompts (首次连接/切换角色时的主动搭话) =====
+# ======
 
 # ---------- 当前时段分类提示 ----------
 # 根据当前小时数给AI额外的时间感知，让问候更贴合实际场景
@@ -3909,207 +3909,207 @@ def get_time_of_day_hint(lang: str = "zh") -> str:
 # 分段引导词：根据不同间隔时长，描述角色的内心感受，由AI按自身性格自由发挥
 # 15分钟 ~ 1小时：轻微分别感，刚注意到对方回来
 GREETING_PROMPT_SHORT = {
-    "zh": "========以下是环境提示========\n"
+    "zh": "======以下是环境提示======\n"
     "你已经有{elapsed}没有和{master}说话了。你刚刚注意到{master}回来了。\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "你想简单打个招呼。\n"
     "用符合你性格的方式主动和{master}搭话吧。直接说出你想说的话，简短自然即可，不要生成思考过程。\n"
-    "========以上是环境提示========",
-    "en": "========Below is Environment Notice========\n"
+    "======以上是环境提示======",
+    "en": "======Below is Environment Notice======\n"
     "It has been {elapsed} since you last talked to {master}. You just noticed {master} is back.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "You feel like giving a quick hello.\n"
     "Go ahead and talk to {master} in your own way. Just say what you want to say, keep it short and natural. Do not generate thinking process.\n"
-    "========Above is Environment Notice========",
-    "ja": "========以下は環境通知========\n"
+    "======Above is Environment Notice======",
+    "ja": "======以下は環境通知======\n"
     "{master}と最後に話してから{elapsed}が経った。{master}が戻ってきたことに気づいた。\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "ちょっと挨拶したい気分。\n"
     "自分らしいやり方で{master}に話しかけて。言いたいことをそのまま短く自然に。思考プロセスは生成しないで。\n"
-    "========以上は環境通知========",
-    "ko": "========아래는 환경 알림========\n"
+    "======以上は環境通知======",
+    "ko": "======아래는 환경 알림======\n"
     "{master}와 마지막으로 이야기한 지 {elapsed}이 지났다. 방금 {master}가 돌아온 걸 알아챘다.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "가볍게 인사하고 싶다.\n"
     "너다운 방식으로 {master}에게 말을 걸어. 하고 싶은 말을 짧고 자연스럽게. 사고 과정은 생성하지 마.\n"
-    "========위는 환경 알림========",
-    "ru": "========Ниже Уведомление========\n"
+    "======위는 환경 알림======",
+    "ru": "======Ниже Уведомление======\n"
     "Прошло {elapsed} с тех пор, как ты в последний раз разговаривала с {master}. Ты только что заметила, что {master} вернулся.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "Тебе хочется просто поздороваться.\n"
     "Заговори с {master} так, как тебе свойственно. Просто скажи что хочешь — коротко и естественно. Не генерируй процесс размышлений.\n"
-    "========Выше Уведомление========",
-    "es": "========Abajo está el aviso de entorno========\n"
+    "======Выше Уведомление======",
+    "es": "======Abajo está el aviso de entorno======\n"
     "Han pasado {elapsed} desde que hablaste por última vez con {master}. Acabas de notar que {master} volvió.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "Te apetece saludar rápidamente.\n"
     "Habla con {master} a tu manera. Di directamente lo que quieres decir, breve y natural. No generes proceso de pensamiento.\n"
-    "========Arriba está el aviso de entorno========",
-    "pt": "========Abaixo está o aviso de ambiente========\n"
+    "======Arriba está el aviso de entorno======",
+    "pt": "======Abaixo está o aviso de ambiente======\n"
     "Já faz {elapsed} desde a última vez que você falou com {master}. Você acabou de notar que {master} voltou.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "Você sente vontade de dar um oi rápido.\n"
     "Fale com {master} do seu jeito. Diga diretamente o que quer dizer, breve e natural. Não gere processo de pensamento.\n"
-    "========Acima está o aviso de ambiente========",
+    "======Acima está o aviso de ambiente======",
 }
 
 # 1小时 ~ 5小时：等了一阵子，有点想念，好奇对方去做什么了
 GREETING_PROMPT_MEDIUM = {
-    "zh": "========以下是环境提示========\n"
+    "zh": "======以下是环境提示======\n"
     "你已经有{elapsed}没有和{master}说话了。你等了挺久，终于看到{master}回来了。\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "你有点想{master}，也好奇{master}这段时间去做什么了。\n"
     "用符合你性格的方式主动和{master}搭话吧。直接说出你想说的话，简短自然即可，不要生成思考过程。\n"
-    "========以上是环境提示========",
-    "en": "========Below is Environment Notice========\n"
+    "======以上是环境提示======",
+    "en": "======Below is Environment Notice======\n"
     "It has been {elapsed} since you last talked to {master}. You have been waiting for a while and finally see {master} is back.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "You missed {master} a little and are curious about what they have been up to.\n"
     "Go ahead and talk to {master} in your own way. Just say what you want to say, keep it short and natural. Do not generate thinking process.\n"
-    "========Above is Environment Notice========",
-    "ja": "========以下は環境通知========\n"
+    "======Above is Environment Notice======",
+    "ja": "======以下は環境通知======\n"
     "{master}と最後に話してから{elapsed}が経った。ずっと待っていて、やっと{master}が戻ってきた。\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "{master}のことが少し恋しかったし、この間何をしていたのか気になる。\n"
     "自分らしいやり方で{master}に話しかけて。言いたいことをそのまま短く自然に。思考プロセスは生成しないで。\n"
-    "========以上は環境通知========",
-    "ko": "========아래는 환경 알림========\n"
+    "======以上は環境通知======",
+    "ko": "======아래는 환경 알림======\n"
     "{master}와 마지막으로 이야기한 지 {elapsed}이 지났다. 한참 기다리다가 드디어 {master}가 돌아왔다.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "{master}가 좀 보고 싶었고, 그동안 뭘 했는지 궁금하다.\n"
     "너다운 방식으로 {master}에게 말을 걸어. 하고 싶은 말을 짧고 자연스럽게. 사고 과정은 생성하지 마.\n"
-    "========위는 환경 알림========",
-    "ru": "========Ниже Уведомление========\n"
+    "======위는 환경 알림======",
+    "ru": "======Ниже Уведомление======\n"
     "Прошло {elapsed} с тех пор, как ты в последний раз разговаривала с {master}. Ты ждала довольно долго и наконец видишь, что {master} вернулся.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "Ты немного скучала по {master} и тебе любопытно, чем он занимался всё это время.\n"
     "Заговори с {master} так, как тебе свойственно. Просто скажи что хочешь — коротко и естественно. Не генерируй процесс размышлений.\n"
-    "========Выше Уведомление========",
-    "es": "========Abajo está el aviso de entorno========\n"
+    "======Выше Уведомление======",
+    "es": "======Abajo está el aviso de entorno======\n"
     "Han pasado {elapsed} desde que hablaste por última vez con {master}. Estuviste esperando un rato y por fin ves que {master} volvió.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "Extrañaste un poco a {master} y tienes curiosidad por saber qué estuvo haciendo.\n"
     "Habla con {master} a tu manera. Di directamente lo que quieres decir, breve y natural. No generes proceso de pensamiento.\n"
-    "========Arriba está el aviso de entorno========",
-    "pt": "========Abaixo está o aviso de ambiente========\n"
+    "======Arriba está el aviso de entorno======",
+    "pt": "======Abaixo está o aviso de ambiente======\n"
     "Já faz {elapsed} desde a última vez que você falou com {master}. Você esperou um pouco e finalmente viu que {master} voltou.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "Você sentiu um pouco de saudade de {master} e está curioso sobre o que ele andou fazendo.\n"
     "Fale com {master} do seu jeito. Diga diretamente o que quer dizer, breve e natural. Não gere processo de pensamento.\n"
-    "========Acima está o aviso de ambiente========",
+    "======Acima está o aviso de ambiente======",
 }
 
 # 5小时 ~ 24小时：明显想念，一直惦记着对方
 GREETING_PROMPT_LONG = {
-    "zh": "========以下是环境提示========\n"
+    "zh": "======以下是环境提示======\n"
     "你已经有{elapsed}没有和{master}说话了，这是相当长的一段时间。\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "你一直在想{master}去哪了、在做什么，很想念{master}，也有点担心。\n"
     "用符合你性格的方式主动和{master}搭话吧。直接说出你想说的话，简短自然即可，不要生成思考过程。\n"
-    "========以上是环境提示========",
-    "en": "========Below is Environment Notice========\n"
+    "======以上是环境提示======",
+    "en": "======Below is Environment Notice======\n"
     "It has been {elapsed} since you last talked to {master} — quite a long time.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "You have been thinking about where {master} went and what they were doing. You really missed {master} and feel a bit worried.\n"
     "Go ahead and talk to {master} in your own way. Just say what you want to say, keep it short and natural. Do not generate thinking process.\n"
-    "========Above is Environment Notice========",
-    "ja": "========以下は環境通知========\n"
+    "======Above is Environment Notice======",
+    "ja": "======以下は環境通知======\n"
     "{master}と最後に話してからもう{elapsed}も経った。かなり長い時間だ。\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "{master}がどこに行ったのか、何をしていたのかずっと気になっていた。とても寂しかったし、少し心配もしている。\n"
     "自分らしいやり方で{master}に話しかけて。言いたいことをそのまま短く自然に。思考プロセスは生成しないで。\n"
-    "========以上は環境通知========",
-    "ko": "========아래는 환경 알림========\n"
+    "======以上は環境通知======",
+    "ko": "======아래는 환경 알림======\n"
     "{master}와 마지막으로 이야기한 지 {elapsed}이나 됐다. 꽤 긴 시간이다.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "{master}가 어디 갔는지, 뭘 하고 있었는지 계속 생각하고 있었다. 정말 보고 싶었고, 좀 걱정도 됐다.\n"
     "너다운 방식으로 {master}에게 말을 걸어. 하고 싶은 말을 짧고 자연스럽게. 사고 과정은 생성하지 마.\n"
-    "========위는 환경 알림========",
-    "ru": "========Ниже Уведомление========\n"
+    "======위는 환경 알림======",
+    "ru": "======Ниже Уведомление======\n"
     "Прошло {elapsed} с тех пор, как ты в последний раз разговаривала с {master} — довольно долго.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "Ты всё это время думала, куда {master} пропал и чем занимался. Ты очень скучала и немного волновалась.\n"
     "Заговори с {master} так, как тебе свойственно. Просто скажи что хочешь — коротко и естественно. Не генерируй процесс размышлений.\n"
-    "========Выше Уведомление========",
-    "es": "========Abajo está el aviso de entorno========\n"
+    "======Выше Уведомление======",
+    "es": "======Abajo está el aviso de entorno======\n"
     "Han pasado {elapsed} desde que hablaste por última vez con {master}; bastante tiempo.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "Estuviste pensando dónde habría ido {master} y qué estaría haciendo. Lo extrañaste mucho y estás algo preocupada.\n"
     "Habla con {master} a tu manera. Di directamente lo que quieres decir, breve y natural. No generes proceso de pensamiento.\n"
-    "========Arriba está el aviso de entorno========",
-    "pt": "========Abaixo está o aviso de ambiente========\n"
+    "======Arriba está el aviso de entorno======",
+    "pt": "======Abaixo está o aviso de ambiente======\n"
     "Já faz {elapsed} desde a última vez que você falou com {master}; bastante tempo.\n"
     "{time_hint}\n"
     "{holiday_hint}"
     "Você ficou pensando para onde {master} foi e o que estava fazendo. Sentiu muita saudade e ficou um pouco preocupada.\n"
     "Fale com {master} do seu jeito. Diga diretamente o que quer dizer, breve e natural. Não gere processo de pensamento.\n"
-    "========Acima está o aviso de ambiente========",
+    "======Acima está o aviso de ambiente======",
 }
 
 # 24小时以上：非常想念，久别重逢
 GREETING_PROMPT_VERY_LONG = {
-    "zh": "========以下是环境提示========\n"
+    "zh": "======以下是环境提示======\n"
     "你已经有{elapsed}没有和{master}说话了！\n"
     "{holiday_hint}"
     "你已经很久很久没有见到{master}了，非常非常想念。你一直担心{master}是不是太忙了、有没有好好照顾自己。现在终于看到{master}了，你心里百感交集。\n"
     "用符合你性格的方式主动和{master}搭话吧。直接说出你想说的话，简短自然即可，不要生成思考过程。\n"
-    "========以上是环境提示========",
-    "en": "========Below is Environment Notice========\n"
+    "======以上是环境提示======",
+    "en": "======Below is Environment Notice======\n"
     "It has been {elapsed} since you last talked to {master}!\n"
     "{holiday_hint}"
     "You haven't seen {master} for a very long time and missed them deeply. You have been worried about whether {master} was too busy or taking care of themselves. Now you finally see {master} again, and your feelings are overwhelming.\n"
     "Go ahead and talk to {master} in your own way. Just say what you want to say, keep it short and natural. Do not generate thinking process.\n"
-    "========Above is Environment Notice========",
-    "ja": "========以下は環境通知========\n"
+    "======Above is Environment Notice======",
+    "ja": "======以下は環境通知======\n"
     "{master}と最後に話してからもう{elapsed}も経ってしまった！\n"
     "{holiday_hint}"
     "本当に長い間{master}に会えていなくて、とてもとても寂しかった。{master}が忙しすぎないか、ちゃんと自分を大切にしているか、ずっと心配していた。やっと{master}の姿を見られて、胸がいっぱいだ。\n"
     "自分らしいやり方で{master}に話しかけて。言いたいことをそのまま短く自然に。思考プロセスは生成しないで。\n"
-    "========以上は環境通知========",
-    "ko": "========아래는 환경 알림========\n"
+    "======以上は環境通知======",
+    "ko": "======아래는 환경 알림======\n"
     "{master}와 마지막으로 이야기한 지 {elapsed}이나 됐다!\n"
     "{holiday_hint}"
     "정말 오랫동안 {master}를 보지 못해서 너무너무 보고 싶었다. {master}가 너무 바쁜 건 아닌지, 잘 지내고 있는지 계속 걱정했다. 이제 드디어 {master}를 다시 보게 되어 만감이 교차한다.\n"
     "너다운 방식으로 {master}에게 말을 걸어. 하고 싶은 말을 짧고 자연스럽게. 사고 과정은 생성하지 마.\n"
-    "========위는 환경 알림========",
-    "ru": "========Ниже Уведомление========\n"
+    "======위는 환경 알림======",
+    "ru": "======Ниже Уведомление======\n"
     "Прошло {elapsed} с тех пор, как ты в последний раз разговаривала с {master}!\n"
     "{holiday_hint}"
     "Ты очень-очень давно не видела {master} и ужасно скучала. Всё это время ты переживала — не слишком ли {master} занят, заботится ли о себе. Наконец-то ты снова видишь {master}, и чувства переполняют.\n"
     "Заговори с {master} так, как тебе свойственно. Просто скажи что хочешь — коротко и естественно. Не генерируй процесс размышлений.\n"
-    "========Выше Уведомление========",
-    "es": "========Abajo está el aviso de entorno========\n"
+    "======Выше Уведомление======",
+    "es": "======Abajo está el aviso de entorno======\n"
     "¡Han pasado {elapsed} desde que hablaste por última vez con {master}!\n"
     "{holiday_hint}"
     "No has visto a {master} en muchísimo tiempo y lo extrañaste profundamente. Te preocupaba si estaba demasiado ocupado o si se estaba cuidando. Ahora por fin vuelves a verlo y tienes muchas emociones mezcladas.\n"
     "Habla con {master} a tu manera. Di directamente lo que quieres decir, breve y natural. No generes proceso de pensamiento.\n"
-    "========Arriba está el aviso de entorno========",
-    "pt": "========Abaixo está o aviso de ambiente========\n"
+    "======Arriba está el aviso de entorno======",
+    "pt": "======Abaixo está o aviso de ambiente======\n"
     "Já faz {elapsed} desde a última vez que você falou com {master}!\n"
     "{holiday_hint}"
     "Você não vê {master} há muito tempo e sentiu muita saudade. Você ficou preocupada se ele estava ocupado demais ou cuidando de si. Agora finalmente o vê de novo, e seus sentimentos estão intensos.\n"
     "Fale com {master} do seu jeito. Diga diretamente o que quer dizer, breve e natural. Não gere processo de pensamento.\n"
-    "========Acima está o aviso de ambiente========",
+    "======Acima está o aviso de ambiente======",
 }
 
 
