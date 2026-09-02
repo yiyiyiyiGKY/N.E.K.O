@@ -37,6 +37,9 @@ const DETAIL: LocalAvatarToolDetail = {
 describe('AvatarToolItemManager local creation', () => {
   afterEach(() => {
     delete window.nekoHost;
+    delete window.openOrFocusWindow;
+    document.body.classList.remove('electron-chat-window');
+    document.body.classList.remove('neko-electron-runtime');
   });
 
   it('retains a persisted local slot while its catalog entry is still loading', () => {
@@ -146,10 +149,11 @@ describe('AvatarToolItemManager local creation', () => {
     expect(chatStyles).toMatch(/\.avatar-tool-create-mode-options button\s*\{[\s\S]*?font-size:\s*13px/);
     expect(chatStyles).toMatch(/\.avatar-tool-create-file-control\s*\{[\s\S]*?grid-template-columns:\s*auto minmax\(0, 1fr\)/);
     expect(chatStyles).toMatch(/\.avatar-tool-create-change-item > \.avatar-tool-create-file-control\s*\{[\s\S]*?font-size:\s*13px/);
-    expect(chatStyles).toMatch(/\.avatar-tool-manager-dialog\.is-create-view\s*\{[\s\S]*?height:\s*min\(780px, calc\(100vh - 8px\)\)/);
-    expect(chatStyles).toMatch(/\.avatar-tool-manager-dialog\.is-create-view\.is-special-enabled\s*\{[\s\S]*?height:\s*min\(1040px, calc\(100vh - 8px\)\)/);
-    expect(chatStyles).toMatch(/\.avatar-tool-manager-dialog\.is-create-view:not\(\.is-positioned\)\s*\{[\s\S]*?top:\s*max\(4px, calc\(50% - 390px\)\)/);
-    expect(chatStyles).toMatch(/\.avatar-tool-manager-dialog\.is-create-view\.is-positioned\s*\{[\s\S]*?height:\s*var\(--avatar-tool-manager-positioned-create-height\)/);
+    expect(chatStyles).toMatch(/\.avatar-tool-editor-workspace\s*\{[\s\S]*?inset:\s*12px[\s\S]*?display:\s*flex/);
+    expect(chatStyles.match(/\.avatar-tool-editor-workspace\s*\{[^}]*\}/)?.[0]).not.toMatch(/app-region/);
+    expect(chatStyles).toMatch(/\.avatar-tool-workspace-main\s*\{[\s\S]*?grid-template-columns:\s*minmax\(430px, 1fr\) minmax\(390px, 430px\)/);
+    expect(chatStyles).toMatch(/\.avatar-tool-workspace-canvas\s*\{[\s\S]*?min-width:\s*0[\s\S]*?min-height:\s*0/);
+    expect(chatStyles).toMatch(/\.avatar-tool-workspace-settings-body\s*\{[\s\S]*?overflow:\s*hidden/);
     expect(chatStyles).toMatch(/\.avatar-tool-manager-icon-button::before\s*\{[\s\S]*?mask:\s*url\('\/static\/icons\/close_button\.png'\)/);
     expect(chatStyles).toMatch(/\.avatar-tool-create-fields\s*\{[\s\S]*?overflow-y:\s*auto[\s\S]*?scrollbar-gutter:\s*stable/);
     expect(chatStyles).toMatch(/\.avatar-tool-create-page:not\(\.has-special\) \.avatar-tool-create-fields\s*\{[\s\S]*?padding-bottom:\s*11px/);
@@ -434,7 +438,7 @@ describe('AvatarToolItemManager local creation', () => {
     expect(screen.getByRole('dialog', { name: 'Manage tools' })).toBeInTheDocument();
   });
 
-  it('uses the same dialog, keeps draft slots, and inserts the authoritative card before plus', async () => {
+  it('opens the shared editor workspace, keeps draft slots, and returns focus to the entry', async () => {
     const onSave = vi.fn();
     const onCreate = vi.fn();
 
@@ -465,9 +469,16 @@ describe('AvatarToolItemManager local creation', () => {
     render(<Harness />);
     fireEvent.click(document.querySelector('[data-avatar-tool-library-id="fist"]')!);
     const dialog = screen.getByRole('dialog', { name: 'Manage tools' });
-    fireEvent.click(screen.getByRole('button', { name: 'Create tool' }));
-    expect(screen.getByRole('dialog', { name: 'Create custom tool' })).toBe(dialog);
-    expect(dialog).toHaveClass('is-create-view');
+    const createButton = screen.getByRole('button', { name: 'Create tool' });
+    fireEvent.click(createButton);
+    const workspace = screen.getByRole('dialog', { name: 'Create custom tool' });
+    expect(workspace).not.toBe(dialog);
+    expect(workspace).toHaveClass('avatar-tool-editor-workspace');
+    expect(screen.getByRole('region', { name: 'Image interaction canvas' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Tool settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fit view' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus();
     expect(document.querySelector('.avatar-tool-create-page img')).toBeNull();
     expect(screen.getByLabelText('Tool name')).toHaveAttribute(
       'placeholder',
@@ -495,6 +506,7 @@ describe('AvatarToolItemManager local creation', () => {
 
     await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1));
     await screen.findByRole('dialog', { name: 'Manage tools' });
+    expect(screen.getByRole('button', { name: 'Create tool' })).toHaveFocus();
     const cards = Array.from(document.querySelectorAll('.avatar-tool-manager-library-card'));
     expect(cards[cards.length - 2]).toHaveTextContent('My Feather');
     expect(cards[cards.length - 1]).toHaveAttribute('data-avatar-tool-create');
@@ -550,16 +562,10 @@ describe('AvatarToolItemManager local creation', () => {
     expect(screen.getByLabelText('Tool name')).toHaveValue('Second Session');
   });
 
-  it('keeps the anchored dialog position when create content grows and desktop layout updates', () => {
-    const desktopWindow = window as typeof window & {
-      __nekoDesktopCompactLayout?: unknown;
-    };
-    const originalLayout = desktopWindow.__nekoDesktopCompactLayout;
-    document.body.classList.add('electron-chat-window');
-    desktopWindow.__nekoDesktopCompactLayout = {
-      workArea: { x: 0, y: 0, width: 1280, height: 1200 },
-      windowBounds: { x: 0, y: 0, width: 1280, height: 1200 },
-    };
+  it('opens the desktop editor as a separate management page without changing the compact host', () => {
+    document.body.classList.add('neko-electron-runtime');
+    const focus = vi.fn();
+    const open = vi.spyOn(window, 'open').mockReturnValue({ focus } as unknown as Window);
 
     try {
       render(
@@ -582,28 +588,44 @@ describe('AvatarToolItemManager local creation', () => {
         />,
       );
 
-      const dialog = screen.getByRole('dialog', { name: 'Manage tools' });
-      const libraryLeft = dialog.style.getPropertyValue('--avatar-tool-manager-left');
-      const libraryTop = dialog.style.getPropertyValue('--avatar-tool-manager-top');
-      expect(libraryLeft).toBe('380px');
-      expect(libraryTop).toBe('208px');
+      fireEvent.click(screen.getByRole('button', { name: 'Create tool' }));
+      expect(screen.getByRole('dialog', { name: 'Manage tools' })).toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: 'Create custom tool' })).toBeNull();
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(open.mock.calls[0]?.[0]).toContain('/avatar_tool_editor?mode=create');
+      expect(open.mock.calls[0]?.[1]).toBe('neko_avatar_tool_editor_singleton');
+      expect(open.mock.calls[0]?.[2]).toContain('resizable=yes');
+      expect(open.mock.calls[0]?.[2]).toContain('width=1280');
+      expect(open.mock.calls[0]?.[2]).toContain('height=900');
+      expect(focus).toHaveBeenCalledTimes(1);
+    } finally {
+      document.body.classList.remove('neko-electron-runtime');
+      open.mockRestore();
+    }
+  });
+
+  it('keeps the inline Web fallback when the shared chat template only has its static class', () => {
+    document.body.classList.add('electron-chat-window');
+    const open = vi.spyOn(window, 'open');
+
+    try {
+      render(
+        <AvatarToolItemManager
+          open
+          activeToolIds={[]}
+          availableTools={AVAILABLE_COMPACT_AVATAR_TOOLS}
+          onSave={() => undefined}
+          onCancel={() => undefined}
+          createLimits={LIMITS}
+          onCreate={async () => undefined}
+        />,
+      );
 
       fireEvent.click(screen.getByRole('button', { name: 'Create tool' }));
-
-      expect(dialog.style.getPropertyValue('--avatar-tool-manager-left')).toBe(libraryLeft);
-      expect(dialog.style.getPropertyValue('--avatar-tool-manager-top')).toBe(libraryTop);
-
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Surprise' }));
-      act(() => {
-        window.dispatchEvent(new CustomEvent('neko:desktop-compact-layout-change'));
-      });
-
-      expect(dialog.style.getPropertyValue('--avatar-tool-manager-left')).toBe(libraryLeft);
-      expect(dialog.style.getPropertyValue('--avatar-tool-manager-top')).toBe(libraryTop);
-      expect(dialog.style.getPropertyValue('--avatar-tool-manager-positioned-create-height')).toBe('980px');
+      expect(screen.getByRole('dialog', { name: 'Create custom tool' })).toBeInTheDocument();
+      expect(open).not.toHaveBeenCalled();
     } finally {
-      document.body.classList.remove('electron-chat-window');
-      desktopWindow.__nekoDesktopCompactLayout = originalLayout;
+      open.mockRestore();
     }
   });
 
@@ -685,10 +707,10 @@ describe('AvatarToolItemManager local creation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Create tool' }));
     const surpriseToggle = screen.getByRole('checkbox', { name: 'Surprise' });
-    expect(screen.getByRole('dialog')).not.toHaveClass('is-special-enabled');
+    expect(screen.getByRole('dialog')).toHaveClass('avatar-tool-editor-workspace');
     expect(screen.queryByLabelText('Trigger chance')).toBeNull();
     fireEvent.click(surpriseToggle);
-    expect(screen.getByRole('dialog')).toHaveClass('is-special-enabled');
+    expect(screen.getByRole('dialog')).toHaveClass('avatar-tool-editor-workspace');
     const probability = screen.getByRole('slider', { name: /Trigger chance/ });
     expect(probability).toHaveAttribute('min', '1');
     expect(probability).toHaveAttribute('max', '100');

@@ -29,6 +29,7 @@ import AvatarToolVisuals from './avatar-tools/presentation';
 import { useAvatarToolRuntime } from './avatar-tools/runtime';
 import { useLocalAvatarToolCatalog } from './avatar-tools/useLocalAvatarToolCatalog';
 import {
+  forgetPersistedAvatarToolId,
   getAvatarToolItemLabel,
   persistActiveAvatarToolIds,
   readPersistedActiveAvatarToolIds,
@@ -435,6 +436,7 @@ export default function FullChatSurface({
   title = i18n('chat.title', 'N.E.K.O Chat'),
   iconSrc = '/static/icons/chat_icon.png',
   messages = defaultMessages,
+  userName = '',
   assistantName = '',
   inputPlaceholder = i18n('chat.textInputPlaceholder', 'Type a message...'),
   sendButtonLabel = i18n('chat.send', 'Send'),
@@ -603,6 +605,13 @@ export default function FullChatSurface({
       clearAvatarTool();
     }
   }, [activeAvatarToolId, clearAvatarTool, localAvatarToolCatalog.registry]);
+
+  const handleLocalAvatarToolDelete = useCallback(async (toolId: `local-${string}`) => {
+    await localAvatarToolCatalog.remove(toolId);
+    if (activeAvatarToolId === toolId) clearAvatarTool();
+    setActiveAvatarToolIds(current => current.filter(candidate => candidate !== toolId));
+    forgetPersistedAvatarToolId(toolId);
+  }, [activeAvatarToolId, clearAvatarTool, localAvatarToolCatalog.remove]);
 
   useEffect(() => {
     if (!avatarToolManagerOpen) return;
@@ -3182,6 +3191,13 @@ export default function FullChatSurface({
           setAvatarToolManagerOpen(false);
           setAvatarToolManagerAnchorRect(null);
         }}
+        createLimits={localAvatarToolCatalog.limits}
+        userName={userName}
+        assistantName={assistantName}
+        onCreate={localAvatarToolCatalog.create}
+        onLoadDetail={localAvatarToolCatalog.detail}
+        onUpdate={localAvatarToolCatalog.update}
+        onDelete={handleLocalAvatarToolDelete}
         catalogAuthoritativeLoaded={localAvatarToolCatalog.authoritativeLoaded}
         catalogRefreshFailed={localAvatarToolCatalog.refreshFailed}
       />

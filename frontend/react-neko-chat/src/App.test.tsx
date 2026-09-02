@@ -47,6 +47,7 @@ describe('App', () => {
     resetCompactToolWheelDetentAudioForTests();
     document.body.style.pointerEvents = '';
     document.body.classList.remove('electron-chat-window');
+    document.body.classList.remove('neko-electron-runtime');
     document.body.classList.remove('yui-guide-chat-buttons-disabled');
     document.body.classList.remove('yui-guide-standalone-input-shield-active');
   });
@@ -505,7 +506,7 @@ describe('App', () => {
     })));
   });
 
-  it('loads a local avatar tool into Full without exposing the create entry', async () => {
+  it('loads a local avatar tool into Full and exposes the shared create/edit entries', async () => {
     const localToolId = 'local-12345678-1234-4123-8123-123456789abc';
     const onAvatarToolStateChange = vi.fn();
     (window as Window & { __NEKO_MULTI_WINDOW__?: boolean }).__NEKO_MULTI_WINDOW__ = true;
@@ -585,8 +586,8 @@ describe('App', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Edit quick tools' }));
       const dialog = await screen.findByRole('dialog', { name: 'Manage tools' });
       expect(dialog.querySelector(`[data-avatar-tool-library-id="${localToolId}"]`)).not.toBeNull();
-      expect(dialog.querySelector('[data-avatar-tool-create]')).toBeNull();
-      expect(dialog.querySelector('.avatar-tool-manager-modify')).toBeNull();
+      expect(dialog.querySelector('[data-avatar-tool-create]')).not.toBeNull();
+      expect(dialog.querySelector('.avatar-tool-manager-modify')).not.toBeNull();
       expect(dialog.querySelector('.avatar-tool-manager-delete')).toBeNull();
     } finally {
       vi.unstubAllGlobals();
@@ -5736,6 +5737,24 @@ describe('App', () => {
     }
   });
 
+  it('uses the same expanded avatar tool editor from the full chat surface', async () => {
+    render(<App chatSurfaceMode="full" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Emoji' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit quick tools' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create tool' }));
+
+    const workspace = screen.getByRole('dialog', { name: 'Create custom tool' });
+    expect(workspace).toHaveClass('avatar-tool-editor-workspace');
+    expect(workspace.querySelector('.react-flow')).not.toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Manage tools' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(screen.getByRole('dialog', { name: 'Manage tools' })).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Create tool' }));
+  });
+
   it('lets Compact equip and select rps while preserving the three-slot limit', async () => {
     const onAvatarToolStateChange = vi.fn();
     const { container } = render(
@@ -5956,12 +5975,13 @@ describe('App', () => {
       await openCompactInputTools();
       fireEvent.click(screen.getByRole('button', { name: 'Avatar tools' }));
       fireEvent.click(container.querySelector('.avatar-tool-quickbar-edit') as HTMLButtonElement);
-      const dialog = await screen.findByRole('dialog', { name: 'Manage tools' });
+      await screen.findByRole('dialog', { name: 'Manage tools' });
       fireEvent.click(screen.getByRole('button', { name: 'Edit Feather' }));
       await screen.findByRole('dialog', { name: 'Edit custom tool' });
       fireEvent.click(screen.getByRole('button', { name: 'Delete tool' }));
 
-      await waitFor(() => expect(dialog.querySelector(`[data-avatar-tool-library-id="${localToolId}"]`)).toBeNull());
+      await screen.findByRole('dialog', { name: 'Manage tools' });
+      await waitFor(() => expect(document.querySelector(`[data-avatar-tool-library-id="${localToolId}"]`)).toBeNull());
       await waitFor(() => expect(window.localStorage.getItem(ACTIVE_AVATAR_TOOLS_STORAGE_KEY)).toBe('[]'));
       expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true);
       expect(confirm).toHaveBeenCalledTimes(1);
@@ -5983,10 +6003,12 @@ describe('App', () => {
     };
     const originalDesktopLayout = desktopWindow.__nekoDesktopCompactLayout;
     const hadElectronChatWindowClass = document.body.classList.contains('electron-chat-window');
+    const hadElectronRuntimeClass = document.body.classList.contains('neko-electron-runtime');
 
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 393 });
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 74 });
     document.body.classList.add('electron-chat-window');
+    document.body.classList.add('neko-electron-runtime');
     desktopWindow.__nekoDesktopCompactLayout = {
       windowBounds: { x: 976, y: 485, width: 393, height: 74 },
       workArea: { x: 0, y: 0, width: 1706, height: 1066 },
@@ -6049,6 +6071,11 @@ describe('App', () => {
         document.body.classList.add('electron-chat-window');
       } else {
         document.body.classList.remove('electron-chat-window');
+      }
+      if (hadElectronRuntimeClass) {
+        document.body.classList.add('neko-electron-runtime');
+      } else {
+        document.body.classList.remove('neko-electron-runtime');
       }
       desktopWindow.__nekoDesktopCompactLayout = originalDesktopLayout;
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });

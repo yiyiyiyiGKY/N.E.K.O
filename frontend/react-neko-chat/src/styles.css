@@ -5552,6 +5552,504 @@ body.electron-chat-window.subtitle-web-host .compact-export-history-anchor {
   line-height: 1;
 }
 
+.avatar-tool-editor-workspace {
+  position: fixed;
+  inset: 12px;
+  z-index: 100102;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(92, 170, 211, 0.42);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 9% 0%, rgba(184, 230, 250, 0.52), transparent 34%),
+    linear-gradient(145deg, rgba(248, 253, 255, 0.985), rgba(229, 243, 251, 0.98));
+  color: #1d3448;
+  box-shadow:
+    0 26px 70px rgba(30, 78, 110, 0.28),
+    0 4px 18px rgba(39, 94, 126, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  pointer-events: auto;
+}
+
+.avatar-tool-workspace-header {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: auto minmax(180px, auto) 1fr;
+  align-items: center;
+  gap: 14px;
+  min-height: 70px;
+  box-sizing: border-box;
+  padding: 11px 18px;
+  border-bottom: 1px solid rgba(72, 130, 164, 0.18);
+  background: rgba(252, 255, 255, 0.7);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  user-select: none;
+}
+
+.avatar-tool-workspace-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 13px;
+  border: 1px solid rgba(72, 130, 164, 0.24);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  color: #285069;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.avatar-tool-workspace-back span {
+  font-size: 19px;
+  line-height: 1;
+}
+
+.avatar-tool-workspace-back:hover {
+  border-color: rgba(36, 151, 217, 0.5);
+  background: rgba(227, 246, 255, 0.92);
+  transform: translateX(-1px);
+}
+
+.avatar-tool-workspace-back:focus-visible,
+.avatar-tool-editor-workspace .react-flow__controls-button:focus-visible {
+  outline: 3px solid rgba(36, 151, 217, 0.38);
+  outline-offset: 2px;
+}
+
+.avatar-tool-workspace-heading {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.avatar-tool-workspace-heading > span,
+.avatar-tool-workspace-stage-heading span,
+.avatar-tool-workspace-settings-heading span {
+  color: rgba(44, 84, 111, 0.6);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.avatar-tool-workspace-heading h2,
+.avatar-tool-workspace-stage-heading h3,
+.avatar-tool-workspace-settings-heading h3 {
+  margin: 0;
+  color: #18384f;
+  font-weight: 800;
+}
+
+.avatar-tool-workspace-heading h2 {
+  overflow: hidden;
+  font-size: clamp(18px, 1.8vw, 23px);
+  line-height: 1.16;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatar-tool-workspace-local-badge {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid rgba(57, 148, 128, 0.2);
+  border-radius: 999px;
+  background: rgba(226, 248, 242, 0.72);
+  color: #377565;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.avatar-tool-workspace-local-badge span {
+  color: #43aa8b;
+  font-size: 9px;
+}
+
+.avatar-tool-workspace-main {
+  flex: 1 1 auto;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(430px, 1fr) minmax(390px, 430px);
+  gap: 12px;
+  padding: 12px;
+}
+
+.avatar-tool-workspace-stage,
+.avatar-tool-workspace-settings {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(81, 138, 172, 0.2);
+  border-radius: 14px;
+  background: rgba(250, 254, 255, 0.68);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.avatar-tool-workspace-stage {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.avatar-tool-workspace-stage-heading,
+.avatar-tool-workspace-settings-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 66px;
+  box-sizing: border-box;
+  padding: 13px 16px;
+  border-bottom: 1px solid rgba(81, 138, 172, 0.16);
+}
+
+.avatar-tool-workspace-stage-heading > div,
+.avatar-tool-workspace-settings-heading {
+  min-width: 0;
+}
+
+.avatar-tool-workspace-stage-heading h3,
+.avatar-tool-workspace-settings-heading h3 {
+  margin-top: 3px;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.avatar-tool-workspace-stage-heading p {
+  max-width: 330px;
+  margin: 0;
+  color: rgba(44, 84, 111, 0.64);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.avatar-tool-workspace-canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.82), rgba(225, 240, 249, 0.34) 58%, transparent 78%);
+}
+
+.avatar-tool-workspace-canvas .react-flow {
+  width: 100%;
+  height: 100%;
+  --xy-background-color-default: transparent;
+  --xy-edge-stroke-default: #5d9fc2;
+  --xy-edge-stroke-selected-default: #168dcc;
+  --xy-node-border-default: 1px solid rgba(70, 137, 174, 0.34);
+  --xy-node-background-color-default: rgba(255, 255, 255, 0.94);
+  --xy-node-color-default: #24455c;
+}
+
+.avatar-tool-workspace-canvas .react-flow__background-pattern {
+  fill: rgba(74, 139, 175, 0.27);
+}
+
+.avatar-tool-workspace-canvas .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid rgba(74, 139, 175, 0.22);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(37, 89, 121, 0.14);
+}
+
+.avatar-tool-workspace-canvas .react-flow__controls-button {
+  width: 38px;
+  height: 38px;
+  border-bottom-color: rgba(74, 139, 175, 0.16);
+  background: rgba(253, 255, 255, 0.94);
+  color: #285a78;
+}
+
+.avatar-tool-workspace-canvas .react-flow__controls-button:hover {
+  background: #e5f5fd;
+}
+
+.avatar-tool-workspace-canvas .react-flow__minimap {
+  overflow: hidden;
+  border: 1px solid rgba(74, 139, 175, 0.2);
+  border-radius: 12px;
+  background: rgba(244, 251, 255, 0.94);
+  box-shadow: 0 8px 24px rgba(37, 89, 121, 0.12);
+}
+
+.avatar-tool-workspace-empty {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  display: grid;
+  width: min(360px, calc(100% - 64px));
+  place-items: center;
+  gap: 8px;
+  transform: translate(-50%, -50%);
+  color: #315970;
+  pointer-events: none;
+  text-align: center;
+}
+
+.avatar-tool-workspace-empty-mark {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border: 1px solid rgba(51, 142, 190, 0.24);
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(217, 241, 252, 0.76));
+  color: #2391ca;
+  box-shadow: 0 12px 30px rgba(54, 130, 170, 0.16);
+  font-size: 38px;
+  line-height: 1;
+}
+
+.avatar-tool-workspace-empty strong {
+  margin-top: 3px;
+  color: #214b65;
+  font-size: 18px;
+}
+
+.avatar-tool-workspace-empty p {
+  margin: 0;
+  color: rgba(44, 84, 111, 0.68);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.avatar-tool-workspace-canvas-status {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  color: rgba(44, 84, 111, 0.58);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.avatar-tool-workspace-settings {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.avatar-tool-workspace-settings-heading {
+  display: grid;
+  align-content: center;
+  justify-content: stretch;
+  gap: 0;
+}
+
+.avatar-tool-workspace-settings-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 14px 14px 12px;
+}
+
+.avatar-tool-workspace-settings-body > [data-avatar-tool-editor-special] {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.avatar-tool-workspace-settings-body .avatar-tool-create-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  gap: 11px;
+  padding: 0;
+}
+
+.avatar-tool-workspace-settings-body .avatar-tool-create-fields {
+  gap: 11px;
+  padding: 2px 7px 16px 2px;
+}
+
+.avatar-tool-workspace-settings-body .avatar-tool-create-field,
+.avatar-tool-workspace-settings-body .avatar-tool-create-mode {
+  gap: 7px;
+  font-size: 14px;
+}
+
+.avatar-tool-workspace-settings-body .avatar-tool-create-field input:not([type='file']),
+.avatar-tool-workspace-settings-body .avatar-tool-create-file-control {
+  min-height: 42px;
+}
+
+.avatar-tool-workspace-settings-body .avatar-tool-create-change-list {
+  flex-basis: 196px;
+  min-height: 196px;
+}
+
+.avatar-tool-workspace-settings-body .avatar-tool-create-actions {
+  padding-top: 10px;
+  border-top: 1px solid rgba(81, 138, 172, 0.14);
+  background: rgba(247, 252, 255, 0.92);
+}
+
+/* 独立编辑页已有窗口标题栏，不再叠加 workspace 标题和多层外框。 */
+body.avatar-tool-editor-page .avatar-tool-editor-workspace {
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+body.avatar-tool-editor-page .avatar-tool-workspace-main {
+  gap: 8px;
+  padding: 8px;
+}
+
+body.avatar-tool-editor-page .avatar-tool-workspace-stage,
+body.avatar-tool-editor-page .avatar-tool-workspace-settings {
+  border-radius: 10px;
+}
+
+[data-theme="dark"] .avatar-tool-editor-workspace {
+  border-color: rgba(95, 181, 232, 0.24);
+  background:
+    radial-gradient(circle at 9% 0%, rgba(69, 127, 168, 0.28), transparent 34%),
+    linear-gradient(145deg, rgba(25, 42, 58, 0.985), rgba(12, 24, 38, 0.985));
+  color: #e7f3ff;
+  box-shadow:
+    0 26px 70px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .avatar-tool-workspace-header,
+[data-theme="dark"] .avatar-tool-workspace-stage,
+[data-theme="dark"] .avatar-tool-workspace-settings {
+  border-color: rgba(137, 202, 242, 0.14);
+  background: rgba(24, 40, 57, 0.76);
+}
+
+[data-theme="dark"] .avatar-tool-workspace-back {
+  border-color: rgba(137, 202, 242, 0.2);
+  background: rgba(40, 65, 87, 0.74);
+  color: #d8efff;
+}
+
+[data-theme="dark"] .avatar-tool-workspace-back:hover {
+  background: rgba(48, 87, 116, 0.82);
+}
+
+[data-theme="dark"] .avatar-tool-workspace-heading > span,
+[data-theme="dark"] .avatar-tool-workspace-stage-heading span,
+[data-theme="dark"] .avatar-tool-workspace-settings-heading span,
+[data-theme="dark"] .avatar-tool-workspace-stage-heading p,
+[data-theme="dark"] .avatar-tool-workspace-empty p,
+[data-theme="dark"] .avatar-tool-workspace-canvas-status {
+  color: rgba(198, 224, 243, 0.62);
+}
+
+[data-theme="dark"] .avatar-tool-workspace-heading h2,
+[data-theme="dark"] .avatar-tool-workspace-stage-heading h3,
+[data-theme="dark"] .avatar-tool-workspace-settings-heading h3,
+[data-theme="dark"] .avatar-tool-workspace-empty strong {
+  color: #e7f4ff;
+}
+
+[data-theme="dark"] .avatar-tool-workspace-local-badge {
+  border-color: rgba(95, 201, 169, 0.2);
+  background: rgba(50, 116, 98, 0.22);
+  color: #aee7d6;
+}
+
+[data-theme="dark"] .avatar-tool-workspace-canvas {
+  background: radial-gradient(circle at 50% 42%, rgba(54, 82, 105, 0.36), rgba(12, 25, 40, 0.18) 62%, transparent 80%);
+}
+
+[data-theme="dark"] .avatar-tool-workspace-canvas .react-flow {
+  --xy-edge-stroke-default: #6bb7df;
+  --xy-edge-stroke-selected-default: #9edcff;
+  --xy-node-border-default: 1px solid rgba(120, 192, 232, 0.28);
+  --xy-node-background-color-default: rgba(31, 53, 72, 0.96);
+  --xy-node-color-default: #e5f4ff;
+}
+
+[data-theme="dark"] .avatar-tool-workspace-canvas .react-flow__background-pattern {
+  fill: rgba(126, 191, 226, 0.2);
+}
+
+[data-theme="dark"] .avatar-tool-workspace-canvas .react-flow__controls-button,
+[data-theme="dark"] .avatar-tool-workspace-canvas .react-flow__minimap {
+  border-color: rgba(128, 196, 235, 0.13);
+  background: rgba(30, 52, 71, 0.95);
+  color: #d9efff;
+}
+
+[data-theme="dark"] .avatar-tool-workspace-empty-mark {
+  border-color: rgba(105, 190, 233, 0.22);
+  background: linear-gradient(145deg, rgba(48, 79, 102, 0.86), rgba(25, 51, 70, 0.8));
+  color: #83d1f7;
+}
+
+[data-theme="dark"] .avatar-tool-workspace-settings-body .avatar-tool-create-actions {
+  border-top-color: rgba(137, 202, 242, 0.12);
+  background: rgba(21, 37, 53, 0.94);
+}
+
+@media (max-width: 900px) {
+  .avatar-tool-editor-workspace {
+    inset: 0;
+    border-radius: 0;
+  }
+
+  .avatar-tool-workspace-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .avatar-tool-workspace-local-badge {
+    display: none;
+  }
+
+  .avatar-tool-workspace-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(420px, 48vh) minmax(520px, auto);
+    overflow-y: auto;
+  }
+
+  .avatar-tool-workspace-settings {
+    min-height: 520px;
+  }
+}
+
+@media (max-width: 560px) {
+  .avatar-tool-workspace-header {
+    min-height: 62px;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .avatar-tool-workspace-back {
+    min-height: 40px;
+    padding-inline: 10px;
+  }
+
+  .avatar-tool-workspace-heading > span,
+  .avatar-tool-workspace-stage-heading p {
+    display: none;
+  }
+
+  .avatar-tool-workspace-main {
+    gap: 8px;
+    padding: 8px;
+  }
+}
+
 .avatar-tool-create-page {
   display: flex;
   flex-direction: column;

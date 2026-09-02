@@ -25,6 +25,7 @@ type AvatarToolCreatePageProps = {
   onSave(input: CreateLocalAvatarToolInput | UpdateLocalAvatarToolInput): Promise<void>;
   onDelete?(): Promise<void>;
   onCancel(): void;
+  showCancelAction?: boolean;
 };
 
 type HostFilePickerResult = {
@@ -86,6 +87,7 @@ export default function AvatarToolCreatePage({
   onSave,
   onDelete,
   onCancel,
+  showCancelAction = true,
 }: AvatarToolCreatePageProps) {
   const editing = !!initialDetail;
   const creationToolIdRef = useRef<ReturnType<typeof createLocalAvatarToolId> | null>(null);
@@ -1022,9 +1024,11 @@ export default function AvatarToolCreatePage({
           </button>
         ) : null}
         <div className="avatar-tool-create-action-group">
-          <button className="avatar-tool-manager-action secondary" type="button" disabled={busy} onClick={onCancel}>
-            {i18n('chat.avatarToolCreateBack', 'Back')}
-          </button>
+          {showCancelAction ? (
+            <button className="avatar-tool-manager-action secondary" type="button" disabled={busy} onClick={onCancel}>
+              {i18n('chat.avatarToolCreateBack', 'Back')}
+            </button>
+          ) : null}
           <button className="avatar-tool-manager-action primary" type="submit" disabled={busy}>
             {submitting
               ? i18n('chat.avatarToolCreateSaving', 'Saving…')
