@@ -74,10 +74,10 @@ export function AvatarToolInteractionCanvas({
       {nodes.length === 0 ? (
         <div className="avatar-tool-workspace-empty" aria-hidden="true">
           <span className="avatar-tool-workspace-empty-mark">⌁</span>
-          <strong>{i18n('chat.avatarToolWorkspaceEmptyTitle', 'Interaction canvas')}</strong>
+          <strong>{i18n('chat.avatarToolWorkspaceEmptyTitle', 'No interactions yet')}</strong>
           <p>{i18n(
             'chat.avatarToolWorkspaceEmptyBody',
-            'Images and complete interactions will be connected here as you build the tool.',
+            'Mouse clicks, delays, and the connections between them will appear here.',
           )}</p>
         </div>
       ) : null}
@@ -149,13 +149,10 @@ export default function AvatarToolEditorWorkspace({
       <div className="avatar-tool-workspace-main">
         <section
           className="avatar-tool-workspace-stage"
-          aria-label={i18n('chat.avatarToolWorkspaceCanvasTitle', 'Image interaction canvas')}
+          aria-label={i18n('chat.avatarToolWorkspaceCanvasTitle', 'Interaction flow')}
         >
           <div className="avatar-tool-workspace-stage-heading">
-            <div>
-              <span>{i18n('chat.avatarToolWorkspaceCanvasEyebrow', 'Flow')}</span>
-              <h3>{i18n('chat.avatarToolWorkspaceCanvasTitle', 'Image interaction canvas')}</h3>
-            </div>
+            <h3>{i18n('chat.avatarToolWorkspaceCanvasTitle', 'Interaction flow')}</h3>
             <p>{i18n(
               'chat.avatarToolWorkspaceCanvasHint',
               'Drag to move · Scroll to pan · Use the controls to zoom',
@@ -166,11 +163,14 @@ export default function AvatarToolEditorWorkspace({
 
         <aside
           className="avatar-tool-workspace-settings"
-          aria-label={i18n('chat.avatarToolWorkspaceSettings', 'Tool settings')}
+          aria-label={i18n('chat.avatarToolWorkspaceContentTitle', 'Tool content')}
         >
           <div className="avatar-tool-workspace-settings-heading">
-            <span>{i18n('chat.avatarToolWorkspaceSettingsEyebrow', 'Details')}</span>
-            <h3>{i18n('chat.avatarToolWorkspaceSettings', 'Tool settings')}</h3>
+            <h3>{i18n('chat.avatarToolWorkspaceContentTitle', 'Tool content')}</h3>
+            <p className="avatar-tool-workspace-content-note">{i18n(
+              'chat.avatarToolCreatePrivacy',
+              'Images and sounds stay on this device; during interactions, the name and matching description are sent to the model.',
+            )}</p>
           </div>
           <div className="avatar-tool-workspace-settings-body">
             {children}

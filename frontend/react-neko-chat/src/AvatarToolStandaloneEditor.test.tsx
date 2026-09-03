@@ -40,7 +40,15 @@ describe('AvatarToolStandaloneEditor', () => {
     render(<AvatarToolStandaloneEditor />);
 
     expect(screen.getByRole('dialog', { name: 'Create custom tool' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Image interaction canvas' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Interaction flow' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Tool content' })).toBeInTheDocument();
+    const privacy = screen.getByText(
+      'Images and sounds stay on this device; during interactions, the name and matching description are sent to the model.',
+    );
+    expect(privacy.closest('.avatar-tool-workspace-settings-heading')).not.toBeNull();
+    expect(document.querySelector('.avatar-tool-create-fields .avatar-tool-workspace-content-note')).toBeNull();
+    expect(screen.queryByText('Details')).toBeNull();
+    expect(screen.queryByText('Tool settings')).toBeNull();
     expect(document.querySelector('.avatar-tool-workspace-header')).toBeNull();
     expect(document.body).toHaveClass('avatar-tool-editor-page');
     fireEvent.keyDown(window, { key: 'Escape' });
@@ -68,14 +76,16 @@ describe('AvatarToolStandaloneEditor', () => {
     await waitFor(() => expect(catalog.detail).toHaveBeenCalledWith(LOCAL_ID));
     expect(await screen.findByDisplayValue('My Feather')).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Edit custom tool' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Tool content' })).toBeInTheDocument();
   });
 
   it('refreshes the complete editor and window title when the app locale becomes ready', async () => {
     let localeReady = false;
     const zhTranslations: Record<string, string> = {
       'chat.avatarToolCreateTitle': '创建自定义道具',
-      'chat.avatarToolWorkspaceCanvasTitle': '图片交互画布',
-      'chat.avatarToolWorkspaceSettings': '道具设置',
+      'chat.avatarToolWorkspaceCanvasTitle': '互动流程',
+      'chat.avatarToolWorkspaceContentTitle': '道具内容',
+      'chat.avatarToolCreatePrivacy': '图片和音效仅存本机；互动时，名称和对应描述会发送给模型。',
       'chat.avatarToolCreateName': '道具名称',
       'chat.avatarToolWorkspaceControls': '画布控件',
       'chat.avatarToolWorkspaceZoomIn': '放大',
@@ -96,8 +106,10 @@ describe('AvatarToolStandaloneEditor', () => {
     act(() => window.dispatchEvent(new Event('localechange')));
 
     expect(await screen.findByRole('dialog', { name: '创建自定义道具' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '图片交互画布' })).toBeInTheDocument();
-    expect(screen.getByRole('complementary', { name: '道具设置' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '互动流程' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: '道具内容' })).toBeInTheDocument();
+    expect(screen.getByText('图片和音效仅存本机；互动时，名称和对应描述会发送给模型。')
+      .closest('.avatar-tool-workspace-settings-heading')).not.toBeNull();
     expect(screen.getByRole('textbox', { name: '道具名称' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '放大' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '缩小' })).toBeInTheDocument();
