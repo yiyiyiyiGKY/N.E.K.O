@@ -29,11 +29,9 @@
     const SUPPORTED_LANGUAGES = ['zh-CN', 'zh-TW', 'en', 'ja', 'ko', 'ru', 'es', 'pt'];
 
     // locale 资源版本（用于 cache-busting，避免客户端长期缓存旧语言包导致新增 key 不生效）
-    // 修改原因：新增本轮图片被裁剪、语音多模态发送失败、OpenClaw 指令下发失败三条
-    // errors.* 文案；递增版本让 Electron、Docker 等长期缓存重新拉取包含完整新 key
-    // 的语言包 —— 不递增的话，缓存住旧语言包的客户端会继续把 errors.TURN_IMAGES_TRIMMED
-    // 这类 key 当字面量渲染出来，正好是本次改动想修掉的那个症状。
-    const LOCALE_VERSION = '2026-09-03-avatar-tool-stage2-structure';
+    // 修改原因：为自定义道具图片和完整互动补充可编辑名称；
+    // 递增版本让 Electron、Docker 等长期缓存重新拉取完整语言包。
+    const LOCALE_VERSION = '2026-09-04-avatar-tool-custom-names';
     function initDecorativeImageDragGuard() {
         const markImage = (img) => {
             if (!(img instanceof HTMLImageElement)) return;
@@ -930,6 +928,15 @@
             updatePageTexts();
             updateLive2DDynamicTexts();
             window.dispatchEvent(new CustomEvent('localechange'));
+        });
+
+        // 同源独立窗口（例如自定义道具编辑器）不会收到另一个窗口派发的
+        // localechange；通过 i18nextLng 的 storage 事件跟随主窗口语言变化。
+        window.addEventListener('storage', (event) => {
+            if (event.key !== 'i18nextLng' || !event.newValue) return;
+            const language = normalizeSupportedLanguageCode(event.newValue);
+            if (!language || language === i18next.language) return;
+            void i18next.changeLanguage(language);
         });
 
         // 导出语言切换函数

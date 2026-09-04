@@ -430,7 +430,7 @@ describe('AvatarToolItemManager local creation', () => {
     expect(workspace).not.toBe(dialog);
     expect(workspace).toHaveClass('avatar-tool-editor-workspace');
     expect(screen.getByRole('region', { name: 'Interaction flow' })).toBeInTheDocument();
-    expect(screen.getByRole('complementary', { name: 'Tool content' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Tool editor' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Zoom in' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fit view' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus();
@@ -467,6 +467,10 @@ describe('AvatarToolItemManager local creation', () => {
 
   it('opens the desktop editor as a separate management page without changing the compact host', () => {
     document.body.classList.add('neko-electron-runtime');
+    Object.defineProperty(window, 'i18n', {
+      configurable: true,
+      value: { language: 'ja', resolvedLanguage: 'ja' },
+    });
     const focus = vi.fn();
     const open = vi.spyOn(window, 'open').mockReturnValue({ focus } as unknown as Window);
 
@@ -496,6 +500,7 @@ describe('AvatarToolItemManager local creation', () => {
       expect(screen.queryByRole('dialog', { name: 'Create custom tool' })).toBeNull();
       expect(open).toHaveBeenCalledTimes(1);
       expect(open.mock.calls[0]?.[0]).toContain('/avatar_tool_editor?mode=create');
+      expect(open.mock.calls[0]?.[0]).toContain('ui_lang=ja');
       expect(open.mock.calls[0]?.[1]).toBe('neko_avatar_tool_editor_singleton');
       expect(open.mock.calls[0]?.[2]).toContain('resizable=yes');
       expect(open.mock.calls[0]?.[2]).toContain('width=1280');
@@ -503,6 +508,7 @@ describe('AvatarToolItemManager local creation', () => {
       expect(focus).toHaveBeenCalledTimes(1);
     } finally {
       document.body.classList.remove('neko-electron-runtime');
+      Reflect.deleteProperty(window, 'i18n');
       open.mockRestore();
     }
   });
@@ -580,7 +586,9 @@ describe('AvatarToolItemManager local creation', () => {
     expect(screen.getByText(/Played once when an interaction succeeds\./)).toBeInTheDocument();
     fireEvent.submit(document.querySelector('.avatar-tool-create-page')!);
 
-    expect(await screen.findByText('Add at least one starting image interaction before saving.')).toHaveAttribute('role', 'alert');
+    expect(await screen.findByText('Fix the interaction flow before saving.')).toHaveAttribute('role', 'alert');
+    expect(screen.getByText('Connect the initial image to at least one interaction.')).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: 'Tool settings' }));
     expect(document.querySelectorAll('[data-avatar-tool-image-id]')).toHaveLength(2);
     expect(onCreate).not.toHaveBeenCalled();
   });

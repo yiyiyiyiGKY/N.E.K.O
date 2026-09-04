@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import AvatarToolCreatePage from './AvatarToolCreatePage';
+import { AvatarToolInteractionEditorProvider } from './avatar-tools/AvatarToolInteractionEditorContext';
 import type { LocalAvatarToolDetail, LocalAvatarToolLimits } from './avatar-tools/localTools';
 import { validateAvatarToolPng } from './avatar-tools/avatarToolImageFile';
 
@@ -46,14 +47,16 @@ describe('AvatarToolCreatePage stage 2 image references', () => {
 
   it('shows compact interaction descriptions on cards and keeps the selected image settings editable', () => {
     render(
-      <AvatarToolCreatePage
+      <AvatarToolInteractionEditorProvider>
+        <AvatarToolCreatePage
         limits={LIMITS}
         initialDetail={DETAIL}
         onSpecialEnabledChange={() => undefined}
         onSave={async () => undefined}
         onDelete={async () => undefined}
         onCancel={() => undefined}
-      />,
+        />
+      </AvatarToolInteractionEditorProvider>,
     );
 
     expect(screen.getByText('变化图片')).toBeVisible();
@@ -63,6 +66,11 @@ describe('AvatarToolCreatePage stage 2 image references', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit Tool image 2' }));
 
+    const imageName = screen.getByLabelText('Image name');
+    expect(imageName).toHaveAttribute('placeholder', 'Tool image 2');
+    fireEvent.change(imageName, { target: { value: 'Open palm' } });
+    expect(screen.getByRole('button', { name: 'Edit Open palm' })).toBeVisible();
+
     const description = screen.getByLabelText('Interaction description for tool image 2 (optional)');
     expect(description).toHaveValue('变化图片');
     expect(description).toHaveStyle({ overflowY: 'hidden' });
@@ -70,13 +78,21 @@ describe('AvatarToolCreatePage stage 2 image references', () => {
     expect(screen.getByRole('radio', { name: 'Initial image' })).not.toBeChecked();
     expect(screen.getByText('Change image')).toBeVisible();
     expect(screen.getByTitle('change-000.png')).toBeVisible();
+    const selectedImagePreview = screen.getByAltText('Open palm');
+    Object.defineProperties(selectedImagePreview, {
+      naturalWidth: { configurable: true, value: 240 },
+      naturalHeight: { configurable: true, value: 180 },
+    });
+    fireEvent.load(selectedImagePreview);
+    expect(screen.getByText('240 px · 180 px')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Remove image' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Image actions' })).toBeNull();
   });
 
   it('names every interaction reference and blocks a dangling image deletion', () => {
     render(
-      <AvatarToolCreatePage
+      <AvatarToolInteractionEditorProvider>
+        <AvatarToolCreatePage
         limits={LIMITS}
         initialDetail={DETAIL}
         imageReferences={{
@@ -86,7 +102,8 @@ describe('AvatarToolCreatePage stage 2 image references', () => {
         onSave={async () => undefined}
         onDelete={async () => undefined}
         onCancel={() => undefined}
-      />,
+        />
+      </AvatarToolInteractionEditorProvider>,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit Tool image 2' }));

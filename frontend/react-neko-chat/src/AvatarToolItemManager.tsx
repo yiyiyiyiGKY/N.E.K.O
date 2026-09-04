@@ -77,6 +77,16 @@ const AVATAR_TOOL_EDITOR_WINDOW_NAME = 'neko_avatar_tool_editor_singleton';
 const AVATAR_TOOL_EDITOR_PREFERRED_WIDTH = 1280;
 const AVATAR_TOOL_EDITOR_PREFERRED_HEIGHT = 900;
 const AVATAR_TOOL_EDITOR_SCREEN_GUTTER = 48;
+const AVATAR_TOOL_EDITOR_SUPPORTED_LANGUAGES = new Set([
+  'zh-CN',
+  'zh-TW',
+  'en',
+  'ja',
+  'ko',
+  'ru',
+  'es',
+  'pt',
+]);
 const AVATAR_TOOL_MANAGER_FOCUSABLE_SELECTOR = [
   'a[href]',
   'button:not([disabled])',
@@ -139,6 +149,35 @@ type AvatarToolEditorResultMessage = {
   toolId?: string;
 };
 
+function normalizeAvatarToolEditorLanguage(value: unknown): string {
+  const language = typeof value === 'string' ? value.trim() : '';
+  if (!language) return '';
+  if (AVATAR_TOOL_EDITOR_SUPPORTED_LANGUAGES.has(language)) return language;
+  const lower = language.toLowerCase();
+  const base = lower.split('-')[0];
+  if (base === 'zh') return /(tw|hk|hant)/i.test(language) ? 'zh-TW' : 'zh-CN';
+  return AVATAR_TOOL_EDITOR_SUPPORTED_LANGUAGES.has(base) ? base : '';
+}
+
+function currentAvatarToolEditorLanguage(): string {
+  const runtime = window as unknown as {
+    i18next?: { language?: unknown; resolvedLanguage?: unknown };
+    i18n?: { language?: unknown; resolvedLanguage?: unknown };
+  };
+  const liveLanguage = normalizeAvatarToolEditorLanguage(
+    runtime.i18next?.resolvedLanguage
+      ?? runtime.i18next?.language
+      ?? runtime.i18n?.resolvedLanguage
+      ?? runtime.i18n?.language,
+  );
+  if (liveLanguage) return liveLanguage;
+  try {
+    return normalizeAvatarToolEditorLanguage(window.localStorage.getItem('i18nextLng'));
+  } catch {
+    return '';
+  }
+}
+
 export function openAvatarToolEditorWindow(
   mode: 'create' | 'edit',
   toolId?: string,
@@ -147,6 +186,8 @@ export function openAvatarToolEditorWindow(
   const url = new URL('/avatar_tool_editor', window.location.origin);
   url.searchParams.set('mode', mode);
   if (mode === 'edit' && toolId) url.searchParams.set('toolId', toolId);
+  const uiLanguage = currentAvatarToolEditorLanguage();
+  if (uiLanguage) url.searchParams.set('ui_lang', uiLanguage);
 
   const availableWidth = Math.max(1, Number(window.screen?.availWidth) || 1440);
   const availableHeight = Math.max(1, Number(window.screen?.availHeight) || 1080);

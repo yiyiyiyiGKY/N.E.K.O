@@ -1,4 +1,6 @@
 import {
+  useEffect,
+  useMemo,
   useReducer,
   useRef,
   useState,
@@ -7,6 +9,7 @@ import {
 } from 'react';
 import { i18n } from './i18n';
 import AvatarToolImagePanel from './AvatarToolImagePanel';
+import AvatarToolInteractionInspector from './AvatarToolInteractionInspector';
 import {
   type CreateLocalAvatarToolInput,
   type LocalAvatarToolDetail,
@@ -20,6 +23,13 @@ import {
   getAvatarToolImageRemovalBlock,
   type AvatarToolImageId,
 } from './avatar-tools/avatarToolEditorModel';
+import {
+  createAvatarToolInteractionEditorState,
+  getAvatarToolInteractionImageReferences,
+  getAvatarToolInteractionOrdinal,
+  validateAvatarToolInteractionGraph,
+} from './avatar-tools/avatarToolInteractionEditorModel';
+import { useAvatarToolInteractionEditor } from './avatar-tools/AvatarToolInteractionEditorContext';
 import {
   validateAvatarToolPng,
   type AvatarToolImageValidationIssue,
@@ -103,6 +113,16 @@ export default function AvatarToolCreatePage({
     createAvatarToolImageEditorState,
   );
   const { images, initialImageId, selectedImageId } = imageState;
+  const {
+    state: interactionState,
+    dispatch: dispatchInteraction,
+    setIssues: setInteractionIssues,
+    setImageState: setInteractionImageState,
+    graphRevision,
+  } = useAvatarToolInteractionEditor();
+  const [activePane, setActivePane] = useState<'content' | 'interaction'>('content');
+  const [validationNotice, setValidationNotice] = useState('');
+  const [interactionSubmitFailed, setInteractionSubmitFailed] = useState(false);
   const [normalSound, setNormalSound] = useState<File | null>(null);
   const [normalSoundResource, setNormalSoundResource] = useState(initialDetail?.normalSound?.resource);
   const [specialEnabled, setSpecialEnabled] = useState(!!initialDetail?.special);
@@ -135,6 +155,76 @@ export default function AvatarToolCreatePage({
       character: assistantName.trim() || i18n('chat.avatarToolCreateExampleCharacter', 'the character'),
     },
   );
+
+  useEffect(() => {
+    dispatchInteraction({
+      type: 'reset',
+      state: createAvatarToolInteractionEditorState(initialDetail),
+    });
+  }, [dispatchInteraction, initialDetail?.id, initialDetail?.revision]);
+
+  useEffect(() => {
+    setInteractionImageState(images, initialImageId);
+  }, [images, initialImageId, setInteractionImageState]);
+
+  useEffect(() => {
+    if (
+      interactionState.selectedInteractionId
+      || interactionState.selectedLinkId
+      || interactionState.selectedInitialLinkTargetId
+    ) {
+      setActivePane('interaction');
+    }
+  }, [
+    interactionState.selectedInitialLinkTargetId,
+    interactionState.selectedInteractionId,
+    interactionState.selectedLinkId,
+  ]);
+
+  useEffect(() => {
+    setValidationNotice('');
+    setFieldErrors(current => Object.fromEntries(
+      Object.entries(current).filter(([key]) => !key.startsWith('image_remove:')),
+    ));
+    if (interactionSubmitFailed) {
+      setError('');
+      setInteractionSubmitFailed(false);
+    }
+  }, [graphRevision]); // A graph edit clears stale save feedback; selection changes do not.
+
+  useEffect(() => {
+    setValidationNotice('');
+  }, [imageState, name, normalSound, normalSoundResource, specialEnabled, specialImage,
+    specialMeaning, specialProbabilityPercent, specialSound, specialSoundResource]);
+
+  const actualImageReferences = useMemo(() => {
+    const references: Partial<Record<AvatarToolImageId, string[]>> = {};
+    const add = (imageId: AvatarToolImageId, location: string) => {
+      (references[imageId] ??= []).push(location);
+    };
+    const interactionReferences = getAvatarToolInteractionImageReferences(interactionState);
+    Object.entries(interactionReferences).forEach(([imageId, locations]) => {
+      locations?.forEach((location) => {
+        const item = interactionState.items.find(candidate => candidate.id === location.interactionId);
+        if (!item) return;
+        const number = getAvatarToolInteractionOrdinal(interactionState, location.interactionId);
+        const defaultInteractionName = item.kind === 'mouse-click'
+          ? i18n('chat.avatarToolInteractionClickNumber', 'Mouse click {{number}}', { number: String(number) })
+          : i18n('chat.avatarToolInteractionDelayNumber', 'Delay {{number}}', { number: String(number) });
+        const interaction = item.name?.trim() || defaultInteractionName;
+        const field = location.field === 'press'
+          ? i18n('chat.avatarToolInteractionPressTiming', 'Press')
+          : location.field === 'release'
+            ? i18n('chat.avatarToolInteractionReleaseTiming', 'Release')
+            : i18n('chat.avatarToolInteractionTargetImage', 'When time is up');
+        add(imageId as AvatarToolImageId, `${interaction} · ${field}`);
+      });
+    });
+    Object.entries(imageReferences).forEach(([imageId, locations]) => {
+      locations?.forEach(location => add(imageId as AvatarToolImageId, location));
+    });
+    return references;
+  }, [imageReferences, interactionState]);
 
   const clearFieldError = (key: string) => {
     setFieldErrors((current) => {
@@ -297,6 +387,11 @@ export default function AvatarToolCreatePage({
     setError('');
   };
 
+  const updateImageName = (imageId: AvatarToolImageId, imageName: string) => {
+    dispatchImage({ type: 'update-name', imageId, name: imageName });
+    setError('');
+  };
+
   const chooseInitialImage = (imageId: AvatarToolImageId) => {
     dispatchImage({ type: 'choose-initial', imageId });
     clearFieldError('initial_image');
@@ -306,7 +401,7 @@ export default function AvatarToolCreatePage({
 
   const removeImage = (imageId: AvatarToolImageId) => {
     const errorKey = `image_remove:${imageId}`;
-    const block = getAvatarToolImageRemovalBlock(imageState, imageId, imageReferences);
+    const block = getAvatarToolImageRemovalBlock(imageState, imageId, actualImageReferences);
     if (block?.kind === 'initial') {
       setFieldError(errorKey, i18n(
         'chat.avatarToolCreateInitialImageRemoveError',
@@ -397,14 +492,41 @@ export default function AvatarToolCreatePage({
         if (meaningError) nextErrors.special_meaning = meaningError;
       }
     }
+    const nextInteractionIssues = validateAvatarToolInteractionGraph(
+      interactionState,
+      images.map(image => image.id),
+    );
+    setInteractionIssues(nextInteractionIssues);
     if (Object.keys(nextErrors).length > 0) {
+      setActivePane('content');
+      setValidationNotice('');
+      setInteractionSubmitFailed(false);
       showFieldErrors(nextErrors);
       return;
     }
+    if (nextInteractionIssues.length > 0) {
+      setFieldErrors({});
+      setValidationNotice('');
+      setInteractionSubmitFailed(true);
+      setActivePane('interaction');
+      const first = nextInteractionIssues[0];
+      if (first.interactionId) {
+        dispatchInteraction({ type: 'select-interaction', interactionId: first.interactionId });
+      } else if (first.linkId) {
+        dispatchInteraction({ type: 'select-link', linkId: first.linkId });
+      }
+      setError(i18n(
+        'chat.avatarToolInteractionFixBeforeSave',
+        'Fix the interaction flow before saving.',
+      ));
+      return;
+    }
     setFieldErrors({});
-    setError(i18n(
-      'chat.avatarToolCreateInteractionsRequired',
-      'Add at least one starting image interaction before saving.',
+    setError('');
+    setInteractionSubmitFailed(false);
+    setValidationNotice(i18n(
+      'chat.avatarToolInteractionStageReady',
+      'The interaction flow is valid. Saving it will be connected in the next implementation stage.',
     ));
   };
 
@@ -440,14 +562,43 @@ export default function AvatarToolCreatePage({
 
   return (
     <form className={`avatar-tool-create-page${specialEnabled ? ' has-special' : ''}`} noValidate onSubmit={submit}>
+      <div className="avatar-tool-create-pane-tabs" role="tablist" aria-label={i18n(
+        'chat.avatarToolCreateEditArea',
+        'Edit area',
+      )}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activePane === 'content'}
+          className={activePane === 'content' ? 'is-active' : ''}
+          onClick={() => setActivePane('content')}
+        >
+          {i18n('chat.avatarToolWorkspaceSettingsTitle', 'Tool settings')}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activePane === 'interaction'}
+          className={activePane === 'interaction' ? 'is-active' : ''}
+          onClick={() => setActivePane('interaction')}
+        >
+          {i18n('chat.avatarToolInteractionSettings', 'Interaction settings')}
+          {interactionState.items.length > 0 ? <span>{interactionState.items.length}</span> : null}
+        </button>
+      </div>
       <div className="avatar-tool-create-fields" ref={createFieldsRef}>
         {error ? <p className="avatar-tool-create-error" role="alert">{error}</p> : null}
+        {validationNotice ? (
+          <p className="avatar-tool-create-validation-notice" role="status">{validationNotice}</p>
+        ) : null}
         {notice ? (
           <p id="avatar-tool-manager-notice" className="avatar-tool-manager-notice" role="status">
             {notice}
           </p>
         ) : null}
 
+        {activePane === 'content' ? (
+          <>
         <label className="avatar-tool-create-field" data-error-key="name">
           <span>{i18n('chat.avatarToolCreateName', 'Tool name')}</span>
           <input
@@ -504,6 +655,7 @@ export default function AvatarToolCreatePage({
               file => replaceImage(imageId, file),
             );
           }}
+          onUpdateName={updateImageName}
           onUpdateMeaning={updateImageMeaning}
         />
 
@@ -707,6 +859,10 @@ export default function AvatarToolCreatePage({
             </div>
           ) : null}
         </section>
+          </>
+        ) : (
+          <AvatarToolInteractionInspector images={images} busy={busy} />
+        )}
       </div>
 
       <div className={`avatar-tool-manager-actions avatar-tool-create-actions${editing ? ' is-editing' : ''}`}>

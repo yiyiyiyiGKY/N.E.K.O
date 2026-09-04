@@ -72,6 +72,23 @@ describe('avatar tool image editor model', () => {
     expect(next.selectedImageId).toBe(imageId);
   });
 
+  it('renames an image without changing its stable id or file', () => {
+    const initial = createAvatarToolImageEditorState(DETAIL);
+    const image = initial.images[1];
+    const next = avatarToolImageEditorReducer(initial, {
+      type: 'update-name',
+      imageId: image.id,
+      name: 'Open palm',
+    });
+
+    expect(next.images[1]).toMatchObject({
+      id: image.id,
+      name: 'Open palm',
+      imageResource: image.imageResource,
+    });
+    expect(next.images[0]).toBe(initial.images[0]);
+  });
+
   it('blocks removal through one domain decision and keeps selection valid after removal', () => {
     let state = createAvatarToolImageEditorState(DETAIL);
     const initialId = state.images[0].id;

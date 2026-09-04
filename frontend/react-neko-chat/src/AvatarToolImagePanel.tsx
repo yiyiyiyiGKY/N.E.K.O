@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -33,7 +34,13 @@ type AvatarToolImagePanelProps = {
     imageId: AvatarToolImageId,
     title: string,
   ): void;
+  onUpdateName(imageId: AvatarToolImageId, name: string): void;
   onUpdateMeaning(imageId: AvatarToolImageId, meaning: string): void;
+};
+
+type AvatarToolImageDimensions = {
+  width: number;
+  height: number;
 };
 
 function characterCount(value: string): number {
@@ -49,6 +56,16 @@ function fileNameFromResource(resource?: string): string {
   return resource?.replace(/\\/g, '/').split('/').pop() ?? '';
 }
 
+function imageDefaultName(index: number): string {
+  return i18n('chat.avatarToolCreateToolImageNumber', 'Tool image {{number}}', {
+    number: String(index + 1),
+  });
+}
+
+function imageDisplayName(image: AvatarToolImageDraft, index: number): string {
+  return image.name?.trim() || imageDefaultName(index);
+}
+
 function fitMeaningTextarea(textarea: HTMLTextAreaElement): void {
   const minimumHeight = 56;
   const maximumHeight = 96;
@@ -62,10 +79,19 @@ function ImageFieldError({ message }: { message?: string }) {
   return message ? <small className="avatar-tool-create-field-error" role="alert">{message}</small> : null;
 }
 
-function ImagePreview({ image, alt }: { image: AvatarToolImageDraft; alt: string }) {
+function ImagePreview({
+  image,
+  alt,
+  onDimensionsChange,
+}: {
+  image: AvatarToolImageDraft;
+  alt: string;
+  onDimensionsChange(imageId: AvatarToolImageId, dimensions: AvatarToolImageDimensions | null): void;
+}) {
   const [objectUrl, setObjectUrl] = useState('');
 
   useEffect(() => {
+    onDimensionsChange(image.id, null);
     if (!image.image || typeof URL.createObjectURL !== 'function') {
       setObjectUrl('');
       return undefined;
@@ -73,10 +99,20 @@ function ImagePreview({ image, alt }: { image: AvatarToolImageDraft; alt: string
     const nextUrl = URL.createObjectURL(image.image);
     setObjectUrl(nextUrl);
     return () => URL.revokeObjectURL(nextUrl);
-  }, [image.image]);
+  }, [image.id, image.image, image.imageUrl, onDimensionsChange]);
 
   const source = objectUrl || image.imageUrl;
-  return source ? <img src={source} alt={alt} /> : <span aria-hidden="true">＋</span>;
+  return source ? (
+    <img
+      src={source}
+      alt={alt}
+      onLoad={(event) => {
+        const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
+        onDimensionsChange(image.id, width > 0 && height > 0 ? { width, height } : null);
+      }}
+      onError={() => onDimensionsChange(image.id, null)}
+    />
+  ) : <span aria-hidden="true">＋</span>;
 }
 
 export default function AvatarToolImagePanel({
@@ -95,9 +131,30 @@ export default function AvatarToolImagePanel({
   onOpenAddImagePicker,
   onReplaceImage,
   onOpenReplaceImagePicker,
+  onUpdateName,
   onUpdateMeaning,
 }: AvatarToolImagePanelProps) {
   const imageMeaningTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [imageDimensions, setImageDimensions] = useState<Readonly<Partial<Record<
+    AvatarToolImageId,
+    AvatarToolImageDimensions
+  >>>>({});
+  const updateImageDimensions = useCallback((
+    imageId: AvatarToolImageId,
+    dimensions: AvatarToolImageDimensions | null,
+  ) => {
+    setImageDimensions((current) => {
+      const previous = current[imageId];
+      if (!dimensions) {
+        if (!previous) return current;
+        const next = { ...current };
+        delete next[imageId];
+        return next;
+      }
+      if (previous?.width === dimensions.width && previous.height === dimensions.height) return current;
+      return { ...current, [imageId]: dimensions };
+    });
+  }, []);
   const selectedImage = useMemo(
     () => images.find(image => image.id === selectedImageId) ?? null,
     [images, selectedImageId],
@@ -105,16 +162,16 @@ export default function AvatarToolImagePanel({
   const selectedImageIndex = selectedImage
     ? images.findIndex(image => image.id === selectedImage.id)
     : -1;
+  const selectedImageDefaultName = selectedImage ? imageDefaultName(selectedImageIndex) : '';
   const selectedImageLabel = selectedImage
-    ? i18n('chat.avatarToolCreateToolImageNumber', 'Tool image {{number}}', {
-      number: String(selectedImageIndex + 1),
-    })
+    ? imageDisplayName(selectedImage, selectedImageIndex)
     : '';
   const selectedImageFileName = selectedImage
     ? selectedImage.image?.name
       || fileNameFromResource(selectedImage.imageResource)
       || i18n('chat.avatarToolUpdateCurrentImage', 'Current image')
     : '';
+  const selectedImageDimensions = selectedImage ? imageDimensions[selectedImage.id] : undefined;
 
   useLayoutEffect(() => {
     if (imageMeaningTextareaRef.current) fitMeaningTextarea(imageMeaningTextareaRef.current);
@@ -137,9 +194,7 @@ export default function AvatarToolImagePanel({
 
       <div className="avatar-tool-image-grid" role="list">
         {images.map((image, index) => {
-          const imageLabel = i18n('chat.avatarToolCreateToolImageNumber', 'Tool image {{number}}', {
-            number: String(index + 1),
-          });
+          const imageLabel = imageDisplayName(image, index);
           const initial = image.id === initialImageId;
           const selected = image.id === selectedImageId;
           const meaning = image.meaning.replace(/\r\n?/g, '\n').trim();
@@ -160,7 +215,11 @@ export default function AvatarToolImagePanel({
                 onClick={() => onSelectImage(image.id)}
               >
                 <span className="avatar-tool-image-card-preview">
-                  <ImagePreview image={image} alt={imageLabel} />
+                  <ImagePreview
+                    image={image}
+                    alt={imageLabel}
+                    onDimensionsChange={updateImageDimensions}
+                  />
                   {initial ? (
                     <span
                       className="avatar-tool-image-card-initial-badge"
@@ -215,9 +274,15 @@ export default function AvatarToolImagePanel({
           data-avatar-tool-selected-image-id={selectedImage.id}
         >
           <div className="avatar-tool-image-detail-heading">
-            <div className="avatar-tool-image-detail-identity">
-              <strong>{selectedImageLabel}</strong>
-            </div>
+            <label className="avatar-tool-image-detail-identity">
+              <input
+                value={selectedImage.name ?? ''}
+                aria-label={i18n('chat.avatarToolImageName', 'Image name')}
+                disabled={busy}
+                onChange={event => onUpdateName(selectedImage.id, event.target.value)}
+                placeholder={selectedImageDefaultName}
+              />
+            </label>
             <div className="avatar-tool-image-detail-heading-actions">
               <label className="avatar-tool-image-detail-initial-control">
                 <input
@@ -268,6 +333,11 @@ export default function AvatarToolImagePanel({
             <span className="avatar-tool-create-file-name has-file" title={selectedImageFileName}>
               {selectedImageFileName}
             </span>
+            {selectedImageDimensions ? (
+              <span className="avatar-tool-image-detail-dimensions">
+                {selectedImageDimensions.width} px · {selectedImageDimensions.height} px
+              </span>
+            ) : null}
           </label>
           <ImageFieldError message={fieldErrors[`image_file:${selectedImage.id}`]} />
           <label className="avatar-tool-create-field avatar-tool-image-meaning-field">

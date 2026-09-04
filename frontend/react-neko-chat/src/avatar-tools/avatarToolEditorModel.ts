@@ -4,6 +4,7 @@ export type AvatarToolImageId = `img-${string}`;
 
 export type AvatarToolImageDraft = {
   id: AvatarToolImageId;
+  name?: string;
   image: File | null;
   imageResource?: string;
   imageUrl?: string;
@@ -23,6 +24,7 @@ export type AvatarToolImageRemovalBlock =
 export type AvatarToolImageEditorAction =
   | { type: 'add'; image: AvatarToolImageDraft; maximumImages: number }
   | { type: 'replace'; imageId: AvatarToolImageId; file: File }
+  | { type: 'update-name'; imageId: AvatarToolImageId; name: string }
   | { type: 'update-meaning'; imageId: AvatarToolImageId; meaning: string }
   | { type: 'select'; imageId: AvatarToolImageId }
   | { type: 'choose-initial'; imageId: AvatarToolImageId }
@@ -35,6 +37,7 @@ export function createAvatarToolImageId(): AvatarToolImageId {
 export function createAvatarToolImageDraft(file: File): AvatarToolImageDraft {
   return {
     id: createAvatarToolImageId(),
+    name: '',
     image: file,
     meaning: '',
   };
@@ -46,6 +49,7 @@ export function createAvatarToolImageEditorState(
   const images: AvatarToolImageDraft[] = detail ? [
     {
       id: 'img-v2-default',
+      name: '',
       image: null,
       imageResource: detail.defaultImage.resource,
       imageUrl: detail.defaultImage.url,
@@ -53,6 +57,7 @@ export function createAvatarToolImageEditorState(
     },
     ...detail.changeItems.map((item, index) => ({
       id: `img-v2-change-${String(index).padStart(3, '0')}` as AvatarToolImageId,
+      name: '',
       image: null,
       imageResource: item.resource,
       imageUrl: item.url,
@@ -108,6 +113,15 @@ export function avatarToolImageEditorReducer(
         ...state,
         images: state.images.map(image => image.id === action.imageId
           ? { ...image, meaning: action.meaning }
+          : image),
+      };
+    }
+    case 'update-name': {
+      if (!hasImage(state, action.imageId)) return state;
+      return {
+        ...state,
+        images: state.images.map(image => image.id === action.imageId
+          ? { ...image, name: action.name }
           : image),
       };
     }
