@@ -22,13 +22,12 @@
     const MAX_FRAME_SECONDS = 0.05;
     const MAX_SAMPLE_SECONDS = 0.8;
     const CONTACT_EPSILON = 0.5;
-    const THROW_SAMPLE_MS = 120;
-    const THROW_STOP_MS = 100;
     // A stable body hull across action animations, measured from the idle GIF.
     // The playground supplies its existing airborne body hull instead.
     const insets = Object.freeze({ left: 89 / 512, top: 49 / 512, right: 118 / 512, bottom: 19 / 512 });
     let current = null;
     let latest = null;
+    let playgroundActive = false;
     let disposed = false;
     let removalObserver = null;
     let dragMotions = new WeakMap();
@@ -213,7 +212,7 @@
     }
 
     function getCandidate() {
-        if (disposed || current || !latest) return null;
+        if (disposed || !playgroundActive || current || !latest) return null;
         for (const button of document.querySelectorAll('.neko-idle-return-btn')) {
             const container = _getNekoIdleReturnContainerFromButton(button);
             const art = button.querySelector('.neko-idle-return-art');
@@ -238,7 +237,7 @@
         return null;
     }
 
-    function render(state) {
+    function render(state, options = {}) {
         // Identical writes still notify MutationObservers in Chromium. Avoid
         // feeding an endless layout/journey loop after the cat has settled.
         for (const [key, value] of Object.entries({ left: `${Number(state.x.toFixed(3))}px`,
@@ -256,7 +255,7 @@
             Object.assign(body, { x: state.x, y: state.y, vx: state.vx, vy: state.vy,
                 grounded: state.grounded, floorY: state.bounds.bottom,
                 wallLeft: state.bounds.left, wallRight: state.bounds.right });
-            if ((!state.grounded || state.vx !== 0)
+            if (!options.fromPlayground && (!state.grounded || state.vx !== 0)
                 && typeof _startNekoIdleCat1PlaygroundPhysics === 'function') {
                 _startNekoIdleCat1PlaygroundPhysics(state.button);
             }
@@ -365,6 +364,12 @@
 
     function requestFrame(state) {
         if (current !== state || state.frame || paused(state)) return;
+        if (getBody(state.button)) {
+            if (typeof _startNekoIdleCat1PlaygroundPhysics === 'function') {
+                _startNekoIdleCat1PlaygroundPhysics(state.button);
+            }
+            return;
+        }
         state.frame = window.requestAnimationFrame((timestamp) => tick(state, timestamp));
     }
 
@@ -633,16 +638,7 @@
     }
 
     function recordDragPoint(drag, detail) {
-        const { screenX: x, screenY: y } = detail;
-        const timestamp = Number.isFinite(detail.timestamp) ? detail.timestamp : Date.now();
-        if (![x, y, timestamp].every(Number.isFinite)) return;
-        const last = drag.samples[drag.samples.length - 1];
-        if (last && timestamp < last.timestamp) return;
-        const point = { x, y, timestamp };
-        if (last && timestamp === last.timestamp) drag.samples[drag.samples.length - 1] = point;
-        else drag.samples.push(point);
-        while (drag.samples.length > 2 && (drag.samples.length > 32
-            || drag.samples[0].timestamp < timestamp - THROW_SAMPLE_MS)) drag.samples.shift();
+        _recordNekoIdleDragSample(drag, detail);
     }
 
     function releaseVelocity(drag, detail) {
@@ -650,13 +646,7 @@
         // Completion can wait for RAFs or native viewport restoration. Measure
         // the throw at pointer release, not when that asynchronous work finishes.
         const releasedAt = Number.isFinite(detail.releasedAt) ? detail.releasedAt : Date.now();
-        const samples = drag.samples.filter(point => point.timestamp >= releasedAt - THROW_SAMPLE_MS
-            && point.timestamp <= releasedAt);
-        if (samples.length < 2 || releasedAt > Date.now()) return null;
-        const first = samples[0], last = samples[samples.length - 1];
-        if (releasedAt - last.timestamp > THROW_STOP_MS) return null;
-        const dt = Math.max(8, releasedAt - first.timestamp) / 1000;
-        return { vx: clampSpeed((last.x - first.x) / dt), vy: clampSpeed((last.y - first.y) / dt) };
+        return _getNekoIdleDragReleaseVelocity(drag, releasedAt, false);
     }
 
     function handleManualMove(event) {
@@ -665,7 +655,7 @@
         const { container, reason } = detail;
         let drag = dragMotions.get(container);
         if (reason === 'return-ball-drag-start') {
-            drag = { sessionId: detail.dragSessionId, samples: [], moved: false };
+            drag = { ..._createNekoIdleDragSampleSession(), sessionId: detail.dragSessionId };
             dragMotions.set(container, drag);
             recordDragPoint(drag, detail);
         } else if (drag && drag.sessionId !== detail.dragSessionId) {
@@ -706,14 +696,29 @@
         }
     }
 
-    function handlePlayground() {
+    function handlePlayground(event) {
+        const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
+        const wasActive = playgroundActive;
+        playgroundActive = detail.active === true;
+        if (!playgroundActive) {
+            latest = null;
+            cancel(null);
+            return;
+        }
+        if (!wasActive) {
+            // Drop any legacy rect delivered before the sensing owner switches
+            // the session to gravity; wait for the first gravity scene result.
+            latest = null;
+            if (current) cancel(null);
+            return;
+        }
         if (current && latest) updateBounds(current, latest);
         else startCandidate();
     }
 
     function handleLifecycle() {
         if (_getNekoGoodbyeIdleAppearance() !== _NEKO_GOODBYE_IDLE_APPEARANCE_CAT) dragMotions = new WeakMap();
-        if (current && (!isCat(current.button, current.container)
+        if (current && (!playgroundActive || !isCat(current.button, current.container)
             || isReturning(current.button))) cancel(null);
     }
 
@@ -764,14 +769,30 @@
             return position ? { ...target, ...position } : target;
         }
         if (!state || state.container !== container || !target || paused(state)) return target;
-        const probe = { ...state, x: Math.max(state.bounds.left, Math.min(state.bounds.right, target.left)) };
+        const targetLeft = Number(target.left);
+        const targetTop = Number(target.top);
+        const probe = {
+            ...state,
+            x: Math.max(state.bounds.left, Math.min(state.bounds.right, Number.isFinite(targetLeft) ? targetLeft : state.x)),
+            y: Math.max(state.bounds.top, Math.min(state.bounds.bottom, Number.isFinite(targetTop) ? targetTop : state.y)),
+            vx: 0,
+            vy: 0,
+            grounded: false,
+            squash: 0,
+        };
         collideBorders(probe, state, 0);
-        return { ...target, left: probe.x, top: state.y, distance: Math.abs(probe.x - state.x) };
+        return {
+            ...target,
+            left: probe.x,
+            top: probe.y,
+            distance: Math.hypot(probe.x - state.x, probe.y - state.y),
+        };
     }
 
     // Playground body collisions and throws retain their impulses; its normal
     // gravity integrator is skipped for this body while window physics owns it.
     function stepBody(button, body, timestamp) {
+        if (!playgroundActive) return false;
         if (!current) startCandidate();
         const state = current;
         if (!state || state.button !== button || body !== getBody(button) || paused(state)) return false;
@@ -783,17 +804,17 @@
         advancePhysics(state, timestamp);
         collide(state);
         collideBorders(state, previous, elapsed);
-        render(state);
-        if (!state.grounded || state.vx !== 0 || state.squash !== 0) requestFrame(state);
+        render(state, { fromPlayground: true });
+
         return true;
     }
 
     function syncBody(body) {
         const state = current;
-        if (!state || body !== getBody(state.button)) return;
+        if (!state || body !== getBody(state.button)) return false;
         if (body.dragging) {
             if (!contains(state.bounds, body)) cancel(state.button);
-            return;
+            return false;
         }
         const previous = { x: state.x, y: state.y };
         state.x = body.x; state.y = body.y;
@@ -802,6 +823,14 @@
         collideBorders(state, previous, 1 / 60);
         render(state);
         if (!state.grounded || state.vx !== 0 || state.squash !== 0) requestFrame(state);
+        return true;
+    }
+
+    function releaseBody(button, body) {
+        if (!playgroundActive || body !== getBody(button)) return false;
+        if (!current) startCandidate();
+        if (current && current.button === button) current.lastStepAt = now();
+        return syncBody(body);
     }
 
     function getBounds(container) {
@@ -824,8 +853,11 @@
     }
 
     window.NekoDesktopWindowGravity = Object.freeze({
-        isActive, isMoving, cancel, getState, applyPosition, constrainTarget, stepBody, syncBody, getBounds,
+        isActive, isMoving, cancel, getState, applyPosition, constrainTarget, stepBody, syncBody, releaseBody, getBounds,
         canWalk, usesContinuousDrag,
+        createDragSampleSession: _createNekoIdleDragSampleSession,
+        recordDragSample: _recordNekoIdleDragSample,
+        getReleaseVelocity: _getNekoIdleDragReleaseVelocity,
     });
     const unsubscribe = sensingContext.subscribe(handleSensingResult);
     handleSensingResult(sensingContext.getCurrent());

@@ -270,8 +270,8 @@ test('one CAT1 phase owns one formal sensing session and forwards safe observati
   });
   await flushPromises();
 
-  assert.deepEqual(runtime.stops, []);
-  assert.equal(runtime.unsubscribeCount, 0);
+  assert.deepEqual(runtime.stops, ['session-1']);
+  assert.equal(runtime.unsubscribeCount, 1);
 
   runtime.publishChanged({
     status: 'changed',
@@ -289,7 +289,7 @@ test('one CAT1 phase owns one formal sensing session and forwards safe observati
   });
   await flushPromises();
 
-  assert.equal(runtime.starts.length, 1);
+  assert.equal(runtime.starts.length, 2);
   assert.equal(runtime.observations.length, 3);
   assert.equal(runtime.observations[2].tier, 'cat1');
 
@@ -300,8 +300,8 @@ test('one CAT1 phase owns one formal sensing session and forwards safe observati
   });
   await flushPromises();
 
-  assert.deepEqual(runtime.stops, ['session-1']);
-  assert.equal(runtime.unsubscribeCount, 1);
+  assert.deepEqual(runtime.stops, ['session-1', 'session-2']);
+  assert.equal(runtime.unsubscribeCount, 2);
 });
 
 test('leaving cat appearance stops a start result that arrives late', async () => {
@@ -423,7 +423,7 @@ test('switching to ball or unloading the page stops the current cat session', as
   assert.equal(runtime.unsubscribeCount, 2);
 });
 
-test('CAT2 and CAT3 share window sensing for gravity without publishing CAT1 observations', async () => {
+test('CAT2 and CAT3 do not start window sensing', async () => {
   const runtime = createRuntime();
 
   runtime.setTier('cat2');
@@ -439,10 +439,10 @@ test('CAT2 and CAT3 share window sensing for gravity without publishing CAT1 obs
   });
   await flushPromises();
 
-  assert.equal(runtime.starts.length, 1);
-  assert.equal(runtime.subscriptions.length, 1);
+  assert.equal(runtime.starts.length, 0);
+  assert.equal(runtime.subscriptions.length, 0);
   assert.equal(runtime.observations.length, 0);
-  assert.equal(runtime.window.nekoDesktopWindowSensingContext.getCurrent().sessionId, 'session-1');
+  assert.equal(runtime.window.nekoDesktopWindowSensingContext.getCurrent(), null);
 
   runtime.publishTierState({
     type: 'visual-tier',

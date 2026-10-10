@@ -8,6 +8,7 @@
 
     const CAT_ACTIVE_EVENT = 'neko:cat-local-active-change';
     const CAT_TIER_EVENT = 'neko:auto-goodbye:state-change';
+    const PLAYGROUND_STATE_EVENT = 'neko:idle-cat1-playground-state';
     const GOODBYE_STATE_CLEARED_EVENT = 'neko:goodbye-state-cleared';
     const CAT1_TIER = 'cat1';
     const FALLBACK_OBSERVATION_EVENT = 'neko:cat-mind:observation';
@@ -16,11 +17,13 @@
 
     let catAppearanceActive = false;
     let cat1Active = false;
+    let playgroundActive = false;
     let sensingActive = false;
     let disposed = false;
     let generation = 0;
     let startPending = false;
     let sessionId = '';
+    let sessionMode = '';
     let unsubscribeChanged = null;
 
     function getBridge() {
@@ -192,7 +195,7 @@
     }
 
     function publishObservation(value) {
-        if (!cat1Active || disposed || !value || typeof value !== 'object') {
+        if (!cat1Active || playgroundActive || disposed || !value || typeof value !== 'object') {
             return false;
         }
         const status = value.status;
@@ -280,6 +283,7 @@
         sensingActive = false;
         generation += 1;
         startPending = false;
+        sessionMode = '';
         clearSharedResult();
         removeChangedSubscription();
         const activeSessionId = sessionId;
@@ -291,7 +295,7 @@
         } catch (_) {}
     }
 
-    async function startSession() {
+    async function startSession(mode) {
         if (disposed || !sensingActive || startPending || sessionId) return;
         const bridge = getBridge();
         if (!bridge) return;
@@ -324,7 +328,7 @@
                 updateSharedResult(value, sessionId);
             });
             unsubscribeChanged = ownUnsubscribe;
-            const result = await bridge.start();
+            const result = await bridge.start({ mode: mode === 'gravity' ? 'gravity' : 'legacy' });
             const startedSessionId = readSessionId(result && result.sessionId);
             if (disposed
                 || !sensingActive
@@ -358,20 +362,27 @@
     function syncCatSession(tier) {
         const currentTier = readTier(tier);
         const wasCat1Active = cat1Active;
-        cat1Active = catAppearanceActive && currentTier === CAT1_TIER;
-        const shouldRun = catAppearanceActive && ['cat1', 'cat2', 'cat3'].includes(currentTier);
+        const desiredMode = playgroundActive ? 'gravity' : 'legacy';
+        const shouldRun = catAppearanceActive && currentTier === CAT1_TIER;
+        cat1Active = shouldRun;
         if (!shouldRun) {
             stopSession();
             return;
+        }
+        if (sessionId && sessionMode !== desiredMode) {
+            stopSession();
         }
         if (!sensingActive) {
             sensingActive = true;
             generation += 1;
         }
-        // Sleeping cats still need window bounds for physics. Cat Mind's
-        // observation consumer remains CAT1-only and resumes from the same fact.
-        if (cat1Active && !wasCat1Active && sharedResult) publishObservation(sharedResult);
-        startSession();
+        if (desiredMode === 'legacy' && cat1Active && !wasCat1Active && sharedResult) {
+            publishObservation(sharedResult);
+        }
+        if (!sessionId && !startPending) {
+            sessionMode = desiredMode;
+            startSession(desiredMode);
+        }
     }
 
     function handleCatAppearanceChange(event) {
@@ -391,8 +402,17 @@
         syncCatSession(detail.tier);
     }
 
+    function handlePlaygroundState(event) {
+        const detail = event && event.detail && typeof event.detail === 'object'
+            ? event.detail
+            : {};
+        playgroundActive = detail.active === true;
+        syncCatSession(detail.tier);
+    }
+
     function handleGoodbyeStateCleared() {
         catAppearanceActive = false;
+        playgroundActive = false;
         stopSession();
     }
 
@@ -409,6 +429,7 @@
         }
         window.removeEventListener(CAT_ACTIVE_EVENT, handleCatAppearanceChange);
         window.removeEventListener(CAT_TIER_EVENT, handleCatTierChange);
+        window.removeEventListener(PLAYGROUND_STATE_EVENT, handlePlaygroundState);
         window.removeEventListener(GOODBYE_STATE_CLEARED_EVENT, handleGoodbyeStateCleared);
         window.removeEventListener('pagehide', dispose);
         window.removeEventListener('beforeunload', dispose);
@@ -416,6 +437,7 @@
 
     window.addEventListener(CAT_ACTIVE_EVENT, handleCatAppearanceChange);
     window.addEventListener(CAT_TIER_EVENT, handleCatTierChange);
+    window.addEventListener(PLAYGROUND_STATE_EVENT, handlePlaygroundState);
     window.addEventListener(GOODBYE_STATE_CLEARED_EVENT, handleGoodbyeStateCleared);
     window.addEventListener('pagehide', dispose);
     window.addEventListener('beforeunload', dispose);

@@ -171,7 +171,7 @@ CAT1 本地文字另有固定 `5%` 的哈气回复彩蛋。它不是 observation
 
 聊天窗最小化可见、移动较远、compact 表面、idle-dock、重新展开和桌面层级变化都只是环境 observation。它们为 provider、near/far 和安全判断提供事实，不直接给五维加分。Native IPC、BroadcastChannel 和本地 UI 可能重复送达同一状态；Cat Mind 按最小化状态和矩形去重，同一状态、同一 rect 的心跳不重复记录或制造判断机会。
 
-外部桌面窗口事实与聊天窗事实不是同一个对象。前者来自 N.E.K.O-PC 对原生窗口的识别，在猫形态 sensing session 中为 CAT1/CAT2/CAT3 共享重力提供几何；后者是 N.E.K.O 自己的聊天窗、compact surface 或毛线球状态。自身可见 UI 可提供碰撞区域，但不能因此启动对话框动作，也不能反向唤醒或恢复对话框 journey。外部桌面窗口 observation 仅在 CAT1 保留于 Cat Mind recent events 中供诊断，且 `source=desktop-window-sensing` 时明确不触发普通 decision。
+外部桌面窗口事实与聊天窗事实不是同一个对象。前者来自 N.E.K.O-PC 对原生窗口的识别：普通 CAT1 使用 legacy rect，只有 CAT1 Playground active 才用 gravity scene 为重力提供几何；后者是 N.E.K.O 自己的聊天窗、compact surface 或毛线球状态。自身可见 UI 可提供碰撞区域，但不能因此启动对话框动作，也不能反向唤醒或恢复对话框 journey。外部桌面窗口 observation 仅在普通 CAT1 保留于 Cat Mind recent events 中供诊断，且 `source=desktop-window-sensing` 时明确不触发普通 decision；gravity scene 不进入 Cat Mind。
 
 ### 6.5 既有表现结果
 
@@ -257,17 +257,17 @@ compact、mirror 与 idle-dock 都不是 Cat Mind 主动动作，也不允许 Ca
 唯一数据链如下：
 
 ```text
-N.E.K.O-PC main（约 16ms 串行更新；静止时原生窗口列表约 200ms 读取一次）
+N.E.K.O-PC main（legacy 约 200ms；Playground gravity 约 16ms 投影，原生列表仍缓存）
   -> IPC / preload bridge
-  -> app-desktop-window-sensing.js（唯一猫形态 session owner，CAT1/CAT2/CAT3 共用）
-  -> nekoDesktopWindowSensingContext（只读 current + subscribe，包含窗口列表）
-       -> Cat Mind observation consumer（仅 CAT1，recent events only）
-       -> window gravity（所有动作共用的物理位置约束）
+  -> app-desktop-window-sensing.js（唯一 session owner）
+  -> nekoDesktopWindowSensingContext（只读 current + subscribe）
+       -> legacy CAT1 observation consumer（普通猫，仅旧 rect）
+       -> Playground gravity（仅 active 时接收完整 scene）
        -> desktop-window selector（上沿蹲守 / 边缘探头）
        -> door walk（只由既有毛线球 walk 查询 current）
 ```
 
-配套 PC PR #495 中，`16ms` 是上一轮更新完成后安排下一轮的间隔，不是 `setInterval`，也不保证每次 native 读取一定在 16ms 内完成。自身界面每轮按最新窗口位置投影；原生窗口列表在静止时缓存约 `200ms`，检测到鼠标移动或原生窗口变化时恢复逐轮读取，最后一次变化后保留 `400ms` 快速采样再降频。缓存投影不变时不重复发送 IPC；实际原生读取保留 `current` 样本，供重力计算采样间隔。结果统一带 `sessionId + revision`，状态为 `current / changed / unavailable`；窗口切换通过 `identity`，移动与缩放分别通过 `position / size` 表达。CAT1/CAT2/CAT3 切换保留会话与重力；退出猫形态、goodbye 清理或页面卸载时 owner 先清共享结果再停止 session，旧 session 和迟到回调不能重新写入，新 session 也不复用旧原生缓存。睡眠期间共享窗口事实继续更新，但不发布 CAT1 observation。
+配套 PC sensing 使用白名单 session mode：默认 `legacy`，只读旧 active-window rect；只有 Playground active 才使用 `gravity`，每 16ms 做本地 scene 投影，原生枚举仍按缓存周期执行。结果统一带 `sessionId`，退出 Playground、退出猫形态、goodbye 清理或页面卸载时 owner 先清共享结果再停止 session，旧 session 和迟到回调不能重新写入，新 session 也不复用旧原生缓存。CAT2/CAT3 不启动 sensing；重力 scene 不进入 Cat Mind observation。
 
 Electron 正式入口按上述节奏枚举全部可见窗口，保留从前到后的顺序，并筛选与模型所在屏幕相交的矩形，排除屏幕外的最小化窗口和桌面壁纸。`rect` 继续供原窗口演出使用；`windows` 为重力提供完整场景，每项包含会话内稳定的 `key`、`kind: external/app` 和 DIP `rect`，并可带有 `collisionOnly: true`。该标志仅用于始终置顶的 app surface，表示此区域只能参与边界碰撞，不能被选为窗口内重力的容纳窗口；未置顶的 app surface 与普通外部窗口一样可作为容纳窗口。外部窗口不保留该标志。焦点切换不改变同一窗口的 key；窗口退出列表后重新出现会获得新 key。后台窗口单独移动时，即使主 `rect` 不变，也会发布完整列表。PID、native handle、标题和进程路径不通过 IPC 或 preload 对外暴露。
 
@@ -307,11 +307,11 @@ Electron 正式入口按上述节奏枚举全部可见窗口，保留从前到�
 
 自身窗口按原生置顶状态区分用途：置顶时仅四边参与碰撞，进入其内部、拖放或失去原承载窗口时都不能把它选作重力容器；不置顶时与普通应用窗口一样，可容纳猫并触发重力。置顶开关随场景实时更新，保留窗口标识。已有重力继续归属于普通窗口，仍会被前方置顶窗口的边缘阻挡、承托和弹起；桌面上的普通移动也会被置顶边缘挡住，但边缘约束本身不启动重力。正在运动的承载窗口改为置顶后，沿用承载窗口消失时的连续过渡。
 
-CAT1/CAT2/CAT3 的可见身体完整落入窗口列表中的某个窗口范围时进入窗口内重力，不要求该窗口位于前台，也不以 idle、hover、走路、吃东西、伸懒腰、玩球、睡眠或过渡动画作为开关。初次选择按层叠顺序比较能容纳猫体的区域，之后跟踪该窗口的稳定 key；焦点改变不释放重力。重力只移动现有猫容器，保留动作素材、朝向和气泡；不移动外部窗口、聊天框或毛线球。普通动作共用按 idle GIF 可见像素并集计算的稳定身体边界，playground 沿用其猫 body 的可见边界。
+只有 CAT1 Playground active 时，猫的可见身体才会按窗口 scene 选择容纳窗口；普通 CAT1、CAT2、CAT3 不创建桌面 gravity session。Playground 内初次选择按层叠顺序比较能容纳猫体的区域，之后跟踪该窗口的稳定 key；焦点改变不释放重力。重力只移动现有猫容器，保留动作素材、朝向和气泡；不移动外部窗口、聊天框或毛线球。普通动作共用按 idle GIF 可见像素并集计算的稳定身体边界，playground 沿用其猫 body 的可见边界。
 
 下落、抛出、回弹和滑行未结束时不启动走路或带聊天栏的小移动；已经进行的移动按中断结算，取消待执行的移动计时，恢复静止素材。吃东西、伸懒腰、玩球等非移动动作仍保留，睡眠按下面的唤醒规则处理。落在窗口底部或可见支撑边框，且速度与碰撞形变归零后，才重新检查移动条件；稳定窗口心跳不重复检查。共享位置方法仅在落稳后接受动作的水平位移，垂直位置由物理积分决定；走路目标投影到窗口内的可达水平位置，避免原目标在窗外时永远走不到。过期的小移动计划不能覆盖空中的位置与速度。playground 内只有猫委托窗口重力，保留玩具碰撞、拖拽抛出速度；其他 body 继续使用原有物理。进入窗口约束后清理门式裁切，落稳后再恢复走路，避免把猫传送出物理边界。
 
-下落、抛出、回弹和滑行期间暂停挂机计时，每次落稳后清零并重新开始完整的 CAT1 清醒阶段，不沿用运动前的挂机时长。已经困倦或睡着的 CAT2/CAT3 被弹起时立即切回清醒 CAT1，沿用正常阶段切换清理睡眠音效和睡眠气泡；保留位置与惯性，不返回人物形态、不发起对话。无论弹跳前是否睡着，都从本次落稳后开始计时，满 5 分钟静止后才进入 CAT2；再次弹跳后重新计算。静止窗口心跳不重置计时；指针接管、取消物理、退出猫形态、return 或卸载立即结算暂停区间，但不当作落稳。物理只在运动开始/结束时发布事实，挂机控制器同时读取当前运动状态，兼容初始化顺序且不逐帧重置计时。
+重力运动不暂停、不重置挂机计时，也不改变 CAT1/CAT2/CAT3。CAT1 Playground 的落稳只结束物理运动，不触发 Cat Mind、idle baseline、tier、journey 或 return episode 更新；CAT2/CAT3 不会被窗口运动唤醒。静止窗口心跳不重新启动物理；物理只在 Playground active 生命周期内发布窗口事实。
 
 重力为 `1440px/s²`，四边回弹系数为 `0.52`，速度上限 `1800px/s`。碰撞按猫与移动边界的相对速度计算，水平窗口移动还通过底部摩擦带动猫。碰撞时短暂压缩猫的外观，随后恢复；空气阻尼、地面摩擦和低速落稳让回弹逐渐停止。窗口事实与 RAF 共用单调的物理时钟，先结算旧边界下的经过时间，再应用新边界；高频窗口消息不会丢掉下落时间。物理使用最多 `1/120s` 的子步，一帧最多结算 `50ms`；超过 `800ms` 的感知间隔只修正边界，不把后台恢复或迟到数据算成猛烈晃动。
 
@@ -319,7 +319,7 @@ CAT1/CAT2/CAT3 的可见身体完整落入窗口列表中的某个窗口范围�
 
 落稳后停止物理 RAF，仍允许其他动作启动；相同窗口场景的心跳不重新启动物理，也不持续注入速度。窗口列表、层叠、几何或猫容器尺寸变化时更新碰撞边界并唤醒。窗口部分移出屏幕时使用可见范围；窗口小到容不下猫、读取失败或 session 清空时退出。承载窗口关闭时保留位置、速度、碰撞形变和物理时钟，优先转入能容纳当前位置的剩余窗口，不把新旧窗口边界差当作晃窗冲量。没有窗口承接，或明确收到 `no-window` / `no-window-on-model-display` 时，仅让正在进行的物理运动继续到屏幕底部落稳，再释放重力控制；途中仍能碰到剩余可见边框或转入新窗口。按住时关闭窗口保持指针优先，return/退出形态/卸载仍立即终止衔接。减少动态效果偏好会关闭回弹和压缩外观，保留下落。
 
-按下准备拖拽时由指针控制位置，未移动松开则继续；真正拖走立即释放控制，放回窗口后松手即重新判断，无需等待下一轮窗口事实。普通拖拽使用松手前 `120ms` 的屏幕坐标估算水平、垂直抛出速度，沿甩动方向继续运动，再受重力与边框碰撞影响；停住超过 `100ms` 或取消拖拽不注入速度。DOM 与原生窗口拖拽都记录实际松手时间，恢复视口的异步等待不衰减抛出速度，playground 不重复叠加冲量。重力不受趴窗/探头的 `30s` 演出冷却影响，从重力中拖走也不新增该冷却。睡眠和 playground 切换保留物理；return、呼吸球、容器移除和卸载清理 RAF、观察器和压缩样式，保留实际落点。重力不写 Cat Mind 的五维、cooldown 或 return episode。
+Playground 按下准备拖拽时由指针控制位置，未移动松开则继续；真正拖走立即释放控制，放回窗口后松手即重新判断，无需等待下一轮窗口事实。拖拽使用松手前 `120ms` 的屏幕坐标估算水平、垂直抛出速度，沿甩动方向继续运动，再受重力与边框碰撞影响；DOM、Windows carrier 和 Playground 共享同一 release velocity 采样，不重复叠加冲量。普通猫拖拽不接入 gravity。return、呼吸球、容器移除和卸载清理 RAF、观察器和压缩样式，保留实际落点；重力不写 Cat Mind 的五维、cooldown 或 return episode。
 
 Windows 启用窗口重力时，猫形态的四种模型统一沿用页面内拖拽，保持原生承载窗口大小与可见性，松手同一事件内提交位置并继承速度；不再经过原生缩窗、隐藏、恢复窗口和双 RAF 等待。Windows 多窗口模式在创建返回按钮时就注册页面拖拽，包括初始隐藏或呼吸球形态，确保之后切换为猫时已有处理器接手；普通呼吸球仍由原生捕获监听器处理。其他平台继续原有路径，Niri 的裁剪确认与最终帧等待仍保留。
 

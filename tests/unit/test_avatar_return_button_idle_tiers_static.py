@@ -518,7 +518,7 @@ def test_cat1_playground_drop_lifecycle_and_physics_are_centralized():
 def test_cat1_playground_click_exit_is_not_armed_as_drag_on_pointerdown():
     source = _read_avatar_ui_buttons_source()
 
-    assert "function _getNekoIdleCat1PlaygroundPointerVelocity(samples)" in source
+    assert "function _getNekoIdleCat1PlaygroundPointerVelocity(state, cancelled = false, releasedAt = Date.now())" in source
     assert "function _handleNekoIdleCat1PlaygroundCatClick(button, event)" in source
     assert "function _handleNekoIdleCat1PlaygroundPointerDownForBody(button, body, event)" in source
     assert "function _handleNekoIdleCat1PlaygroundDesktopPointerEvent(event)" in source

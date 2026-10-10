@@ -132,7 +132,7 @@ CAT1 本地文字的 `5%` 哈气彩蛋只通过哈气专用窄入口请求既有
 
 这些事件不创建第六个需求字段，也不直接映射动作。`return_click`、tier 变化与动作结果仍遵守异步边界，不能在旧入口同步启动下一动作。
 
-Electron 桌面窗口感知只在真实小猫形态的 CAT1 阶段启用：小猫已经显示且 tier 为 CAT1 时启动；进入 CAT2/CAT3、return、呼吸球切换、猫形态失效或页面卸载时停止；以后重新进入 CAT1 时建立新的正式 sensing session。这里复用的是 CAT1 的进入与退出生命周期，不是把窗口读取改成 Cat Mind 的 30 秒 tick。该 sensing bridge 是 Primary Pet renderer 的通用桌面能力；当前 Cat Mind 只是把初始当前窗口、后续身份/位置/尺寸变化以及 unavailable/current 恢复投影成 `desktop_occlusion_or_layer_change` observation 的一个消费者。`source=desktop-window-sensing` 的正式原生窗口事实只保留在 recent events 和 debug 中，不排入 Cat Mind decision，因此高频移动不能在 runner 完成后串起下一动作；其他来源的同名 observation 保留既有异步判断语义。其他页面功能可以并列消费同一正式 session 的安全结果，但不能各自再次启动 session 或复制读取周期。Web 页面没有桌面 bridge 时无动作。页面 session owner 不创建底层读取、检查 timer、第二窗口目标或 Cat Mind action request。
+Electron 桌面窗口感知在普通猫形态只覆盖 CAT1，并使用默认 `legacy` session 提供旧 active-window rect；进入 CAT2/CAT3、return、呼吸球切换、猫形态失效或页面卸载时停止。只有 CAT1 Playground active 才切换为 `gravity` session 并接收完整窗口 scene；Playground 退出立即停止并清空 scene。这里复用 CAT1/Playground 的进入与退出生命周期，不是把窗口读取改成 Cat Mind 的 30 秒 tick。该 sensing bridge 是 Primary Pet renderer 的通用桌面能力；`source=desktop-window-sensing` 的正式原生窗口事实只保留在 recent events 和 debug 中，不排入 Cat Mind decision。其他页面功能可以订阅同一正式 session，但不能再次启动 session 或复制读取周期。Web 页面没有桌面 bridge 时无动作。页面 session owner 不创建第二窗口目标或 Cat Mind action request。
 
 ### 3.5 动作完成和中断
 

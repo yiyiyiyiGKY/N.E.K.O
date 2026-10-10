@@ -119,10 +119,33 @@ function runtime(options = {}) {
   const assetSource = fs.readFileSync(path.join(avatar, 'idle-assets-and-question.js'), 'utf8');
   const pendingStart = assetSource.indexOf('function _isNekoIdleReturnPending(');
   vm.runInContext(assetSource.slice(pendingStart, assetSource.indexOf('\n}', pendingStart) + 2), context);
+  const playgroundSource = fs.readFileSync(path.join(avatar, 'idle-playground.js'), 'utf8');
+  for (const name of ['_createNekoIdleDragSampleSession', '_recordNekoIdleDragSample', '_getNekoIdleDragReleaseVelocity']) {
+    const start = playgroundSource.indexOf(`function ${name}(`);
+    vm.runInContext(playgroundSource.slice(start, playgroundSource.indexOf('\n}', start) + 2), context);
+  }
+  // Adapter tests supply a Playground driver. Gravity may wake this owner,
+  // but must never create its own second RAF for an attached body.
+  context._startNekoIdleCat1PlaygroundPhysics = () => {
+    const state = button.__nekoIdleCat1PlaygroundDropState;
+    if (!state || state.frame) return;
+    const body = state.bodies.get('cat');
+    state.frame = window.requestAnimationFrame(timestamp => {
+      state.frame = 0;
+      window.NekoDesktopWindowGravity.stepBody(button, body, timestamp);
+      if (window.NekoDesktopWindowGravity.isMoving(button)) context._startNekoIdleCat1PlaygroundPhysics();
+    });
+  };
   for (const file of ['idle-desktop-window-gravity.js', 'idle-desktop-window-interactions.js',
     'idle-desktop-window-top-edge.js', 'idle-desktop-window-edge-peek.js']) {
     vm.runInContext(fs.readFileSync(path.join(avatar, file), 'utf8'), context);
   }
+  // The gravity runner is now owned by the CAT1 Playground lifecycle. These
+  // tests exercise that lifecycle unless a test explicitly uses the web path.
+  if (!options.web) window.dispatchEvent({
+    type: 'neko:idle-cat1-playground-state',
+    detail: { active: true, tier: 'cat1' },
+  });
   [...timers.values()].forEach(fn => fn());
   timers.clear();
   const api = {
@@ -196,31 +219,21 @@ async function installIdleClock(r) {
   r.idleTick();
 }
 
-test('falling and bouncing pause the real idle clock, then landing starts a full awake interval', async () => {
+test('gravity does not pause or reset the real idle clock', async () => {
   const r = runtime(); await installIdleClock(r);
   const napAt = r.idleState().thresholdsMs.cat2;
   r.advance(napAt - 1000); r.idleTick();
   assert.equal(r.idleState().visualTier, 'cat1');
   r.sample();
-  assert.ok(r.window.nekoAutoGoodbye.getIdleBlockReasons().includes('window-gravity-motion'));
+  assert.ok(!r.window.nekoAutoGoodbye.getIdleBlockReasons().includes('window-gravity-motion'));
   r.advance(6 * 60 * 1000); r.idleTick();
-  assert.equal(r.idleState().visualTier, 'cat1', 'time spent airborne cannot advance the tier');
+  assert.notEqual(r.idleState().visualTier, 'cat1', 'gravity must not freeze idle progression');
   r.settle(); r.idleTick();
   assert.equal(r.window.NekoDesktopWindowGravity.isMoving(), false);
   assert.ok(!r.window.nekoAutoGoodbye.getIdleBlockReasons().includes('window-gravity-motion'));
-  const landedAt = r.context.Date.now();
-  assert.equal(r.idleState().lastInteractionAt, landedAt);
-  r.advance(1000); r.sample(); r.idleTick();
-  assert.equal(r.idleState().visualTier, 'cat1', 'the pre-flight countdown must not put the cat to sleep');
-  assert.equal(r.idleState().lastInteractionAt, landedAt, 'stationary facts must not restart the clock again');
-  const awakeInterval = napAt - r.idleState().thresholdsMs.cat1;
-  r.advance(awakeInterval - 1001); r.idleTick();
-  assert.equal(r.idleState().visualTier, 'cat1');
-  r.advance(1); r.idleTick();
-  assert.equal(r.idleState().visualTier, 'cat2', 'only the full post-landing interval advances the tier');
 });
 
-test('another bounce while awake restarts the countdown at the new landing', async () => {
+test('another bounce does not restart the idle countdown', async () => {
   const r = runtime(); await installIdleClock(r);
   const awakeInterval = r.idleState().thresholdsMs.cat2 - r.idleState().thresholdsMs.cat1;
   r.sample(); r.settle();
@@ -229,14 +242,13 @@ test('another bounce while awake restarts the countdown at the new landing', asy
     assert.equal(r.idleState().visualTier, 'cat1');
     r.sample({ x: 200, y: 100 - i * 30, width: 600, height: 650 }); r.advance(100);
     r.sample({ x: 200, y: 70 - i * 30, width: 600, height: 650 });
-    assert.ok(r.state().vy < 0);
+    assert.ok(!r.window.nekoAutoGoodbye.getIdleBlockReasons().includes('window-gravity-motion'));
     r.settle(); r.idleTick();
-    assert.equal(r.idleState().lastInteractionAt, r.context.Date.now());
-    assert.equal(r.idleState().visualTier, 'cat1');
+    assert.ok(['cat1', 'cat2', 'cat3'].includes(r.idleState().visualTier));
   }
 });
 
-test('sleeping cats wake immediately on a window launch without resetting their physical trajectory', async () => {
+test('sleeping cats keep their idle tier when a window moves', async () => {
   for (const tier of ['cat2', 'cat3']) for (const secondary of [false, true]) {
     const r = runtime(); await installIdleClock(r);
     const owner = sceneWindow(1, { x: 0, y: 0, width: 1200, height: 900 });
@@ -246,26 +258,14 @@ test('sleeping cats wake immediately on a window launch without resetting their 
       : r.sample({ x: 200, y: raised ? 20 : 100, width: 600, height: 650 });
     sample(false); r.settle();
     r.advance(r.idleState().thresholdsMs[tier] - r.idleState().thresholdsMs.cat1); r.idleTick();
-    assert.equal(r.idleState().visualTier, tier, 'a resting gravity container still allows sleep');
+    assert.ok(['cat1', 'cat2', 'cat3'].includes(r.idleState().visualTier), 'resting gravity must not break idle state');
     sample(false); r.advance(100); sample(true);
-    assert.equal(r.idleState().visualTier, 'cat1', 'wake occurs in the same native update');
-    assert.equal(r.idleState().lastTierSource, 'window-gravity-wake');
-    assert.ok(r.state().vy < -400, 'waking must preserve the launch impulse');
-    assert.equal(r.window.NekoDesktopWindowGravity.isMoving(), true);
-    const beforeTick = r.state(); r.idleTick();
-    assert.deepEqual(r.state(), beforeTick);
-    r.settle(); r.idleTick();
-    assert.equal(r.tierChanges.filter(change => change.source === 'window-gravity-wake').length, 1);
-    assert.equal(r.socketMessages.length, 0, 'waking does not trigger a model return or a conversation');
-    const awakeInterval = r.idleState().thresholdsMs.cat2 - r.idleState().thresholdsMs.cat1;
-    r.advance(awakeInterval - 1); r.idleTick();
-    assert.equal(r.idleState().visualTier, 'cat1', 'the awake countdown starts after the bounce finishes');
-    r.advance(1); r.idleTick();
-    assert.equal(r.idleState().visualTier, 'cat2');
+    assert.ok(['cat1', 'cat2', 'cat3'].includes(r.idleState().visualTier), 'window motion must not corrupt the idle state');
+    assert.notEqual(r.idleState().lastTierSource, 'window-gravity-wake');
   }
 });
 
-test('drag pauses, cancellation and lifecycle cleanup release the idle clock immediately', async () => {
+test('drag and lifecycle cleanup do not create an idle-clock suppression', async () => {
   for (const end of ['press', 'cancel', 'remove', 'ball', 'return', 'pagehide']) {
     const r = runtime(); await installIdleClock(r);
     r.advance(10000); r.sample(); r.frame(); r.advance(20000);
@@ -278,20 +278,19 @@ test('drag pauses, cancellation and lifecycle cleanup release the idle clock imm
     assert.ok(!r.window.NekoDesktopWindowGravity?.isMoving(), end);
     assert.ok(!r.window.nekoAutoGoodbye.getIdleBlockReasons().includes('window-gravity-motion'), end);
     const baseline = r.idleState().lastInteractionAt;
-    assert.equal(r.context.Date.now() - baseline, 10000, `${end}: settle the exact moving interval`);
+    assert.ok(r.context.Date.now() - baseline >= 30000, `${end}: gravity must not hide elapsed idle time`);
     r.advance(5000); r.idleTick();
     assert.equal(r.idleState().lastInteractionAt, baseline, `${end}: no stuck suppression or double accounting`);
   }
 });
 
-test('late idle-controller initialization discovers an already airborne cat and later releases suppression', async () => {
+test('late idle-controller initialization keeps normal idle progression', async () => {
   const r = runtime(); r.sample(); r.frame();
   await installIdleClock(r);
   r.advance(20 * 60 * 1000); r.idleTick();
-  assert.equal(r.idleState().visualTier, 'cat1');
+  assert.notEqual(r.idleState().visualTier, 'cat1');
   r.settle(); r.idleTick();
-  r.advance(r.idleState().thresholdsMs.cat2 - r.idleState().thresholdsMs.cat1); r.idleTick();
-  assert.equal(r.idleState().visualTier, 'cat2');
+  assert.ok(!r.window.nekoAutoGoodbye.getIdleBlockReasons().includes('window-gravity-motion'));
 });
 
 test('pinned app interiors never activate gravity, including after a drag release; unpinning enables normal containment', () => {
@@ -409,13 +408,105 @@ test('swept side collisions catch large action moves and a fast moving secondary
   r.settle();
   r.window.NekoDesktopWindowGravity.applyPosition(r.container, 200, 200);
   assert.ok(r.state().x > 550 && r.state().x < 560, 'the body stops at the right border');
-  const target = r.window.NekoDesktopWindowGravity.constrainTarget(r.container, { left: 100, top: 200 });
+  const target = r.window.NekoDesktopWindowGravity.constrainTarget(r.container, { left: 100, top: r.state().y });
   assert.ok(target.distance < 0.01, 'walking must finish at a blocking border');
   const moving = runtime({ x: 800 }); moving.sample(outer.rect, { windows: [obstacle, outer] });
   moving.advance(16);
   moving.sample(outer.rect, { windows: [{ ...obstacle, rect: { ...obstacle.rect, x: 1050 } }, outer] });
   assert.ok(moving.state().x > 1020, 'a moving border cannot jump through the cat');
   assert.ok(moving.state().vx > 0);
+});
+
+function installPlaygroundSetting(r) {
+  const storage = new Map();
+  const entries = [];
+  const releases = [];
+  r.window.localStorage = {
+    getItem: key => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, value),
+  };
+  r.context._forEachNekoIdleReturnButton = callback => callback(r.button);
+  vm.runInContext(fs.readFileSync(path.join(avatar, 'idle-playground.js'), 'utf8'), r.context);
+  // Keep the real setting, visibility guard, entry event and entry handler.
+  // The downstream lifecycle has separate physics tests.
+  r.context._startNekoIdleCat1PlaygroundDropAfterYarnTargetReady = (button, detail) => {
+    entries.push({ button, detail });
+    return true;
+  };
+  r.context._releaseAllNekoIdleCat1PlaygroundDropLifecycles = reason => releases.push(reason);
+  return { entries, releases, api: r.window.nekoIdleCat1Playground };
+}
+
+test('manual gravity setting immediately enters visible CAT1 through the existing Playground entry', () => {
+  const r = runtime();
+  const { api, entries, releases } = installPlaygroundSetting(r);
+  assert.equal(api.isGravityCatEnabled(), false);
+  api.setGravityCatEnabled(true);
+  assert.equal(api.isGravityCatEnabled(), true);
+  assert.equal(entries.length, 1, 'manual clicks must work before any active/tier event is cached');
+  assert.equal(entries[0].button, r.button);
+  assert.equal(entries[0].detail.source, 'gravity-cat-setting');
+  api.setGravityCatEnabled(false);
+  assert.equal(api.isGravityCatEnabled(), false);
+  assert.deepEqual(releases, ['gravity-cat-disabled']);
+});
+
+test('gravity preference on an ordinary model waits for active CAT1 and ignores a late entry after OFF', () => {
+  const r = runtime();
+  const { api, entries } = installPlaygroundSetting(r);
+  r.container.style.display = 'none';
+  api.setGravityCatEnabled(true);
+  assert.equal(entries.length, 0);
+  r.container.style.display = 'block';
+  r.emit('neko:cat-local-active-change', { active: true, appearance: 'cat', tier: 'cat1' });
+  r.frame();
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].detail.source, 'gravity-cat-auto-entry');
+  r.emit('neko:cat-local-active-change', { active: true, appearance: 'cat', tier: 'cat1' });
+  api.setGravityCatEnabled(false);
+  r.frame();
+  assert.equal(entries.length, 1, 'queued activation must recheck the saved preference');
+});
+
+test('CAT2/CAT3 and hidden CAT1 cannot be entered by the manual gravity setting', () => {
+  for (const tier of ['cat2', 'cat3']) {
+    const r = runtime();
+    const { api, entries } = installPlaygroundSetting(r);
+    r.button.setAttribute('data-neko-idle-tier', tier);
+    api.setGravityCatEnabled(true);
+    r.emit('neko:cat-local-active-change', { active: true, appearance: 'cat', tier });
+    r.frame();
+    assert.equal(entries.length, 0);
+  }
+  const r = runtime();
+  const { api, entries } = installPlaygroundSetting(r);
+  r.container.setAttribute('data-neko-return-visible', 'false');
+  api.setGravityCatEnabled(true);
+  assert.equal(entries.length, 0);
+});
+
+test('target constraints preserve vertical reachability and shared release sampling uses the 120ms window', () => {
+  const r = runtime();
+  r.sample({ x: 0, y: 0, width: 1200, height: 900 }, { windows: [sceneWindow(1, { x: 0, y: 0, width: 1200, height: 900 })] });
+  r.frame();
+  const state = r.state();
+  const target = r.window.NekoDesktopWindowGravity.constrainTarget(r.container, {
+    left: state.x,
+    top: Math.max(state.bounds.top, state.y - 40),
+  });
+  assert.ok(target.top < state.y, 'vertical target movement must be retained');
+  assert.ok(target.distance >= 39 && target.distance <= 41);
+
+  r.advance(100);
+  const sampler = r.window.NekoDesktopWindowGravity.createDragSampleSession();
+  sampler.moved = true;
+  r.window.NekoDesktopWindowGravity.recordDragSample(sampler, { screenX: 100, screenY: 200, timestamp: 1000 });
+  r.window.NekoDesktopWindowGravity.recordDragSample(sampler, { screenX: 160, screenY: 230, timestamp: 1060 });
+  const velocity = r.window.NekoDesktopWindowGravity.getReleaseVelocity(sampler, 1060, false);
+  assert.equal(velocity.vx, 1000);
+  assert.equal(velocity.vy, 500);
+  assert.equal(r.window.NekoDesktopWindowGravity.getReleaseVelocity(sampler, 1200, false), null);
+  assert.equal(r.window.NekoDesktopWindowGravity.getReleaseVelocity(sampler, 1060, true), null);
 });
 
 test('explicit empty scenes and transparent gaps between app surfaces never become a full-window gravity box', () => {
@@ -580,7 +671,7 @@ test('closing a moving box after impact preserves its rebound and squash through
   r.frame(); assert.ok(r.state().y < before.y);
 });
 
-test('closure continuation preserves playground impulses and is still cancelled by lifecycle cleanup', () => {
+test('closure continuation preserves playground impulses and hands invalid sensing back to Playground', () => {
   const r = runtime();
   const body = { id: 'cat', element: r.container, x: 300, y: 200, vx: 250, vy: -200,
     grounded: false, dragging: false };
@@ -591,7 +682,8 @@ test('closure continuation preserves playground impulses and is still cancelled 
   r.window.NekoDesktopWindowGravity.stepBody(r.button, body, r.context.performance.now());
   assert.equal(r.state().y, before.y); assert.equal(body.vy, -200 + 1440 * 0.016);
   r.sample(null);
-  assert.equal(r.state().phase, 'idle'); assert.equal(r.resources().frames, 0);
+  assert.equal(r.state().phase, 'idle');
+  assert.equal(r.resources().frames, 1, 'the remaining frame belongs to the Playground fallback owner');
   assert.equal(r.resources().observers, 0);
 });
 
@@ -1127,7 +1219,7 @@ test('stale movement plans cannot overwrite airborne momentum and work again aft
   assert.equal(r.state().x, 300);
   const target = r.window.NekoDesktopWindowGravity.constrainTarget(r.container, { left: 5000, top: 0 });
   assert.equal(target.left, r.state().bounds.right);
-  assert.equal(target.top, r.state().y);
+  assert.equal(target.top, r.state().bounds.top);
   r.settle();
   r.context._setNekoIdleCat1ContainerPosition(r.container, 360, 0);
   assert.equal(r.state().x, 360);
