@@ -87,6 +87,6 @@ def test_return_clears_all_model_lock_state_instead_of_replaying_a_snapshot():
 
     assert "_savedLockState" not in ui_source
     assert "window.live2dManager.setLocked(false, { updateFloatingButtons: false });" in handle_return_block
-    assert "window.vrmManager.core.setLocked(false);" in handle_return_block
+    assert "window.vrmManager.setLocked(false);" in handle_return_block
     assert "window.mmdManager.core.setLocked(false);" in handle_return_block
     assert "window.pngtuberManager.setLocked(false, { updateFloatingButtons: false });" in handle_return_block

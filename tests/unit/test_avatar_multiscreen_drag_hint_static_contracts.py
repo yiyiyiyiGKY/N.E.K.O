@@ -95,7 +95,7 @@ def test_model_interactions_report_display_switch_misses_and_success():
     helper = _source("static/avatar/avatar-multiscreen-drag-hint.js")
     live2d = _source("static/live2d/live2d-interaction.js")
     mmd = _source("static/mmd/mmd-interaction.js")
-    vrm = _source("static/vrm/vrm-interaction.js")
+    vrm = _source("static/unity/unity-avatar-manager.js")
 
     assert "installLive2DDisplaySwitchMissHook" in helper
     assert "window.Live2DManager" in helper
@@ -116,12 +116,8 @@ def test_model_interactions_report_display_switch_misses_and_success():
     assert "recordEdgeBounce('mmd')" not in mmd
     assert "markDisplaySwitchSuccess('mmd')" in mmd
     assert "recordDisplaySwitchMiss('vrm')" in vrm
-    assert "void this._recordDragHintPointerEdgeApproach('vrm');" in vrm
-    assert "if (!targetDisplay) {\n                return false;\n            }" in vrm
-    vrm_release = vrm.split("if (!displaySwitched) {", 1)[1].split("// 5. 鼠标进入", 1)[0]
-    assert vrm_release.index("if (wasPanDrag) {") < vrm_release.index(
-        "await this._recordDragHintPointerEdgeRelease('vrm');"
-    )
+    assert "void this._recordDragHintPointerEdgeApproach()" in vrm
+    assert "helper.recordPointerEdgeRelease('vrm'" in vrm
     assert "recordEdgeBounce('vrm')" not in vrm
     assert "markDisplaySwitchSuccess('vrm')" in vrm
 
@@ -129,15 +125,15 @@ def test_model_interactions_report_display_switch_misses_and_success():
 def test_model_renderers_refresh_pixel_density_after_display_switch():
     live2d_core = _source("static/live2d/live2d-core.js")
     mmd_core = _source("static/mmd/mmd-core.js")
-    vrm_core = _source("static/vrm/vrm-core.js")
+    vrm_core = _source("static/unity/unity-avatar-manager.js")
 
     assert "lastDevicePixelRatio = window.devicePixelRatio || 1;" in live2d_core
     assert "renderer.resolution = nextResolution;" in live2d_core
     assert "electron-display-changed:settled" in live2d_core
 
-    assert "syncRendererPixelRatio(reason = 'resize')" in vrm_core
-    assert "window.addEventListener('electron-display-changed', this.manager._displayChangeHandler);" in vrm_core
-    assert "this.manager.core.syncRendererPixelRatio('electron-display-changed:settled');" in vrm_core
+    assert "this._pixelRatio = Math.min(2, Math.max(1, finite(global.devicePixelRatio, 1)));" in vrm_core
+    assert "this._resizeObserver.observe(this.container);" in vrm_core
+    assert "this._resizeCanvasBackingStore(this.canvas.clientWidth, this.canvas.clientHeight);" in vrm_core
 
     assert "syncRendererPixelRatio(reason = 'resize')" in mmd_core
     assert "window.addEventListener('electron-display-changed', this.manager._displayChangeHandler);" in mmd_core

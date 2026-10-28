@@ -845,14 +845,12 @@
     <script src="/static/js/character_card_manager/card-companion.js?v={{ static_asset_version | default('0') }}"></script>
     <script src="/static/js/character_card_manager/sync-and-legacy-memory.js?v={{ static_asset_version | default('0') }}"></script>
 
-    <!-- Three.js 核心库和importmap（用于VRM/MMD模型预览）-->
+    <!-- Three.js 核心库和 importmap（仅供 MMD 模型预览） -->
     <script type="importmap">
     {
         "imports": {
             "three": "/static/libs/three.module.js",
             "three/addons/": "/static/libs/three/addons/",
-            "@pixiv/three-vrm": "/static/libs/three-vrm.module.min.js",
-            "@pixiv/three-vrm-animation": "/static/libs/three-vrm-animation.module.js",
             "@moeru/three-mmd": "/static/libs/three-mmd.module.js",
             "@moeru/three-mmd-physics-ammo": "/static/libs/three-mmd-physics-ammo.module.js?v=23",
             "ammojs-typed": "/static/libs/ammojs-typed.module.js"

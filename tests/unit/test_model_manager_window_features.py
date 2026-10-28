@@ -18,7 +18,7 @@ def run_model_manager_node(script: str) -> None:
 def test_raw_vrm_config_callers_encode_local_paths_once():
     character = Path("static/app/app-character.js").read_text(encoding="utf-8")
     start = character.index("if (/^\\/(?:user_vrm")
-    encode_character = character[start:character.index("// 加载 VRM 模型", start)]
+    encode_character = character[start:character.index("// 通过唯一的 Unity VRM manager", start)]
     init = Path("static/vrm/vrm-init.js").read_text(encoding="utf-8")
     start = init.index("const convertedPath =")
     encode_init = init[start:init.index("// 7.", start)]
@@ -216,33 +216,17 @@ for (const loader of {json.dumps(loaders)}) {{
 
 
 def test_vrm_preferences_match_raw_paths_without_aliasing_percent_names():
-    source = Path('static/vrm/vrm-core.js').read_text(encoding='utf-8')
-    path_method = source.split('class VRMCore {', 1)[1].split('constructor(', 1)[0]
-    matching = 'const normalizePath =' + source.split('const normalizePath =', 1)[1].split('\n                }\n                } catch', 1)[0]
-    preference_object = 'const preferences = {' + source.split('const preferences = {', 1)[1].split('\n            };', 1)[0] + '\n}; preferences;'
-    script = f"""
-const assert = require('node:assert/strict');
-const vm = require('node:vm');
-const context = vm.createContext({{ URL, window: {{location: {{origin: 'http://localhost'}}}}, position: {{x: 0, y: 0, z: 0}}, scale: {{x: 1, y: 1, z: 1}} }});
-vm.runInContext('class VRMCore {{' + {json.dumps(path_method)} + '}}', context);
-assert.equal(vm.runInContext("VRMCore.preferencePathFromUrl('https://external.example/user_vrm/a%20b.vrm')", context), 'https://external.example/user_vrm/a%20b.vrm');
-assert.equal(vm.runInContext("VRMCore.preferencePathFromUrl('http://localhost/user_vrm/a%20b.vrm')", context), '/user_vrm/a b.vrm');
-assert.equal(vm.runInContext("VRMCore.preferencePathFromUrl('https://[invalid/user_vrm/a.vrm')", context), 'https://[invalid/user_vrm/a.vrm');
-for (const filename of ['My Avatar.vrm', '猫娘.vrm', 'Avatar#100%.vrm', 'a b.vrm', 'a%20b.vrm', 'a%2Fb.vrm']) {{
-    const raw = '/user_vrm/' + filename;
-    context.modelUrl = '/user_vrm/' + encodeURIComponent(filename);
-    const expected = {{ model_path: raw }};
-    context.modelsArray = [{{model_path: '/user_vrm/a%20b.vrm'}}, {{model_path: '/user_vrm/a b.vrm'}}, expected];
-    if (filename === 'a b.vrm') context.modelsArray[1] = expected;
-    if (filename === 'a%20b.vrm') context.modelsArray[0] = expected;
-    vm.runInContext('{{' + {json.dumps(matching)} + '}}', context);
-    assert.equal(context.preferences, expected);
-    context.modelPath = context.modelUrl;
-    const saved = vm.runInContext('{{' + {json.dumps(preference_object)} + '}}', context);
-    assert.equal(saved.model_path, raw);
-}}
-"""
-    run_model_manager_node(script)
+    source = Path('static/unity/unity-avatar-manager.js').read_text(encoding='utf-8')
+    path_method = source.split('function preferencePathFromUrl(modelUrl) {', 1)[1].split(
+        '\n    }', 1
+    )[0]
+    assert "if (url.origin !== global.location.origin) return path;" in path_method
+    assert "path = url.pathname;" in path_method
+    assert "return decodeURIComponent(path);" in path_method
+    assert "if (item.model_path === targetPath) return true;" in source
+    assert "normalizedItem === normalizedTarget" in source
+    assert "filename === targetFilename" in source
+    assert "model_path: preferencePathFromUrl(modelPath)" in source
 
 
 def test_vrm_emotion_selector_has_one_entry_per_shared_stem():

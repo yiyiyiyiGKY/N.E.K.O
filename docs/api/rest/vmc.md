@@ -30,7 +30,7 @@ The endpoint and send rate are persisted, but output intentionally starts disabl
 
 ## Output contract
 
-The backend converts Three.js right-handed transforms to Unity/VMC coordinates and emits:
+The backend converts the renderer-neutral browser protocol's right-handed transforms to Unity/VMC coordinates and emits:
 
 - `/VMC/Ext/OK`
 - `/VMC/Ext/T`

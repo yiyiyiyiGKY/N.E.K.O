@@ -29,7 +29,7 @@ SOCCER_AVATAR_HOST_PATH = ROOT / "static" / "game" / "games" / "soccer" / "socce
 SOCCER_SCRIPT_PATH = ROOT / "static" / "game" / "games" / "soccer" / "soccer-demo.js"
 SOCCER_STYLE_PATH = ROOT / "static" / "game" / "games" / "soccer" / "soccer-demo.css"
 LIVE2D_CORE_PATH = ROOT / "static" / "live2d" / "live2d-core.js"
-VRM_CORE_PATH = ROOT / "static" / "vrm" / "vrm-core.js"
+UNITY_VRM_MANAGER_PATH = ROOT / "static" / "unity" / "unity-avatar-manager.js"
 
 
 def _soccer_host_and_adapter_source() -> str:
@@ -140,7 +140,7 @@ def test_soccer_avatar_rendering_uses_sdk_fixed_viewport_contract():
     adapter = _soccer_host_and_adapter_source()
     script = SOCCER_SCRIPT_PATH.read_text(encoding="utf-8")
     live2d_core = LIVE2D_CORE_PATH.read_text(encoding="utf-8")
-    vrm_core = VRM_CORE_PATH.read_text(encoding="utf-8")
+    unity_vrm_manager = UNITY_VRM_MANAGER_PATH.read_text(encoding="utf-8")
 
     assert "'avatar-renderer'" in sdk
     assert "const MAX_AVATAR_RENDERERS = 8;" in sdk
@@ -183,9 +183,8 @@ def test_soccer_avatar_rendering_uses_sdk_fixed_viewport_contract():
     resize_listener = live2d_core.index("window.addEventListener('resize', this._screenChangeHandler)")
     assert fixed_branch < resize_listener
     assert "delete pixiOptions.resizeMode;" in live2d_core
-    vrm_fixed_branch = vrm_core.index("if (resizeMode === 'fixed') return;")
-    vrm_resize_listener = vrm_core.index("window.addEventListener('resize', this.manager._resizeHandler)")
-    assert vrm_fixed_branch < vrm_resize_listener
+    assert "this._installResizeObserver();" in unity_vrm_manager
+    assert "this._resizeObserver.observe(this.container);" in unity_vrm_manager
     assert "resizeMode: 'fixed'" in soccer_avatar_host
 
 

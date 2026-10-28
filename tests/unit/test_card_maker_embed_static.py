@@ -79,19 +79,32 @@ def test_card_maker_exposes_transparent_model_embed_mode() -> None:
 
 def test_card_maker_embed_fixes_vrm_mmd_and_pngtuber_without_scanning_live2d() -> None:
     script = (ROOT / "static" / "js" / "card_maker.js").read_text(encoding="utf-8")
-    vrm_core = (ROOT / "static" / "vrm" / "vrm-core.js").read_text(encoding="utf-8")
+    unity_manager = (ROOT / "static" / "unity" / "unity-avatar-manager.js").read_text(encoding="utf-8")
     mmd_core = (ROOT / "static" / "mmd" / "mmd-core.js").read_text(encoding="utf-8")
 
     assert "function getLive2DVisibleBoundsForEmbed" not in script
     assert "mgr._getDrawableDirectScreenRect(index, true)" not in script
     assert "function frameVRMModelForEmbed" in script
+    assert "function fitUnityVRMForCard" in script
+    vrm_frame = script.split("function frameVRMModelForEmbed", 1)[1].split(
+        "function fitUnityVRMForCard", 1
+    )[0]
+    assert "frameThreeModelForEmbed" not in vrm_frame
+    assert "centerThreeCamera(window.vrmManager)" not in script
+    assert "throw new Error('Unity VRM 管理器不可用')" in script
+    assert "async function ensureCaptureFrame()" in script
+    assert "await mgr.waitForRenderedFrame();" in script
+    assert "await ensureCaptureFrame();" in script
+    assert "mgr instanceof UnityVRMManager" in script
+    assert "embedModelLayout.HEIGHT_RATIO" in script
+    assert "embedModelLayout.CENTER_X_RATIO" in script
+    assert "embedModelLayout.CENTER_Y_RATIO" in script
     assert "function frameMMDModelForEmbed" in script
     assert "const box = new THREE.Box3().setFromObject(model);" in script
     assert "embedThreeFrameCache.get(model)" in script
     assert "embedThreeFrameCache.set(model, bounds)" in script
     assert "embed: isEmbedMode,\n            addShadow: !isEmbedMode" in script
-    assert "if (!embed) {" in vrm_core
-    assert "if (!embed && !hasSavedRotation" in vrm_core
+    assert "opts.restorePreferences !== false && opts.embed !== true" in unity_manager
     assert "window.mmdManager.loadModel(modelPath, { embed: isEmbedMode })" in script
     assert "await loadMMDIdlePoseForEmbed(window.mmdManager);" in script
     assert "mgr.pauseAnimation?.();" in script
@@ -120,6 +133,10 @@ def test_card_maker_embed_runtime_loaders_are_provider_symmetric() -> None:
     assert "loadVRMRuntime" in bootstrap
     assert "loadMMDRuntime" in bootstrap
     assert "loadPNGTuberRuntime" in bootstrap
+    vrm_loader = bootstrap.split("async function loadVRMRuntime()", 1)[1].split("}", 1)[0]
+    mmd_loader = bootstrap.split("async function loadMMDRuntime()", 1)[1].split("}", 1)[0]
+    assert "ensureThree" not in vrm_loader
+    assert "ensureThree" in mmd_loader
 
 
 def test_embed_template_omits_full_editor_runtimes() -> None:
@@ -160,6 +177,8 @@ def test_versioned_runtime_assets_change_static_asset_version(monkeypatch) -> No
             "static/live2d/live2d-emotion.js",
             "static/live2d/live2d-model.js",
             "static/js/card_maker_embed_layout.js",
+            "static/unity/unity-vrm-loader.js",
+            "static/unity/unity-avatar-manager.js",
             "static/mmd/mmd-init.js",
             "static/social-embed.js",
         )

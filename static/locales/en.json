@@ -4070,22 +4070,11 @@
     "vrm": {
         "error": {
             "modulesNotAvailable": "VRM modules failed to load, cannot switch to VRM mode. Please refresh.",
-            "coreNotLoaded": "VRMCore not loaded",
-            "sceneNotInitialized": "Cannot load model: Scene not initialized.",
-            "threeNotLoaded": "Three.js library not loaded",
             "containerNotFound": "Container element not found: {{id}}",
             "canvasNotFound": "Canvas element not found: {{id}}",
-            "threeNotLoadedForModel": "Three.js not loaded, cannot load VRM model",
             "modelLoadFailed": "Failed to load VRM model: {{url}} and {{fallback}} both failed",
             "invalidVRMFormat": "Loaded model is not a valid VRM format. File: {{file}}",
-            "sceneNotInitializedForAdd": "Scene not initialized. Please call initThreeJS() first.",
-            "animationClipError": "Error creating animation clip: {{error}}",
-            "animationClipNoBones": "Animation clip creation failed: No matching bones found",
-            "cannotCreateAnimationAction": "Cannot create animation action",
-            "invalidModelPath": "Invalid VRM model path: {{path}}",
-            "gltfLoaderImportFailed": "Failed to import GLTFLoader: {{error}}",
-            "threeIncomplete": "Three.js dependency incomplete, missing: {{missing}}",
-            "vrmLoaderImportFailed": "Failed to import VRMLoaderPlugin: {{error}}"
+            "invalidModelPath": "Invalid VRM model path: {{path}}"
         },
         "lighting": {
             "title": "VRM Lighting Settings",

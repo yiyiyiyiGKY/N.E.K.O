@@ -57,7 +57,7 @@ function getManagerHeadFocusInCanvas(manager, sourceCanvas) {
     }
 
     const anchor = manager.getHeadScreenAnchor();
-    const canvas = manager.renderer?.domElement;
+    const canvas = manager.getSurfaceCanvas?.() || manager.renderer?.domElement;
     const rect = canvas?.getBoundingClientRect?.();
     if (!anchor || !rect || rect.width <= 0 || rect.height <= 0) {
         return null;
@@ -164,8 +164,10 @@ async function captureCurrentModelManagerCanvas(state = {}) {
         sourceCanvas = renderThreeSceneToCanvas(sourceManager?.renderer, sourceManager?.scene, sourceManager?.camera);
     } else if (modelType === 'live3d') {
         sourceManager = window.vrmManager;
-        if (sourceManager?.controls) sourceManager.controls.update();
-        sourceCanvas = renderThreeSceneToCanvas(sourceManager?.renderer, sourceManager?.scene, sourceManager?.camera);
+        if (typeof sourceManager?.waitForRenderedFrame === 'function') {
+            await sourceManager.waitForRenderedFrame();
+        }
+        sourceCanvas = sourceManager?.getSurfaceCanvas?.() || null;
     } else {
         sourceCanvas = captureLive2DStageToCanvas();
     }

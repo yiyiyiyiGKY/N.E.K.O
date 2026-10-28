@@ -3109,10 +3109,8 @@ class UniversalTutorialManager {
         }
 
         try {
-            if (window.vrmManager && window.vrmManager.core && typeof window.vrmManager.core.setLocked === 'function') {
-                window.vrmManager.core.setLocked(!!snapshot.vrm);
-            } else if (window.vrmManager && window.vrmManager.interaction && typeof window.vrmManager.interaction.setLocked === 'function') {
-                window.vrmManager.interaction.setLocked(!!snapshot.vrm);
+            if (window.vrmManager && typeof window.vrmManager.setLocked === 'function') {
+                window.vrmManager.setLocked(!!snapshot.vrm);
             }
         } catch (error) {
             console.warn('[Tutorial] 恢复 VRM 模型交互锁失败:', error);

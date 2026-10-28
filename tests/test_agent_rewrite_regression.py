@@ -1530,7 +1530,7 @@ def test_home_yui_guide_avatar_override_does_not_persist_tutorial_model():
     assert "if (!snapshot) {" in avatar_interaction_restore_block
     assert "return;" in avatar_interaction_restore_block
     assert "window.live2dManager.setLocked(!!snapshot.live2d, { updateFloatingButtons: false });" in avatar_interaction_restore_block
-    assert "window.vrmManager.core.setLocked(!!snapshot.vrm);" in avatar_interaction_restore_block
+    assert "window.vrmManager.setLocked(!!snapshot.vrm);" in avatar_interaction_restore_block
     assert "window.mmdManager.core.setLocked(!!snapshot.mmd);" in avatar_interaction_restore_block
     assert "window.pngtuberManager.setLocked(!!snapshot.pngtuber, { updateFloatingButtons: false });" in avatar_interaction_restore_block
     assert "modelType === 'live3d'" in tutorial_source

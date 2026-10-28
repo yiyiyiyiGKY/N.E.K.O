@@ -68,10 +68,22 @@ def test_host_frame_never_takes_pointer_events_and_sits_below_the_model():
 def test_one_line_hooks_in_the_renderers():
     assert _read("static/live2d/live2d-core.js").count("_visitCaptureActive") == 1
     assert "if (this._visitCaptureActive) return true;" in _read("static/live2d/live2d-core.js")
-    assert _read("static/vrm/vrm-manager.js").count("onExternalRender") == 1
+    assert _read("static/unity/unity-avatar-manager.js").count("onExternalRender") == 1
     assert _read("static/mmd/mmd-core.js").count("onExternalRender") == 1
     mmd = _read("static/mmd/mmd-core.js")
     assert mmd.index("onExternalRender") < mmd.index("this._flushRenderWaiters();", mmd.index("onExternalRender") - 400)
+
+
+def test_visit_capture_uses_the_unity_surface_for_vrm_and_three_only_for_mmd():
+    source = _read("static/visit/parent-bridge.js")
+    capture = source[source.index("function captureSource(type)"):source.index("function modelBounds(type)")]
+    vrm_branch = capture[capture.index("if (type === 'vrm')"):capture.index("if (type === 'mmd')")]
+    mmd_branch = capture[capture.index("if (type === 'mmd')"):]
+
+    assert "vm.getSurfaceCanvas()" in vrm_branch
+    assert "vm.canvas || null" in vrm_branch
+    assert "renderer" not in vrm_branch
+    assert "mm.renderer.domElement" in mmd_branch
 
 
 def test_only_index_loads_the_bridge_after_the_websocket_script():

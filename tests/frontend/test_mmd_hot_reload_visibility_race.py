@@ -238,3 +238,118 @@ def test_non_mmd_reload_does_not_preserve_stale_mmd_loading_session(page: Page):
         "canvasVisibility": "hidden",
         "canvasPointerEvents": "none",
     }
+
+
+@pytest.mark.frontend
+def test_failed_unity_switch_restores_existing_live2d_surface(page: Page):
+    page.set_content(
+        """
+        <div id="live2d-container"><canvas id="live2d-canvas"></canvas></div>
+        <div id="vrm-container" class="hidden" style="display:none;visibility:hidden">
+            <canvas id="vrm-canvas" style="visibility:hidden"></canvas>
+        </div>
+        <div id="mmd-container" class="hidden" style="display:none;visibility:hidden">
+            <canvas id="mmd-canvas" style="visibility:hidden"></canvas>
+        </div>
+        """
+    )
+    page.evaluate(
+        """
+        () => {
+            window.appState = {};
+            window.lanlan_config = {
+                lanlan_name: 'TestLive2D',
+                model_type: 'live2d',
+                live3d_sub_type: ''
+            };
+            window.showStatusToast = () => {};
+            window.__showLive2dCalls = 0;
+            window.__vrmPaused = false;
+            window.__vrmCleared = false;
+
+            const currentModel = {
+                visible: true,
+                alpha: 1,
+                renderable: true,
+                destroyed: false
+            };
+            window.live2dManager = {
+                currentModel,
+                _rendering: true,
+                pixi_app: {
+                    ticker: {
+                        started: true,
+                        start() { this.started = true; },
+                        update() {}
+                    },
+                    stage: { visible: true, alpha: 1, renderable: true },
+                    renderer: { clear() {}, render() {} }
+                },
+                getCurrentModel() { return this.currentModel; },
+                pauseRendering() { this._rendering = false; },
+                resumeRendering() { this._rendering = true; }
+            };
+            window.showLive2d = () => { window.__showLive2dCalls += 1; };
+            window.vrmManager = {
+                async initRenderer() { throw new Error('expected Unity boot failure'); },
+                pauseRendering() { window.__vrmPaused = true; },
+                clearSurface() { window.__vrmCleared = true; }
+            };
+        }
+        """
+    )
+    page.add_script_tag(path=str(INTERPAGE_SCRIPT))
+
+    result = page.evaluate(
+        """
+        async () => {
+            await window.__appInterpageParts.handleModelReload('', {
+                temporaryConfig: {
+                    model_type: 'live3d',
+                    live3d_sub_type: 'vrm',
+                    model_path: '/static/vrm/sister1.0.vrm',
+                    lighting: {}
+                }
+            });
+            const live2dContainer = document.getElementById('live2d-container');
+            const live2dCanvas = document.getElementById('live2d-canvas');
+            const vrmContainer = document.getElementById('vrm-container');
+            const vrmCanvas = document.getElementById('vrm-canvas');
+            return {
+                reloadSucceeded: window._lastModelReloadResult,
+                modelType: window.lanlan_config.model_type,
+                live3dSubType: window.lanlan_config.live3d_sub_type,
+                live2dRendering: window.live2dManager._rendering,
+                live2dContainerHidden: live2dContainer.classList.contains('hidden'),
+                live2dContainerDisplay: getComputedStyle(live2dContainer).display,
+                live2dCanvasVisibility: live2dCanvas.style.visibility,
+                live2dCanvasPointerEvents: live2dCanvas.style.pointerEvents,
+                showLive2dCalls: window.__showLive2dCalls,
+                vrmPaused: window.__vrmPaused,
+                vrmCleared: window.__vrmCleared,
+                vrmContainerHidden: vrmContainer.classList.contains('hidden'),
+                vrmContainerDisplay: getComputedStyle(vrmContainer).display,
+                vrmCanvasVisibility: vrmCanvas.style.visibility,
+                vrmCanvasPointerEvents: vrmCanvas.style.pointerEvents
+            };
+        }
+        """
+    )
+
+    assert result == {
+        "reloadSucceeded": False,
+        "modelType": "live2d",
+        "live3dSubType": "",
+        "live2dRendering": True,
+        "live2dContainerHidden": False,
+        "live2dContainerDisplay": "block",
+        "live2dCanvasVisibility": "visible",
+        "live2dCanvasPointerEvents": "auto",
+        "showLive2dCalls": 1,
+        "vrmPaused": True,
+        "vrmCleared": True,
+        "vrmContainerHidden": True,
+        "vrmContainerDisplay": "none",
+        "vrmCanvasVisibility": "hidden",
+        "vrmCanvasPointerEvents": "none",
+    }

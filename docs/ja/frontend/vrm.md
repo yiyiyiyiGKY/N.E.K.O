@@ -2,9 +2,11 @@
 
 ## ランタイムと形式
 
-VRM レンダラーは Three.js と `@pixiv/three-vrm` を使います。モデルは `.vrm`、アニメーションは通常 `@pixiv/three-vrm-animation` で読み込む `.vrma` です。
+VRM レンダラーは `unity/NekoAvatarRenderer/` からビルドする Unity WebGL + UniVRM ランタイムです。モデルは `.vrm`、アニメーションは `.vrma` を使います。Three.js は MMD など VRM 以外の機能に残りますが、VRM は描画しません。
 
-現在の実装は `static/vrm/` の core、manager、init、animation、expression、interaction、cursor-follow、orientation、UI モジュールにあります。VRM キャラクターが有効な場合だけ、`vrm-init.js` が `window.vrmManager` を作成し `#vrm-canvas` を初期化します。
+ブラウザー側の唯一の入口は `static/unity/unity-vrm-loader.js` です。これは `static/unity/unity-avatar-manager.js` と、`static/vrm/` に残る expression、UI、VMC モジュールを読み込みます。manager は version 付き command を Unity に送り、別の Three.js scene、camera、renderer は公開しません。global avatar page は `vrm-init.js` が `window.vrmManager` を作り、preview と multi-avatar game は実際に mount する instance だけを作ります。
+
+Unity の build command は WebGL artifact を `static/unity/avatar/` に publish します。実行には有効な `build-manifest.json` と、それが参照する loader、data、framework、wasm がすべて必要です。JavaScript adapter だけでは Unity は起動しません。
 
 ## モデルとアニメーション
 
@@ -30,7 +32,7 @@ VRM レンダラーは Three.js と `@pixiv/three-vrm` を使います。モデ�
 }
 ```
 
-キャラクター別ライティングはこれを上書きできます。バックエンド既定値、テンプレートコンテキスト、`vrm-core.js` の防御的フォールバックを一致させてください。
+キャラクター別ライティングはこれを上書きできます。バックエンド既定値、テンプレートコンテキスト、Unity manager/controller の既定値を一致させてください。
 
 ## 感情マッピング
 
@@ -58,13 +60,13 @@ VRM が有効なとき、`window.LanLan1.setEmotion(name)` は `window.vrmManage
 await window.vrmVmcSender.enable('127.0.0.1', 39539, 60)
 ```
 
-VMC root は `vrm.scene` から独立しているため、desktop layout transform は出力されません。model switch/dispose 時は ACK 付き zero-value frame で古い expression を解除し、disable/release の最後に `/VMC/Ext/OK 0` を送信します。
+VMC root は browser layout transform から独立しているため、desktop placement は出力されません。model switch/dispose 時は ACK 付き zero-value frame で古い expression を解除し、disable/release の最後に `/VMC/Ext/OK 0` を送信します。
 
 receiver 設定、control API、security boundary、close code、troubleshooting は [VMC モーション出力](/ja/api/rest/vmc) を参照してください。
 
 ## ランタイム保護
 
-現在のレンダラーは長い停止後のフレーム delta をクランプし、読み込んだ spring-bone collider 半径を縮小し、ライティング設定から MToon アウトライン幅を調整します。これらは内部互換対策で、モデル形式の要件ではありません。再現のためにアップロード VRM を事前編集しないでください。
+animation blend、look-at、spring bone、model fitting、lighting、MToon outline scale は Unity 内で実行します。browser は canvas surface、input translation、lifecycle command だけを担当します。これらは runtime の責務であり、model format の要件ではありません。
 
 ## API 概要
 
@@ -81,4 +83,4 @@ receiver 設定、control API、security boundary、close code、troubleshooting
 
 ## ホスト境界
 
-VRM は Electron ペットウィンドウを含む `index.html` に描画されます。独立したチャットと字幕テンプレートは第二の VRM シーンを作らず、ネイティブウィンドウは共通のクロスウィンドウブリッジでメインページと連携します。
+VRM は Electron ペットウィンドウを含む `index.html` に描画されます。独立したチャットと字幕テンプレートは第二の Unity VRM runtime を作らず、ネイティブウィンドウは共通のクロスウィンドウブリッジでメインページと連携します。

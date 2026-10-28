@@ -89,31 +89,14 @@ function createRawController({ signal, fitLive2DModel }) {
     showRenderer('vrm');
     await waitForVrmModules(signal);
     throwIfAborted(signal);
-    if (!window.VRMManager || !window.THREE) throw new Error('VRM renderer is unavailable');
+    if (!window.VRMManager || !window.UnityVRMManager) throw new Error('Unity VRM renderer is unavailable');
     const next = new window.VRMManager();
-    await next.core.init('air-neko-vrm-canvas', 'air-neko-vrm', null, { embed:true });
+    if (!(next instanceof window.UnityVRMManager)) throw new Error('Unity VRM renderer is required');
+    await next.initRenderer('air-neko-vrm-canvas', 'air-neko-vrm');
     manager = next;
-    const [{ GLTFLoader }, vrmModule] = await Promise.all([
-      import('three/addons/loaders/GLTFLoader.js'),
-      import('@pixiv/three-vrm')
-    ]);
-    const loader = new GLTFLoader();
-    loader.register(parser => new vrmModule.VRMLoaderPlugin(parser));
-    const gltf = await new Promise((resolve, reject) => loader.load(path, resolve, undefined, reject));
-    const vrm = gltf.userData?.vrm;
-    if (signal?.aborted || !vrm?.scene) {
-      // Not added to the scene yet, so disposing the manager would not free it.
-      vrmModule.VRMUtils?.deepDispose?.(gltf.scene);
-      throwIfAborted(signal);
-      throw new Error('Current character VRM is invalid');
-    }
-    // VRM 0.x models face -Z; turn them toward the camera like vrm-core does.
-    vrmModule.VRMUtils?.rotateVRM0?.(vrm);
-    next.scene.add(vrm.scene);
-    next.currentModel = { vrm, gltf, scene:vrm.scene, url:path };
-    vrm.scene.visible = true;
-    next.startAnimateLoop?.();
-    if (next.renderer?.domElement) next.renderer.domElement.style.opacity = '1';
+    await next.loadModel(path, { embed: true, restorePreferences: false });
+    throwIfAborted(signal);
+    if (next.canvas) next.canvas.style.opacity = '1';
   }
 
   return {
@@ -132,12 +115,7 @@ function createRawController({ signal, fitLive2DModel }) {
     },
     setEmotion(name) {
       if (modelType === 'live2d') return manager?.setEmotion?.(name);
-      const expressions = manager?.currentModel?.vrm?.expressionManager;
-      if (!expressions?.setValue) return undefined;
-      for (const key of ['happy', 'surprised', 'relaxed']) {
-        expressions.setValue(key, key === name ? 1 : 0);
-      }
-      return undefined;
+      return manager?.setEmotion?.(name);
     },
     pause() { return manager?.pauseRendering?.(); },
     resume() { return manager?.resumeRendering?.(); },
@@ -146,11 +124,9 @@ function createRawController({ signal, fitLive2DModel }) {
       if (modelType === 'live2d' && manager?.currentModel) {
         manager.pixi_app?.renderer?.resize?.(viewport.width, viewport.height);
         fitLive2DModel(manager.currentModel, viewport, fit);
-      } else if (modelType === 'vrm' && manager?.currentModel?.scene && window.THREE) {
-        manager.renderer?.setSize?.(viewport.width, viewport.height, false);
-        window.NekoMiniGameAvatarHost.fitPerspectiveModel(
-          window.THREE, manager.currentModel.scene, manager.camera, viewport, fit
-        );
+      } else if (modelType === 'vrm' && manager?.currentModel) {
+        manager.resizeSurface?.(viewport.width, viewport.height, false);
+        manager.fitModel?.(viewport, fit);
       }
     },
     async dispose() {

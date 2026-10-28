@@ -2383,15 +2383,25 @@ def test_badminton_starts_route_after_character_resolution_before_avatar_loading
 
 
 @pytest.mark.unit
-def test_badminton_vrm_waits_for_three_before_resolving_modules():
+def test_badminton_unity_vrm_does_not_wait_for_page_three_runtime():
     html = BADMINTON_TEMPLATE.read_text(encoding="utf-8")
     wait_start = html.index("function waitForVRMModules() {")
     wait_section = html[wait_start:html.index("function fitVRMToContainer(", wait_start)]
 
-    assert "function waitForThreeModule() {" in wait_section
-    assert "if (window.THREE) return Promise.resolve();" in wait_section
-    assert "window.addEventListener('three-ready', resolve, { once: true });" in wait_section
-    assert "return Promise.all([vrmModulesReady, waitForThreeModule()]).then(function () {});" in wait_section
+    assert "function waitForThreeModule() {" not in wait_section
+    assert "three-ready" not in wait_section
+    assert "return window.vrmModuleLoaded ? Promise.resolve()" in wait_section
+
+
+@pytest.mark.unit
+def test_badminton_unity_vrm_look_at_uses_public_pointer_bridge():
+    html = BADMINTON_TEMPLATE.read_text(encoding="utf-8")
+    start = html.index("function focusAvatarManagerAtScreenPoint(")
+    section = html[start:html.index("function isYuiShooterActive()", start)]
+
+    assert "if (typeof follower._onPointerMove === 'function')" in section
+    assert "follower._onPointerMove({ clientX: sx, clientY: sy });" in section
+    assert section.index("follower._onPointerMove") < section.index("follower._rawMouseX = sx;")
 
 
 @pytest.mark.unit
@@ -2443,19 +2453,22 @@ def test_badminton_scene_uses_compact_avatars_and_net():
     assert "var SHUTTLE_FLIGHT_VISUAL_R = 6;" in html
     assert "var SENSEI_VRM_PATH = '/static/vrm/sensei.vrm';" in html
     assert "window.badmintonPlayerVrmManager = window.badmintonPlayerVrmManager || null;" in html
-    assert "var visibleH = h * 1.28;" in html
-    assert "cam.near = 0.01;" in html
-    assert "cam.far = 100;" in html
+    assert "{ mode: 'height', align: 'bottom-center', padding: 0 }" in html
+    assert "{ scale: 78.125, x: 0, y: 0 }" in html
     assert "document.getElementById('player-sensei-vrm-container')" in html
     assert "document.getElementById('player-sensei-vrm-canvas')" in html
     assert "await waitForVRMModules();" in html
-    assert "await manager.core.init('player-sensei-vrm-canvas', 'player-sensei-vrm-container', null, { embed: true });" in html
+    assert "await manager.initRenderer(" in html
+    assert "'player-sensei-vrm-canvas'," in html
+    assert "'player-sensei-vrm-container'," in html
     assert "var senseiProbe = await fetch(SENSEI_VRM_PATH, { cache: 'no-store' });" in html
     assert "if (!senseiProbe.ok) throw new Error('Sensei VRM model missing: ' + SENSEI_VRM_PATH);" in html
-    assert "loader.load(SENSEI_VRM_PATH, resolve, null, reject);" in html
-    assert "manager.currentModel = { vrm: vrm, gltf: gltf, scene: vrm.scene, url: SENSEI_VRM_PATH };" in html
-    assert html.count("await manager.playVRMAAnimation('/static/vrm/animation/wait03.vrma.gz', {") == 2
-    assert "isIdle: true" in html
+    assert "await manager.loadModel(SENSEI_VRM_PATH, {" in html
+    assert "restorePreferences: false" in html
+    assert html.count("idleAnimation: '/static/vrm/animation/wait03.vrma.gz'") == 2
+    assert "GLTFLoader" not in html
+    assert "import('@pixiv/three-vrm')" not in html
+    assert "manager.scene.add" not in html
     assert "playIdleAnimation" not in html
     assert "SENSEI_LIVE2D_PATH" not in html
     assert "badmintonPlayerLive2DManager" not in html
@@ -2824,10 +2837,8 @@ def test_badminton_scene_uses_compact_avatars_and_net():
     assert "yui-racket-head-sweep" not in html
     assert "yui-racket-handle-sweep" not in html
     assert "using CSS fallback" not in html
-    assert "function createVrmBadmintonRacket(name, options) {" in html
-    assert "function createPlayerVrmRacket() {" in html
-    assert "function createVrmHeldShuttlecock(name, options) {" in html
-    assert "function drawVrmHeldShuttlecockTexture(ctx, size) {" in html
+    assert "function createVrmBadmintonRacket(name, options) {" not in html
+    assert "function createVrmHeldShuttlecock(name, options) {" not in html
     assert "function drawBadmintonShuttlecockOnContext(renderCtx, x, y, radius, rotation) {" in html
     assert "function getPlayerVrmHeldShuttleCanvasPoint() {" in html
     assert "function getPlayerHeldShuttleServeHandCanvasPoint() {" in html
@@ -2835,41 +2846,19 @@ def test_badminton_scene_uses_compact_avatars_and_net():
     assert "#player-sensei-held-shuttle-canvas { position: absolute; inset: 0; z-index: 2; pointer-events: none; }" in html
     assert "function drawPlayerVrmHeldShuttleOverlay() {" in html
     assert "return game.heldShuttleVisible && !game.ball && !game.pendingSwing && game.state === 'ready' && isPlayerTurn();" in html
-    held_shuttle_texture_start = html.index("function drawVrmHeldShuttlecockTexture(ctx, size) {")
-    held_shuttle_texture_section = html[held_shuttle_texture_start:html.index("function createVrmHeldShuttlecock(name, options) {", held_shuttle_texture_start)]
-    assert "drawBadmintonShuttlecockOnContext(ctx, size * 0.50, size * 0.58, size * 0.23, -0.28);" in held_shuttle_texture_section
-    assert "ctx.ellipse(-43, 0, 12, 43, 0, 0, Math.PI * 2);" not in held_shuttle_texture_section
-    assert "drawHeldShuttleTieRing" not in held_shuttle_texture_section
     draw_shuttle_start = html.index("function drawShuttlecock(x, y, radius, rotation) {")
     draw_shuttle_section = html[draw_shuttle_start:html.index("function drawBackspinBall(ball) {", draw_shuttle_start)]
     assert "drawBadmintonShuttlecockOnContext(ctx, x, y, radius, rotation);" in draw_shuttle_section
-    held_shuttle_create_start = html.index("function createVrmHeldShuttlecock(name, options) {")
-    held_shuttle_create_section = html[held_shuttle_create_start:html.index("function syncPlayerHeldShuttleVisibility() {", held_shuttle_create_start)]
-    assert "new THREE.CanvasTexture(textureCanvas)" in held_shuttle_create_section
-    assert "drawVrmHeldShuttlecockTexture(textureCtx, 256);" in held_shuttle_create_section
-    assert "new THREE.SpriteMaterial({" in held_shuttle_create_section
-    assert "held-shuttle-vrm-hand-sprite" in held_shuttle_create_section
-    assert "sprite.scale.set(0.34, 0.34, 1);" in held_shuttle_create_section
-    assert "held-shuttle-shared-2d-style-sprite" not in held_shuttle_create_section
-    assert "held-shuttle-2d-style-cork-depth" not in held_shuttle_create_section
-    assert "new THREE.CylinderGeometry(0.012, 0.014, 0.018, 18)" not in held_shuttle_create_section
-    assert "held-shuttle-realistic-model" not in held_shuttle_create_section
-    assert "held-shuttle-feather-plane" not in held_shuttle_create_section
-    assert "held-shuttle-feather-rib" not in held_shuttle_create_section
-    assert "new THREE.BufferGeometry()" not in held_shuttle_create_section
-    assert "var featherPlaneCount" not in held_shuttle_create_section
-    assert "new THREE.ConeGeometry" not in held_shuttle_create_section
     held_shuttle_overlay_start = html.index("function getPlayerVrmHeldShuttleCanvasPoint() {")
     held_shuttle_overlay_section = html[held_shuttle_overlay_start:html.index("function drawAiming(now)", held_shuttle_overlay_start)]
-    assert "playerVrmHeldShuttle.localToWorld(heldPoint);" in held_shuttle_overlay_section
-    assert "heldPoint.clone().project(window.badmintonPlayerVrmManager.camera);" in held_shuttle_overlay_section
-    assert "var hand = getPlayerVrmBone(vrm, 'leftHand');" in held_shuttle_overlay_section
-    assert "localX = (projected.x + 1) * 0.5 * rect.width + rect.width * 0.012;" in held_shuttle_overlay_section
-    assert "localY = (1 - (projected.y + 1) * 0.5) * rect.height + rect.height * 0.195;" in held_shuttle_overlay_section
+    assert "manager.getScreenAnchor(PLAYER_SHUTTLE_ANCHOR);" in held_shuttle_overlay_section
+    assert "manager.getScreenAnchor(PLAYER_LEFT_HAND_ANCHOR);" in held_shuttle_overlay_section
+    assert "localX = trackedAnchor.x - rect.left + rect.width * 0.012;" in held_shuttle_overlay_section
+    assert "localY = trackedAnchor.y - rect.top + rect.height * 0.195;" in held_shuttle_overlay_section
     assert "source = 'player-vrm-held-shuttle-left-hand';" in held_shuttle_overlay_section
     assert "source = 'player-vrm-held-shuttle-serve-hand-fallback';" in held_shuttle_overlay_section
     assert "window.__badmintonPlayerHeldShuttleDebug = {" in held_shuttle_overlay_section
-    assert "window.__badmintonPlayerHeldShuttleDebug = { source: 'player-vrm-held-shuttle-mesh' };" in held_shuttle_overlay_section
+    assert "window.__badmintonPlayerHeldShuttleDebug = { source: 'player-unity-held-shuttle-accessory' };" in held_shuttle_overlay_section
     assert "function clearPlayerHeldShuttleOverlayCanvas() {" in held_shuttle_overlay_section
     assert "playerSenseiHeldShuttleCtx.clearRect(0, 0, rect.width, rect.height);" in held_shuttle_overlay_section
     assert "var point = getPlayerHeldShuttleServeHandCanvasPoint() || getPlayerVrmHeldShuttleCanvasPoint();" in held_shuttle_overlay_section
@@ -2878,20 +2867,18 @@ def test_badminton_scene_uses_compact_avatars_and_net():
     render_start = html.index("function render(now) {")
     render_section = html[render_start:html.index("function loop(ts) {", render_start)]
     assert "drawBall();\n    drawPlayerVrmHeldShuttleOverlay();" in render_section
-    assert "function attachPlayerHeldShuttleToHand(vrm) {" in html
+    assert "async function attachPlayerHeldShuttleToHand(manager) {" in html
     assert "function syncPlayerHeldShuttleVisibility() {" in html
-    assert "function attachPlayerRacketToHand(vrm) {" in html
-    held_shuttle_attach_start = html.index("function attachPlayerHeldShuttleToHand(vrm) {")
-    held_shuttle_attach_section = html[held_shuttle_attach_start:html.index("function attachYuiRacketToHand(vrm) {", held_shuttle_attach_start)]
-    assert "var hand = getPlayerVrmAttachmentBone(vrm, 'leftHand');" in held_shuttle_attach_section
-    assert "rightHand" not in held_shuttle_attach_section
-    assert "shuttle.renderOrder = 10;" in html
-    assert "x: 0.040,\n      y: 0.000,\n      z: 0.135," in html
-    assert "function attachYuiRacketToHand(vrm) {" in html
+    assert "async function attachPlayerRacketToHand(manager) {" in html
+    assert "async function attachYuiRacketToHand(manager) {" in html
+    assert "preset: 'badmintonRacket'" in html
+    assert "preset: 'badmintonShuttle'" in html
+    assert "bone: 'rightHand'" in html
+    assert "bone: 'leftHand'" in html
+    assert "position: { x: 0.040, y: 0.000, z: 0.135 }" in html
+    assert "eulerRadians: { x: -0.82, y: 0.20, z: -0.20 }" in html
     assert "function getPlayerVrmRacketContactPoint() {" in html
-    assert "var sweetSpot = new THREE.Vector3(0, 0.475, 0.002);" in html
-    assert "playerVrmRacket.localToWorld(sweetSpot);" in html
-    assert "sweetSpot.clone().project(window.badmintonPlayerVrmManager.camera);" in html
+    assert "manager.getScreenAnchor(PLAYER_RACKET_ANCHOR);" in html
     assert "clientX / Math.max(1, window.innerWidth) * BASE_W" in html
     assert "window.__badmintonPlayerRacketDebug = {" in html
     assert "var live2dPath = charData.live2d_path || '/static/yui-lolita/yui-lolita.model3.json';" in html
@@ -2899,51 +2886,47 @@ def test_badminton_scene_uses_compact_avatars_and_net():
     assert "window.lanlan_config.live3d_sub_type = '';" in html
     assert "await initLive2DAvatar(live2dPath);" in html
     assert "await initVRMAvatar(vrmPath);" not in html
-    assert "var hand = getPlayerVrmAttachmentBone(vrm, 'rightHand');" in html
-    assert "hand.add(playerVrmRacket);" in html
-    assert "hand.add(playerVrmHeldShuttle);" in html
-    assert "hand.add(yuiVrmRacket);" in html
     assert "playerSenseiContainer.dataset.racket3d = 'ready';" in html
     assert "playerSenseiContainer.dataset.heldShuttle3d = 'ready';" in html
     assert "nekoVrmContainer.dataset.racket3d = 'ready';" in html
-    assert "if (!attachPlayerRacketToHand(vrm)) {" in html
-    assert "if (!attachPlayerHeldShuttleToHand(vrm)) {" in html
-    assert "if (!attachYuiRacketToHand(vrm)) {" in html
+    assert "var racketAttached = await attachPlayerRacketToHand(manager);" in html
+    assert "var shuttleAttached = await attachPlayerHeldShuttleToHand(manager);" in html
+    assert "if (!await attachYuiRacketToHand(manager)) {" in html
     assert "delete nekoVrmContainer.dataset.racket3d;" in html
-    assert "playerVrmHeldShuttle.visible = !!shouldDrawHeldShuttle();" in html
+    assert "manager.setAccessoryVisible(PLAYER_SHUTTLE_ACCESSORY_ID, visible);" in html
     assert "syncPlayerHeldShuttleVisibility();" in html
     assert "game.heldShuttleVisible = false;" in html
-    player_init_start = html.index("manager.currentModel = { vrm: vrm, gltf: gltf, scene: vrm.scene, url: SENSEI_VRM_PATH };")
-    player_init_section = html[player_init_start:html.index("if (manager.renderer && manager.renderer.domElement)", player_init_start)]
-    assert player_init_section.index("if (!attachPlayerRacketToHand(vrm)) {") < player_init_section.index("fitVRMToContainer(manager, vrm, playerSenseiContainer);")
-    yui_vrm_start = html.index("manager.currentModel = { vrm: vrm, gltf: gltf, scene: vrm.scene, url: vrmPath };")
-    yui_vrm_section = html[yui_vrm_start:html.index("if (manager.renderer && manager.renderer.domElement)", yui_vrm_start)]
-    assert yui_vrm_section.index("if (!attachYuiRacketToHand(vrm)) {") < yui_vrm_section.index("fitVRMToAudience(manager, vrm);")
-    assert "new THREE.CylinderGeometry(0.0088, 0.0108, 0.16, 12)" in html
-    assert "butt.name = 'racket-butt-cap';" in html
-    assert "gripWrap.name = 'racket-grip-wrap';" in html
-    assert "shaft.name = 'racket-shaft';" in html
-    assert "new THREE.TorusGeometry(0.082, 0.0042, 10, 56)" in html
-    assert "head.scale.set(0.68, 1.28, 1);" in html
-    assert "racket.scale.setScalar(options.scale == null ? 1.18 : options.scale);" in html
-    assert "node.frustumCulled = false;" in html
-    assert "scale: 1.26," in html
-    assert "scale: 1.20," in html
-    assert "x: 0.006," in html
-    assert "y: 0.002," in html
+    player_init_start = html.index("await manager.loadModel(SENSEI_VRM_PATH, {")
+    player_init_section = html[player_init_start:html.index("if (manager.canvas)", player_init_start)]
+    assert player_init_section.index("var racketAttached = await attachPlayerRacketToHand(manager);") < player_init_section.index("fitVRMToContainer(manager, playerSenseiContainer);")
+    assert "await manager.trackScreenAnchors(anchorTracks);" in player_init_section
+    yui_vrm_start = html.index("await manager.loadModel(vrmPath, {")
+    yui_vrm_section = html[yui_vrm_start:html.index("if (manager.canvas)", yui_vrm_start)]
+    assert yui_vrm_section.index("if (!await attachYuiRacketToHand(manager)) {") < yui_vrm_section.index("fitVRMToAudience(manager);")
+    assert "scale: { x: 1.26, y: 1.26, z: 1.26 }" in html
+    assert "scale: { x: 1.20, y: 1.20, z: 1.20 }" in html
+    assert "GLTFLoader" not in html
+    assert "@pixiv/three-vrm" not in html
+    assert "manager.scene.add" not in html
     assert "filter: saturate(1.14);" in html
     assert "#player-sensei-vrm-container.shooting { animation: sensei-shooting .42s ease-out; }" not in html
     assert "#player-sensei-vrm-container.charging { animation: sensei-charging .72s ease-in-out infinite; }" not in html
     assert "function applyPlayerVrmPoseFrame(action, progress) {" in html
-    assert "function setPlayerVrmBonePose(vrm, name, x, y, z, weight) {" in html
+    assert "manager.setPose({" in html
+    assert "manager.resetPose(PLAYER_VRM_POSE_ID)" in html
     assert "startPlayerVrmPose(action, duration);" in html
-    assert "playerVrmRestPose = capturePlayerVrmRestPose(vrm);" in html
     pose_start = html.index("function applyPlayerVrmPoseFrame(action, progress) {")
     pose_section = html[pose_start:html.index("function startPlayerVrmPose(", pose_start)]
     assert "rightUpperArm" not in pose_section
     assert "rightLowerArm" not in pose_section
     assert "leftUpperArm" not in pose_section
     assert "rightHand" not in pose_section
+    assert "addBone('hips', 0.035, 0, -0.012, w);" in pose_section
+    assert "addBone('head', 0.18, 0, 0.04, 1);" in pose_section
+    assert "rootOffset.y = -0.025 * strike;" in pose_section
+    assert "playerVrmRacket" not in html
+    assert "playerVrmHeldShuttle" not in html
+    assert "getPlayerVrmBone" not in html
     assert "drawBadmintonRacket(heldBall.x + 8 * s, heldBall.y - 4 * s, s" in draw_section
     assert "ctx.arc(heldBall.x + 8 * s, heldBall.y - 4 * s, 46 * s" in draw_section
 

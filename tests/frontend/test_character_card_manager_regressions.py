@@ -259,16 +259,15 @@ def _install_preview_stubs(page: Page, load_delay_ms: int = 0) -> None:
             window.ensureMmdModulesLoaded = async () => true;
             window.VRMManager = class FakeVrmManager {
                 constructor() {
-                    this.renderer = {
-                        setSize() {}
-                    };
-                    this.camera = {
-                        aspect: 1,
-                        updateProjectionMatrix() {}
-                    };
+                    this.canvas = document.getElementById('vrm-preview-canvas');
                 }
 
-                async initThreeJS() {}
+                async initRenderer() {}
+
+                getSurfaceCanvas() { return this.canvas; }
+                setSurfacePixelRatio() {}
+                resizeSurface() {}
+                fitModel() {}
 
                 async loadModel() {
                     return { name: 'fake-vrm-model' };

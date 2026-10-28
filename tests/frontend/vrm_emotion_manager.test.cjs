@@ -120,7 +120,6 @@ function surface(t, options = {}) {
         parent.window.console = w.console;
         parent.window.Date.now = () => now;
         parent.window.requestAnimationFrame = fn => options.frameWait ? options.frameWait(fn) : fn();
-        parent.window.VRMOrientationDetector = { applyRotation: vrm => calls.push({ rotation: vrm.scene.modelUrl }) };
         parent.window.eval(fs.readFileSync(path.join(root, 'static/js/model_manager/vrm-emotion-source.js'), 'utf8'));
         const manager = {
             get currentModel() { return { url: activeUrl, vrm: {} }; },
@@ -130,23 +129,57 @@ function surface(t, options = {}) {
         };
         if (options.actualController) {
             let loadedUrl = activeUrl;
-            const model = url => ({ url, vrm: { scene: { modelUrl: url, rotation: { x: 0, y: 0.5, z: 0 },
+            const model = url => ({ url, transform: { rotation: { x: 0, y: 0.5, z: 0 },
                 position: { clone: () => ({ x: 1, y: 2, z: 3 }) },
-                scale: { clone: () => ({ x: 1, y: 1, z: 1 }) } } } });
+                scale: { clone: () => ({ x: 1, y: 1, z: 1 }) } }, vrm: {} });
             let loadedModel = model(loadedUrl);
             const realManager = {
-                scene: { remove: scene => calls.push({ removed: scene.modelUrl }) }, camera: {}, renderer: {},
+                _isInitialized: !options.rendererInit,
                 get currentModel() { return loadedModel; },
                 set currentModel(value) { loadedModel = value; },
                 get _activeLoadToken() { return token; },
                 get _isModelReadyForInteraction() { return state === 'ready'; },
                 expression: { ...manager.expression, loadMoodMap: name => calls.push({ moodMap: name }) },
-                core: {
-                    saveUserPreferences: async (url, position, scale, rotation) => {
-                        calls.push({ preferences: url, position, scale, rotation });
-                        return options.preferenceSave ? options.preferenceSave() : true;
-                    },
-                    disposeVRM: () => calls.push({ disposedModel: loadedModel?.url })
+                isInitialized() { return this._isInitialized; },
+                async initRenderer() {
+                    if (options.rendererInit) await options.rendererInit();
+                    this._isInitialized = true;
+                },
+                async detectOrientation() {
+                    const detectionToken = token;
+                    for (let index = 0; index < 4; index += 1) {
+                        await new Promise(resolve => parent.window.requestAnimationFrame(resolve));
+                        if (token !== detectionToken) return null;
+                    }
+                    return {
+                        orientationReliable: true,
+                        needsRotation: true,
+                        suggestedRotation: { x: 0, y: 0.5, z: 0 }
+                    };
+                },
+                async setModelRotation(rotation) {
+                    if (!loadedModel) return false;
+                    loadedModel.transform.rotation = { ...rotation };
+                    calls.push({ rotation: loadedModel.url, value: rotation });
+                    return true;
+                },
+                async savePreferences({ isCurrent } = {}) {
+                    if (typeof isCurrent === 'function' && !isCurrent()) return false;
+                    calls.push({
+                        preferences: loadedModel?.url,
+                        position: loadedModel?.transform?.position,
+                        scale: loadedModel?.transform?.scale,
+                        rotation: loadedModel?.transform?.rotation
+                    });
+                    return options.preferenceSave
+                        ? Promise.resolve(options.preferenceSave()).catch(() => false)
+                        : true;
+                },
+                async unloadModel() {
+                    calls.push({ disposedModel: loadedModel?.url });
+                    loadedModel = null;
+                    state = 'loading';
+                    return true;
                 },
                 async loadModel(url, loadOptions) {
                     calls.push({ load: url, loadOptions }); const loadToken = ++token; state = 'loading';
@@ -158,14 +191,6 @@ function surface(t, options = {}) {
                     } catch (error) { if (loadToken === token) state = 'failed'; throw error; }
                 }
             };
-            if (options.sceneInit) {
-                realManager.scene = null;
-                realManager.initThreeJS = async () => {
-                    await options.sceneInit();
-                    realManager.scene = { remove: scene => calls.push({ removed: scene.modelUrl }) };
-                    realManager.camera = {}; realManager.renderer = {};
-                };
-            }
             controller = installController(parent.window, realManager, models, options, calls);
             controller.manager = realManager;
         } else {
@@ -489,7 +514,7 @@ test('ordinary model-manager voice veto restores the previous model URL and labe
     assert.equal(s.calls.filter(x => 'selectionLabel' in x).at(-1).selectionLabel, '/static/vrm/A.vrm');
     assert.equal(s.calls.filter(x => x.load).length, 0); assert.equal(s.controller.loadCount, 0);
 });
-for (const stage of ['displaySwitch', 'sceneInit']) {
+for (const stage of ['displaySwitch', 'rendererInit']) {
     test(`veto restores B when its ${stage} completes before the successor voice check`, async t => {
         const initialization = deferred(), voice = deferred(); let checks = 0;
         const s = surface(t, { state: 'ready', actualController: true, modelNames: ['A', 'B', 'C'],
@@ -939,7 +964,7 @@ for (const stage of ['parse', 'frame', 'beforeSave', 'save']) test(`superseded u
     for (let i = 0; frames.length && i < 10; i++) { frames.shift()(); await flush(); }
     await observed;
     assert.equal(s.calls.filter(x => x.preferences).length, stage === 'save' ? 1 : 0);
-    assert.equal(s.calls.filter(x => x.disposedModel || x.removed).length, 0);
+    assert.equal(s.calls.filter(x => x.disposedModel).length, 0);
     assert.equal(s.controller.manager.currentModel.url, '/static/vrm/B.vrm');
     assert.ok(!s.controller.uploadStatus.textContent.includes('已修正并保存'));
 });
@@ -957,7 +982,7 @@ for (const invalidation of ['sameUrl', 'close', 'managerReplacement']) test(`upl
     else s.w.opener.vrmManager = { currentModel: s.controller.manager.currentModel };
     for (let i = 0; frames.length && i < 10; i++) { frames.shift()(); await flush(); }
     await observed;
-    assert.equal(s.calls.filter(x => x.preferences || x.rotation || x.disposedModel || x.removed).length, 0);
+    assert.equal(s.calls.filter(x => x.preferences || x.rotation || x.disposedModel).length, 0);
 });
 
 test('current upload saves its own transform and disposes only its temporary model', async t => {
@@ -967,7 +992,6 @@ test('current upload saves its own transform and disposes only its temporary mod
     assert.equal(saves.length, 1); assert.equal(saves[0].preferences, '/user_vrm/upload.vrm');
     assert.equal(saves[0].rotation.y, 0.5);
     assert.equal(s.calls.filter(x => x.disposedModel).length, 1);
-    assert.equal(s.calls.find(x => x.removed).removed, '/user_vrm/upload.vrm');
     assert.equal(s.controller.manager.currentModel, null);
     assert.equal(s.controller.retainedLoadCount, 0);
 });
@@ -994,7 +1018,7 @@ for (const stage of ['parse', 'frame', 'save', 'parseError', 'saveError']) test(
     assert.equal(s.controller.uploadStatus.textContent, 'newer operation status');
     assert.equal(outcome, null);
     assert.equal(s.controller.retainedLoadCount, 0);
-    assert.equal(s.calls.filter(x => x.removed || x.disposedModel).length, 0);
+    assert.equal(s.calls.filter(x => x.disposedModel).length, 0);
     assert.equal(s.controller.manager.currentModel.url, '/static/vrm/B.vrm');
 });
 

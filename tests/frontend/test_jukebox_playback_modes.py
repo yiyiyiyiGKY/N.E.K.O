@@ -12,7 +12,6 @@ JUKEBOX_SCRIPT = "\n".join(part.read_text(encoding="utf-8") for part in JUKEBOX_
 JUKEBOX_LOADER_SCRIPT = (REPO_ROOT / "static" / "jukebox" / "jukebox-loader.js").read_text(encoding="utf-8")
 JUKEBOX_TEMPLATE = (REPO_ROOT / "templates" / "jukebox.html").read_text(encoding="utf-8")
 JUKEBOX_MANAGER_TEMPLATE = (REPO_ROOT / "templates" / "jukebox_manager.html").read_text(encoding="utf-8")
-VRM_ANIMATION_SCRIPT = (REPO_ROOT / "static" / "vrm" / "vrm-animation.js").read_text(encoding="utf-8")
 
 HARNESS_HTML = """
 <!DOCTYPE html>
@@ -1427,80 +1426,6 @@ def test_jukebox_progress_seek_uses_loaded_config_offset_before_manager_load(moc
         "currentOffset": 6,
         "audioCurrentTime": 50,
         "vrmSeekCalls": [{"time": 50.1, "paused": False}],
-    }
-
-
-@pytest.mark.frontend
-def test_vrm_animation_seek_preserves_paused_state_and_refreshes_pose(mock_page: Page):
-    mock_page.set_content("<html><body></body></html>")
-    mock_page.evaluate("() => { window.THREE = {}; }")
-    mock_page.add_script_tag(content=VRM_ANIMATION_SCRIPT)
-
-    result = mock_page.evaluate(
-        """
-        () => {
-          const events = [];
-          const skinnedMesh = {
-            isSkinnedMesh: true,
-            skeleton: {
-              update() {
-                events.push('skeleton');
-              }
-            }
-          };
-          const scene = {
-            uuid: 'scene-a',
-            traverse(callback) {
-              callback(skinnedMesh);
-            },
-            updateMatrixWorld(force) {
-              events.push(`matrix:${force}`);
-            }
-          };
-          const manager = { currentModel: { vrm: { scene } } };
-          const anim = new window.VRMAnimation(manager);
-          anim.vrmaMixer = {
-            update(delta) {
-              events.push(`mixer:${delta}`);
-            },
-            getRoot() {
-              return scene;
-            }
-          };
-          anim.currentAction = { time: 0, paused: true };
-
-          const ok = anim.seekTo(3.25);
-          const pausedAfterFirstSeek = anim.currentAction.paused;
-          const okPlaying = anim.seekTo(1.5, { paused: false });
-
-          return {
-            ok,
-            okPlaying,
-            pausedAfterFirstSeek,
-            actionTime: anim.currentAction.time,
-            actionPaused: anim.currentAction.paused,
-            cachedMeshes: anim._skinnedMeshes.length,
-            events
-          };
-        }
-        """
-    )
-
-    assert result == {
-        "ok": True,
-        "okPlaying": True,
-        "pausedAfterFirstSeek": True,
-        "actionTime": 1.5,
-        "actionPaused": False,
-        "cachedMeshes": 1,
-        "events": [
-            "mixer:0",
-            "matrix:true",
-            "skeleton",
-            "mixer:0",
-            "matrix:true",
-            "skeleton",
-        ],
     }
 
 
@@ -4250,70 +4175,6 @@ def test_jukebox_auto_advance_is_cancelled_when_mode_changes(mock_page: Page):
 
     assert result["played"] == []
     assert result["current"] is None
-
-
-@pytest.mark.frontend
-def test_vrm_animation_stale_request_does_not_touch_shared_state(mock_page: Page):
-    """Codex P2: shouldStart must gate the shared-state mutations, not only playback.
-
-    A request superseded while its asset loads used to still set
-    ``isIdleAnimation`` and build an action on the live mixer before the final
-    gate rejected it.
-    """
-    mock_page.set_content("<html><body></body></html>")
-    mock_page.evaluate("() => { window.THREE = {}; }")
-    mock_page.add_script_tag(content=VRM_ANIMATION_SCRIPT)
-
-    result = mock_page.evaluate(
-        """
-        async () => {
-          const scene = { uuid: 'scene-a', traverse() {}, updateMatrixWorld() {} };
-          const manager = { currentModel: { vrm: { scene, humanoid: {} } } };
-          const anim = new window.VRMAnimation(manager);
-
-          let created = 0;
-          let released = 0;
-          let played = 0;
-          let superseded = false;
-
-          anim._cacheSkinnedMeshes = () => {};
-          anim._cleanupOldMixer = () => {};
-          anim._initLoader = async () => ({});
-          anim._loadVRMAGltf = async () => {
-            // 资源加载期间，点唱机换了歌，这条动画请求已经作废。
-            superseded = true;
-            return { userData: { vrmAnimations: [{}] } };
-          };
-          anim._detectVRMVersion = () => 1;
-          anim._ensureNormalizedRootInScene = () => {};
-          anim._createLookAtProxy = async () => {};
-          anim._createAndValidateAnimationClip = async () => ({});
-          anim._processTracksForVersion = () => {};
-          anim._normalizeQuaternionTrackSigns = () => {};
-          anim._alignClipToCurrentPose = () => {};
-          anim._findBestMixerRoot = () => ({});
-          anim._createAndConfigureAction = () => { created += 1; return {}; };
-          anim._releaseMixerAction = () => { released += 1; };
-          anim._playAction = () => { played += 1; };
-          anim._restorePhysics = () => {};
-          anim.isIdleAnimation = 'untouched';
-
-          const started = await anim.playVRMAAnimation('/x.vrma', {
-            isIdle: true,
-            shouldStart: () => !superseded
-          });
-
-          return { started, created, released, played, isIdleAnimation: anim.isIdleAnimation };
-        }
-        """
-    )
-
-    assert result["started"] is False
-    assert result["played"] == 0
-    # Invalidated requests must neither alter isIdleAnimation nor create actions on a live mixer.
-    assert result["isIdleAnimation"] == "untouched"
-    assert result["created"] == 0
-    assert result["released"] == 0
 
 
 @pytest.mark.frontend

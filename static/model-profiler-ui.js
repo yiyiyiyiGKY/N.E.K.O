@@ -376,9 +376,11 @@ class ModelProfilerUI {
         if (!manager) return;
         const currentModel = manager.currentModel;
         const mmd = currentModel?.mesh ? currentModel : null;
-        const vrm = currentModel?.vrm || (currentModel?.scene && !currentModel?.mesh ? currentModel : null);
         const scene = manager.scene;
-        if (!scene) return;
+        if (!mmd || !scene) {
+            console.warn('[Profiler] Unity VRM 的调试可视化由 Unity 侧负责，浏览器不访问其场景');
+            return;
+        }
 
         // 已有 → 移除
         if (this._debugHelpers[type]) {
@@ -414,7 +416,7 @@ class ModelProfilerUI {
             } else if (type === 'skeleton') {
                 const THREE = window.THREE;
                 if (THREE?.SkeletonHelper) {
-                    const skeletonTarget = mmd?.mesh || vrm?.scene || null;
+                    const skeletonTarget = mmd.mesh;
                     if (!skeletonTarget) {
                         console.warn('[Profiler] 当前模型未找到可用骨骼节点');
                         return;

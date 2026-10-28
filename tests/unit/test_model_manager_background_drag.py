@@ -20,11 +20,8 @@ def test_existing_model_drag_hit_areas_are_not_expanded():
     assert not re.search(r"^\s*stage\.hitArea\s*=", live2d_drag, re.MULTILINE)
     assert "modelManagerBackgroundDragEnabled" not in live2d_drag
 
-    vrm = read_source("static/vrm/vrm-interaction.js")
     mmd = read_source("static/mmd/mmd-interaction.js")
-    assert "if (!this._hitTestModel(e.clientX, e.clientY))" in vrm
     assert "if (!this._hitTestModel(e.clientX, e.clientY)) return;" in mmd
-    assert "_isModelManagerBackgroundPanEnabled" not in vrm
     assert "_isModelManagerBackgroundPanEnabled" not in mmd
 
 

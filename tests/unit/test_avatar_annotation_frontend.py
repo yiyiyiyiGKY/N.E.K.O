@@ -229,6 +229,31 @@ console.log(JSON.stringify(results));
     assert _run(script)["pos"] is not None
 
 
+@pytest.mark.unit
+def test_unity_vrm_uses_manager_screen_bounds_without_three_projection():
+    src = _screen_src()
+    position_source = _fn(src, "getAvatarScreenPosition")
+    assert "setFromObject(model.vrm.scene)" not in position_source
+    script = """
+const window = {
+  innerWidth: 1200, innerHeight: 800,
+  screen: { width: 1920, height: 1080 },
+  vrmManager: {
+    getModelScreenBounds() {
+      return { centerX: 600, centerY: 320, width: 240, height: 480 };
+    }
+  }
+};
+const document = { getElementById() { return null; } };
+const getComputedStyle = () => ({ visibility: 'visible' });
+function isKnownMultiDisplay() { return false; }
+__GET_POS__
+console.log(JSON.stringify({ pos: getAvatarScreenPosition('viewport') }));
+""".replace("__GET_POS__", position_source)
+    pos = _run(script)["pos"]
+    assert pos == {"centerX": 0.5, "centerY": 0.4, "width": 0.2, "height": 0.6}
+
+
 # --------------------------------------------------------------------------
 # buildStreamDataMessage: explicit capture type
 # --------------------------------------------------------------------------

@@ -12,7 +12,7 @@ def test_character_switch_resets_avatar_lock_after_successful_model_load():
     source = APP_CHARACTER_PATH.read_text(encoding="utf-8")
 
     assert "function resetAvatarLockForCharacterSwitch(modelType)" in source
-    assert "window.vrmManager.core.setLocked(false)" in source
+    assert "window.vrmManager.setLocked?.(false)" in source
     assert "window.mmdManager.core.setLocked(false)" in source
     assert "window.live2dManager.setLocked(false, { updateFloatingButtons: !hiddenByModelManager })" in source
     assert "rehideMainUIIfModelManagerOwnsVisibility('character-switch-lock-reset')" in source
@@ -32,6 +32,17 @@ def test_character_switch_resets_avatar_lock_after_successful_model_load():
     fallback_load = source.index("await window.live2dManager.loadModel(defaultConfig, {")
     fallback_reset = source.index("resetAvatarLockForCharacterSwitch('live2d');", fallback_load)
     assert fallback_load < fallback_reset
+
+
+def test_character_switch_unloads_unity_vrm_through_manager_protocol():
+    source = APP_CHARACTER_PATH.read_text(encoding="utf-8")
+
+    unload_call = source.index("await window.vrmManager.unloadModel();")
+    hide_surface = source.index("window.vrmManager.setSurfaceVisible(false);", unload_call)
+
+    assert unload_call < hide_surface
+    assert "window.vrmManager.scene" not in source
+    assert "window.vrmManager.renderer" not in source
 
 
 def test_character_switch_clears_goodbye_state_only_after_commit():

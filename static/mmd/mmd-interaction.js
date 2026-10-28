@@ -1,6 +1,6 @@
 /**
  * MMD 交互模块 - 点击检测、拖拽、缩放、锁定
- * 参考 vrm-interaction.js 的结构
+ * MMD 模型交互模块。
  */
 
 var THREE = (typeof window !== 'undefined' && window.THREE) || (typeof globalThis !== 'undefined' && globalThis.THREE) || null;

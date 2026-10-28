@@ -10,7 +10,7 @@ N.E.K.O. のメイン UI は FastAPI メインサーバーから配信されま�
 | チャット UI | React 18、TypeScript | `frontend/react-neko-chat/` | `static/react/neko-chat/neko-chat-window.iife.js` と `.css` |
 | プラグインマネージャー | Vue 3、TypeScript | `frontend/plugin-manager/` | `frontend/plugin-manager/dist/`、プラグインサーバーから配信 |
 
-アバターレンダラーはメイン UI の一部です。Live2D は Pixi/Cubism、VRM と MMD は Three.js、PNGTuber は `static/pngtuber-core.js` を使用します。Electron デスクトップペットはホストモードであり、別のアバター形式ではありません。
+アバターレンダラーはメイン UI の一部です。Live2D は Pixi/Cubism、VRM は Unity WebGL + UniVRM、MMD は Three.js、PNGTuber は `static/pngtuber-core.js` を使用します。Electron デスクトップペットは host mode であり、別の avatar format や第二の Unity integration ではありません。
 
 ## 唯一のチャット実装
 

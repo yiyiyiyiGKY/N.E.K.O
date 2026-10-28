@@ -1168,21 +1168,18 @@ resubmit. Other successful preparations return the existing job identifier.
 
 ## Stable 3D reference pose
 
-Trusted VRM providers must initialize the engine with `embed: true`, as the
-bundled provider does. The embedding host then owns framing: interaction bounds
-continue to update, but desktop automatic FOV expansion/relaxation cannot undo
-the SDK fit or deliberate cropping. Non-embedded desktop behavior is unchanged;
-MMD's corresponding bounds update already leaves the camera projection alone.
+Unity VRM providers use the renderer's `fitModel` surface contract directly;
+they do not expose a Three.js scene, camera, or skinned-mesh reference box.
 
-VRM/MMD fitting uses a precise, model-root-local reference box rather than the
-engine's cached `SkinnedMesh.boundingBox`. Animated engines may leave that box
+MMD fitting uses a precise, model-root-local reference box rather than the
+engine's cached `SkinnedMesh.boundingBox`. Animated Three.js models may leave that box
 at the original T-pose even after the arms move down. The reference is measured
 once per model, then reused for resize/view changes; it does not follow each
 animation frame or change bone/physics scale.
 
 The trusted provider calls
-`await NekoMiniGameAvatarHost.preparePerspectiveReference(THREE, manager, {type, signal, isCurrent})`
-after loading a VRM/MMD and before the first fit. This runs the bundled `wait03`
+`await NekoMiniGameAvatarHost.preparePerspectiveReference(THREE, manager, {type: 'mmd', signal, isCurrent})`
+after loading an MMD model and before the first fit. This runs the bundled `wait03`
 reference animation with immediate frame-zero evaluation, updates the engine
 pose, and verifies that the wrists are below the upper arms and the head is above
 the hips. A name such as `idle` alone is not evidence of an arms-down pose.

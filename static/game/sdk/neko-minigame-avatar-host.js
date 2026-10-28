@@ -193,9 +193,9 @@
 
   async function preparePerspectiveReference(THREE, manager, options = {}) {
     const kind = options.type;
-    if (kind !== 'vrm' && kind !== 'mmd') fail('invalid_renderer', 'Expected VRM or MMD reference');
+    if (kind !== 'mmd') fail('invalid_renderer', 'Expected MMD reference');
     const loaded = manager.currentModel;
-    const model = kind === 'vrm' ? loaded?.vrm?.scene : loaded?.mesh;
+    const model = loaded?.mesh;
     if (!model) fail('invalid_renderer', 'Avatar model is not loaded');
     const current = () => !options.signal?.aborted && manager.currentModel === loaded
       && (typeof options.isCurrent !== 'function' || options.isCurrent());
@@ -207,36 +207,23 @@
     const fallback = capturePerspectiveReference(THREE, model, { reason: 'standing-reference-unavailable' });
     const visible = model.visible;
     model.visible = false;
-    const animation = kind === 'vrm' ? '/static/vrm/animation/wait03.vrma.gz' : '/static/mmd/animation/wait03.vmd';
+    const animation = '/static/mmd/animation/wait03.vmd';
     try {
-      if (kind === 'vrm') {
-        const ok = await manager.playVRMAAnimation?.(animation,
-          { loop: true, immediate: true, isIdle: true, shouldApply: current });
-        check();
-        if (ok !== true) return fallback;
-        // Immediate playback evaluates the clip at t=0; update normalized bones
-        // before reading raw skinned vertices. No sleep or physics time step.
-        manager.animation?.update?.(0);
-      } else {
-        const clip = await manager.loadAnimation?.(animation, { immediate: true });
-        check();
-        if (!clip) return fallback;
-        // MMD loadAnimation resolves after frame-zero mixer, IK and grant work.
-        manager.playAnimation?.('idle');
-      }
+      const clip = await manager.loadAnimation?.(animation, { immediate: true });
+      check();
+      if (!clip) return fallback;
+      // MMD loadAnimation resolves after frame-zero mixer, IK and grant work.
+      manager.playAnimation?.('idle');
       model.updateWorldMatrix(true, true);
       const inverseRoot = model.matrixWorld.clone().invert();
-      const bone = (vrmName, mmdName) => kind === 'vrm'
-        ? loaded.vrm.humanoid?.getRawBoneNode?.(vrmName)
-        : loaded.mesh.skeleton?.bones?.find(node => node.name === mmdName);
+      const bone = mmdName => loaded.mesh.skeleton?.bones?.find(node => node.name === mmdName);
       const point = node => node?.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverseRoot);
       // A named idle is not proof of a standing pose. Require both wrists below
       // upper arms and head above hips in this model's fixed local Y-up frame.
-      const head = point(bone('head', '頭')), hips = point(bone('hips', '下半身'));
-      const arms = [['leftUpperArm', '左腕', 'leftHand', '左手首'],
-        ['rightUpperArm', '右腕', 'rightHand', '右手首']];
+      const head = point(bone('頭')), hips = point(bone('下半身'));
+      const arms = [['左腕', '左手首'], ['右腕', '右手首']];
       const standing = head && hips && head.y > hips.y && arms.every(names => {
-        const upper = point(bone(names[0], names[1])), hand = point(bone(names[2], names[3]));
+        const upper = point(bone(names[0])), hand = point(bone(names[1]));
         if (!upper || !hand) return false;
         const length = upper.distanceTo(hand);
         return length > 1e-6 && upper.y - hand.y >= length * 0.5;

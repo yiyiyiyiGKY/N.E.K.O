@@ -74,7 +74,7 @@
             return 'vrm';
         }
         if (global.mmdManager?.currentModel?.mesh) return 'mmd';
-        if (global.vrmManager?.currentModel?.vrm?.scene) return 'vrm';
+        if (global.vrmManager?.currentModel) return 'vrm';
         if (global.live2dManager?.getCurrentModel?.()) return 'live2d';
         return 'live2d';
     }
@@ -1442,10 +1442,9 @@
         }
 
         let canvasRect = detectionInfo?.canvasRect || null;
-        if (!canvasRect &&
-            manager?.renderer?.domElement &&
-            typeof manager.renderer.domElement.getBoundingClientRect === 'function') {
-            canvasRect = manager.renderer.domElement.getBoundingClientRect();
+        const surfaceCanvas = manager?.getSurfaceCanvas?.();
+        if (!canvasRect && surfaceCanvas && typeof surfaceCanvas.getBoundingClientRect === 'function') {
+            canvasRect = surfaceCanvas.getBoundingClientRect();
         }
 
         if (canvasRect &&
@@ -1505,14 +1504,60 @@
         return normalizeManagerAnchorToCanvasCss(anchor, detectionInfo, manager, metrics);
     }
 
+    function isUnityVrmManager(manager) {
+        const Manager = global.UnityVRMManager;
+        return typeof Manager === 'function' && manager instanceof Manager;
+    }
+
+    function screenRectToCanvasCss(rect, canvas, metrics) {
+        if (!rect || !canvas || typeof canvas.getBoundingClientRect !== 'function') return null;
+        const canvasRect = canvas.getBoundingClientRect();
+        const left = finiteOr(rect.left, finiteOr(rect.minX, NaN));
+        const top = finiteOr(rect.top, finiteOr(rect.minY, NaN));
+        const right = finiteOr(rect.right, finiteOr(rect.maxX, NaN));
+        const bottom = finiteOr(rect.bottom, finiteOr(rect.maxY, NaN));
+        if (![left, top, right, bottom].every(Number.isFinite) || right <= left || bottom <= top) return null;
+        const scaleX = metrics.cssWidth / Math.max(1, finiteOr(canvasRect.width, metrics.cssWidth));
+        const scaleY = metrics.cssHeight / Math.max(1, finiteOr(canvasRect.height, metrics.cssHeight));
+        return sanitizeCssRect({
+            x: (left - finiteOr(canvasRect.left, 0)) * scaleX,
+            y: (top - finiteOr(canvasRect.top, 0)) * scaleY,
+            width: (right - left) * scaleX,
+            height: (bottom - top) * scaleY
+        }, metrics);
+    }
+
+    function getUnityVrmCropGeometry(manager, canvas, metrics) {
+        const subjectRect = screenRectToCanvasCss(manager.getModelScreenBounds?.(), canvas, metrics);
+        if (!subjectRect) throw createError('无法计算 Unity VRM 模型包围盒');
+        let detectionInfo = null;
+        try { detectionInfo = manager.getHeadDetectionGeometryInfo?.() || null; } catch (_) {}
+        const headRect = screenRectToCanvasCss(detectionInfo?.headRect, canvas, metrics);
+        const canvasRect = canvas.getBoundingClientRect();
+        const rawAnchor = detectionInfo?.headAnchor || detectionInfo?.rawHeadAnchor || null;
+        const scaleX = metrics.cssWidth / Math.max(1, finiteOr(canvasRect.width, metrics.cssWidth));
+        const scaleY = metrics.cssHeight / Math.max(1, finiteOr(canvasRect.height, metrics.cssHeight));
+        const headAnchor = Number.isFinite(rawAnchor?.x) && Number.isFinite(rawAnchor?.y)
+            ? {
+                x: (rawAnchor.x - finiteOr(canvasRect.left, 0)) * scaleX,
+                y: (rawAnchor.y - finiteOr(canvasRect.top, 0)) * scaleY,
+                headHeight: headRect?.height || 0
+            }
+            : null;
+        return { subjectRect, headAnchor };
+    }
+
     function getVrmAdapter() {
         return {
             type: 'vrm',
             getContext() {
                 const manager = global.vrmManager;
                 const model = manager?.getCurrentModel?.() || manager?.currentModel;
-                const canvas = manager?.renderer?.domElement || document.getElementById('vrm-canvas');
-                if (!manager || !model?.vrm?.scene || !manager.camera || !canvas) {
+                const canvas = manager?.getSurfaceCanvas?.() || document.getElementById('vrm-canvas');
+                if (!isUnityVrmManager(manager)) {
+                    throw createError('Unity VRM 运行时不可用');
+                }
+                if (!model || !canvas) {
                     throw createError('当前没有可用的 VRM 模型');
                 }
                 if (manager._isModelReadyForInteraction === false) {
@@ -1520,30 +1565,16 @@
                 }
                 return { manager, model, canvas };
             },
-            prepare(ctx) {
-                try {
-                    ctx.manager.currentModel?.vrm?.scene?.updateMatrixWorld?.(true);
-                    ctx.manager.renderer?.render?.(ctx.manager.scene, ctx.manager.camera);
-                } catch (_) {}
+            async prepare(ctx) {
+                if (typeof ctx.manager.waitForRenderedFrame === 'function') {
+                    await ctx.manager.waitForRenderedFrame();
+                }
             },
             getCropRect(ctx, options) {
-                const THREE = global.THREE;
-                if (!THREE) {
-                    throw createError('THREE 尚未就绪，无法提取 VRM 头像');
-                }
-
                 const metrics = getCanvasMetrics(ctx.canvas);
-                ctx.model.vrm.scene.updateMatrixWorld(true);
-                const subjectRect = computeProjectedBoxCss(ctx.model.vrm.scene, ctx.manager.camera, metrics, THREE);
-                const managerHeadAnchor = getManagerHeadDetectionAnchor(ctx.manager, metrics);
-                const vrmBoneHeadAnchor = getVrmHeadAnchor(ctx.model, ctx.manager.camera, metrics, THREE);
-                const headAnchor = managerHeadAnchor
-                    ? {
-                        x: managerHeadAnchor.x,
-                        y: managerHeadAnchor.y,
-                        headHeight: finiteOr(vrmBoneHeadAnchor?.headHeight, 0)
-                    }
-                    : vrmBoneHeadAnchor;
+                const geometry = getUnityVrmCropGeometry(ctx.manager, ctx.canvas, metrics);
+                const subjectRect = geometry.subjectRect;
+                const headAnchor = geometry.headAnchor;
 
                 // 立绘模式：返回全身包围盒
                 if (options.cropMode === 'portrait') {

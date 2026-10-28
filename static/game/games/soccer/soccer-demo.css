@@ -55,6 +55,7 @@
   }
   #player-vrm-container *, #ai-l2d-container * { pointer-events: none !important; }
   #player-vrm-container canvas, #ai-l2d-container canvas { width: 100%; height: 100%; display: block; }
+  #ai-l2d-canvas, #ai-vrm-canvas { position: absolute; inset: 0; }
   .soccer-extended-avatar { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }
   .soccer-extended-avatar[hidden] { display: none !important; }
   #soccer-pngtuber-container .pngtuber-image,

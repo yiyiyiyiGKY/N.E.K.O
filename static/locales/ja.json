@@ -4070,22 +4070,11 @@
     "vrm": {
         "error": {
             "modulesNotAvailable": "VRM モジュールの読み込みに失敗しました。VRM モードに切り替えることができません。ページを更新してください。",
-            "coreNotLoaded": "VRMCore が読み込まれていません",
-            "sceneNotInitialized": "モデルを読み込めません: シーンが初期化されていません。",
-            "threeNotLoaded": "Three.js ライブラリが読み込まれていません",
             "containerNotFound": "コンテナ要素が見つかりません: {{id}}",
             "canvasNotFound": "Canvas 要素が見つかりません: {{id}}",
-            "threeNotLoadedForModel": "Three.js が読み込まれていません。VRM モデルを読み込めません",
             "modelLoadFailed": "VRM モデルの読み込みに失敗しました: {{url}} と {{fallback}} の両方が失敗しました",
             "invalidVRMFormat": "読み込まれたモデルは有効な VRM 形式ではありません。ファイル: {{file}}",
-            "sceneNotInitializedForAdd": "シーンが初期化されていません。まず initThreeJS() を呼び出してください。",
-            "animationClipError": "アニメーションクリップの作成中にエラーが発生しました: {{error}}",
-            "animationClipNoBones": "アニメーションクリップの作成に失敗しました: 一致するボーンが見つかりません",
-            "cannotCreateAnimationAction": "アニメーションアクションを作成できません",
-            "invalidModelPath": "無効な VRM モデルパス: {{path}}",
-            "gltfLoaderImportFailed": "GLTFLoaderのインポートに失敗しました: {{error}}",
-            "threeIncomplete": "Three.js の依存関係が不完全です。不足: {{missing}}",
-            "vrmLoaderImportFailed": "VRMLoaderPluginのインポートに失敗しました: {{error}}"
+            "invalidModelPath": "無効な VRM モデルパス: {{path}}"
         },
         "lighting": {
             "title": "VRM ライティング設定",

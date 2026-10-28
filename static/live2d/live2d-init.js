@@ -365,7 +365,7 @@ window.LanLan1.setMouth = function(value, owner) {
         return;
     }
     if (activeType === 'pngtuber') return;
-    // VRM 的嘴型通常由 Audio 分析自动控制 (vrm-animation.js)，这里主要服务 Live2D
+    // VRM 的嘴型由 Unity VRM 适配器驱动，这里主要服务 Live2D。
     if (window.live2dManager && window.live2dManager.currentModel) {
         return window.live2dManager.setMouth(value);
     }
@@ -377,11 +377,11 @@ window.LanLan1.setMouth = function(value, owner) {
  */
 async function cleanupVRMResources() {
     if (!window.vrmManager) return;
-    
+
+    const manager = window.vrmManager;
     try {
-        // 如果 VRM 正在初始化，等待其完成或通过 dispose() 取消
-        // 不要直接设置 _isVRMInitializing = false，避免竞态条件
-        let hasDisposed = false;
+        // 给正在收尾的加载一次正常结束机会；超时后由 Unity manager 的
+        // dispose() 取消其 generation，并关闭唯一的 WebGL runtime。
         if (window._isVRMInitializing) {
             let waitCount = 0;
             const maxWait = 50; // 最多等待 5 秒 (50 * 100ms)
@@ -390,95 +390,28 @@ async function cleanupVRMResources() {
                 waitCount++;
             }
             if (window._isVRMInitializing) {
-                console.warn('[Live2D Init] VRM 初始化超时，通过 dispose() 取消初始化');
-                // 通过 dispose() 取消初始化（确保资源正确清理，由 initVRMModel 的 finally 块设置 _isVRMInitializing = false）
-                if (typeof window.vrmManager.dispose === 'function') {
-                    try {
-                        await window.vrmManager.dispose();
-                        hasDisposed = true;
-                    } catch (disposeError) {
-                        console.warn('[Live2D Init] 调用 dispose() 取消初始化时出错:', disposeError);
-                    }
-                }
+                console.warn('[Live2D Init] VRM 初始化超时，取消 Unity runtime');
             }
         }
-        
-        // 使用 dispose() 作为主要清理路径（确保资源正确清理，包括取消正在进行的初始化）；如果已调用过则不再重复
-        if (!hasDisposed && typeof window.vrmManager.dispose === 'function') {
-            await window.vrmManager.dispose();
-            console.log('[Live2D Init] 已清理VRM管理器');
-            
-            // 只有在确认 dispose() 完成且初始化标志已清除时才清理引用（由 initVRMModel 的 finally 块处理 _isVRMInitializing）
-            if (window.vrmManager && !window._isVRMInitializing) {
-                if (window.vrmManager.currentModel) {
-                    window.vrmManager.currentModel = null;
-                }
-                if (window.vrmManager.renderer) {
-                    window.vrmManager.renderer = null;
-                }
-                if (window.vrmManager.scene) {
-                    window.vrmManager.scene = null;
-                }
-            }
-        } else {
-            // 降级方案：如果 dispose 不存在，手动清理（避免双重释放）；只有在确认初始化已完成时才清理
-            if (!window._isVRMInitializing) {
-                if (window.vrmManager.renderer) {
-                    window.vrmManager.renderer.dispose();
-                    window.vrmManager.renderer = null;
-                    console.log('[Live2D Init] 已清理Three.js渲染器（降级方案）');
-                }
-                if (window.vrmManager.scene) {
-                    window.vrmManager.scene.clear();
-                    window.vrmManager.scene = null;
-                    console.log('[Live2D Init] 已清理Three.js场景（降级方案）');
-                }
-                if (window.vrmManager) {
-                    window.vrmManager.currentModel = null;
-                }
-            } else {
-                console.warn('[Live2D Init] VRM 正在初始化中，跳过手动清理（等待 dispose 或初始化完成）');
-            }
+
+        manager.setSurfaceVisible?.(false);
+        manager.clearSurface?.();
+        if (typeof manager.dispose !== 'function') {
+            throw new Error('Unity VRM manager does not expose dispose()');
         }
+        await manager.dispose();
+        console.log('[Live2D Init] 已关闭 Unity VRM runtime');
     } catch (cleanupError) {
         console.warn('[Live2D Init] VRM清理时出现警告:', cleanupError);
-        // 如果 dispose 抛出错误，尝试降级清理；只有在确认初始化已完成时才清理
+        // 只通过 Unity 协议做可恢复清理，不再手工改写渲染器内部状态。
         try {
-            if (!window._isVRMInitializing) {
-                // 只有在初始化已完成时才清理
-                if (window.vrmManager && !window.vrmManager.renderer && !window.vrmManager.scene) {
-                    // dispose 可能已经部分清理，只清理剩余引用
-                    if (window.vrmManager.currentModel) {
-                        window.vrmManager.currentModel = null;
-                    }
-                } else {
-                    // dispose 可能完全失败，尝试手动清理
-                    if (window.vrmManager?.renderer) {
-                        try {
-                            window.vrmManager.renderer.dispose();
-                        } catch (e) {
-                            // 忽略 dispose 错误
-                        }
-                        window.vrmManager.renderer = null;
-                    }
-                    if (window.vrmManager?.scene) {
-                        try {
-                            window.vrmManager.scene.clear();
-                        } catch (e) {
-                            // 忽略 clear 错误
-                        }
-                        window.vrmManager.scene = null;
-                    }
-                    if (window.vrmManager) {
-                        window.vrmManager.currentModel = null;
-                    }
-                }
-            } else {
-                console.warn('[Live2D Init] VRM 正在初始化中，跳过降级清理（等待初始化完成）');
+            if (typeof manager.unloadModel === 'function') {
+                await manager.unloadModel();
             }
+            manager.setSurfaceVisible?.(false);
+            manager.clearSurface?.();
         } catch (fallbackError) {
-            console.error('[Live2D Init] 降级清理也失败:', fallbackError);
-            // 不要直接设置 _isVRMInitializing = false，这应该由 initVRMModel 的 finally 块处理
+            console.error('[Live2D Init] Unity VRM 卸载也失败:', fallbackError);
         }
     }
 }
@@ -609,7 +542,7 @@ async function _initLive2DModelInner() {
             console.log('[Live2D Init] 已清理VRM回来按钮');
         }
 
-        // 清理VRM管理器和Three.js场景（使用抽取的清理函数）
+        // 通过 Unity manager 关闭 VRM runtime。
         await cleanupVRMResources();
 
         if ((window.lanlan_config?.model_type || '').toLowerCase() === 'pngtuber') {

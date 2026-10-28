@@ -1,0 +1,18 @@
+{
+  "name": "Neko.Avatar.Unity.Editor",
+  "rootNamespace": "Neko.Avatar.Editor",
+  "references": [
+    "Neko.Avatar.Unity"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

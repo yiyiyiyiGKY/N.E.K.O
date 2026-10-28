@@ -2,9 +2,11 @@
 
 ## Runtime and formats
 
-The VRM renderer uses Three.js and `@pixiv/three-vrm`. Models are `.vrm` files; animations are normally `.vrma` files loaded through `@pixiv/three-vrm-animation`.
+The VRM renderer is a Unity WebGL runtime built from `unity/NekoAvatarRenderer/` with UniVRM. Models are `.vrm` files and animations are `.vrma` files. Three.js remains available for MMD and other non-VRM features, but it is not a VRM renderer.
 
-The active implementation lives under `static/vrm/`: core, manager, initialization, animation, expression, interaction, cursor-follow, orientation, and UI modules. `vrm-init.js` creates `window.vrmManager` and initializes `#vrm-canvas` only for a VRM character.
+`static/unity/unity-vrm-loader.js` is the canonical browser entry. It loads `static/unity/unity-avatar-manager.js` plus the browser-side expression, UI and VMC modules under `static/vrm/`. The manager sends versioned commands to the Unity runtime; it does not expose a second Three.js scene, camera or renderer. `vrm-init.js` creates `window.vrmManager` only for pages that use the global avatar. Dedicated previews and multi-avatar games create only the instances they mount.
+
+The WebGL build is published under `static/unity/avatar/` by the Unity build command. A valid `build-manifest.json` and its referenced loader, data, framework and wasm files are required at runtime; the JavaScript adapter alone is not a runnable Unity build.
 
 ## Models and animations
 
@@ -30,7 +32,7 @@ Backend defaults from `config/character_defaults.py` are injected into templates
 }
 ```
 
-Character-specific lighting may override these values. Keep backend defaults, template context, and the defensive fallback in `vrm-core.js` aligned.
+Character-specific lighting may override these values. Keep backend defaults, template context, and the Unity manager/controller defaults aligned.
 
 ## Emotion mapping
 
@@ -58,13 +60,13 @@ Output is disabled by default. The disabled path uses only a lightweight facade 
 await window.vrmVmcSender.enable('127.0.0.1', 39539, 60)
 ```
 
-The VMC root is independent of `vrm.scene`, so desktop layout transforms are never exported. Model switching and disposal retire old expressions with acknowledged zero-value frames. Disabling or releasing the source ends with `/VMC/Ext/OK 0`.
+The VMC root is independent of the browser layout transform, so desktop placement is never exported. Model switching and disposal retire old expressions with acknowledged zero-value frames. Disabling or releasing the source ends with `/VMC/Ext/OK 0`.
 
 See [VMC output](/api/rest/vmc) for receiver setup, controls, security boundaries, close codes, and troubleshooting.
 
 ## Runtime safeguards
 
-The current renderer clamps frame delta after long stalls, reduces imported spring-bone collider radii, and scales MToon outline width through the lighting configuration. These are internal compatibility safeguards, not model-format requirements; do not pre-edit uploaded VRM files to reproduce them.
+Animation blending, look-at, spring bones, model fitting, lighting and MToon outline scaling run inside Unity. The browser owns the canvas surface, input translation and lifecycle commands only. These are runtime responsibilities, not model-format requirements; do not pre-edit uploaded VRM files to reproduce them.
 
 ## API summary
 
@@ -81,4 +83,4 @@ The current renderer clamps frame delta after long stalls, reduces imported spri
 
 ## Host boundary
 
-VRM renders in `index.html`, including the Electron pet window. The standalone chat and subtitle templates intentionally provide no second VRM scene; native windows use the shared cross-window bridge to coordinate with the main page.
+VRM renders in `index.html`, including the Electron pet window. The standalone chat and subtitle templates intentionally create no second Unity VRM runtime; native windows use the shared cross-window bridge to coordinate with the main page.

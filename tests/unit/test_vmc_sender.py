@@ -331,12 +331,12 @@ def test_frontend_vmc_reconnect_uses_bounded_backoff_and_auth_refresh():
 @pytest.mark.unit
 def test_frontend_status_and_expression_state_have_race_guards():
     source = Path("static/vrm/vrm-vmc-sender.js").read_text(encoding="utf-8")
-    manager_source = Path("static/vrm/vrm-manager.js").read_text(encoding="utf-8")
+    manager_source = Path("static/unity/unity-avatar-manager.js").read_text(encoding="utf-8")
     assert "controlGeneration !== state.controlGeneration" in source
     assert "requestSequence !== state.statusRequestSequence" in source
     assert "if (!state.enabled || !state.sourceActive)" in source
     assert "releaseVrm: releaseSource" in source
-    assert "window.vrmVmcSender.releaseVrm" in manager_source
+    assert "global.vrmVmcSender.releaseVrm" in manager_source
     assert "state.currentVrm !== vrm" in source
     assert "state.retiringExpressionNames" in source
     assert "if (state.exprBuf.length >= MAX_EXPRESSIONS_PER_FRAME) break" in source
@@ -353,26 +353,29 @@ def test_frontend_status_and_expression_state_have_race_guards():
         "                    === state.samplingSuspensionGeneration"
     ) in source
     assert "state.nextSampleTs += state.minIntervalSec" in source
-    assert "this._nextRenderTime += frameInterval" in manager_source
-    assert "this._lastRenderTime" in manager_source
-    assert "window.__NEKO_VMC_ACTIVE__ === true" in manager_source
+    assert "this._vmcSamplingToken += 1" in manager_source
+    assert "this._vmcTimer = global.setTimeout(pump" in manager_source
+    assert "global.__NEKO_VMC_ACTIVE__ === true" in manager_source
     assert "t_pose_generation: state.tPoseGeneration" in source
 
 
 @pytest.mark.unit
 def test_vmc_disabled_path_is_lazy_and_has_no_background_work():
     init_source = Path("static/vrm/vrm-init.js").read_text(encoding="utf-8")
+    canonical_source = Path("static/unity/unity-vrm-loader.js").read_text(encoding="utf-8")
     loader_source = Path("static/vrm/vrm-vmc-loader.js").read_text(
         encoding="utf-8"
     )
     sender_source = Path("static/vrm/vrm-vmc-sender.js").read_text(
         encoding="utf-8"
     )
-    manager_source = Path("static/vrm/vrm-manager.js").read_text(
+    manager_source = Path("static/unity/unity-avatar-manager.js").read_text(
         encoding="utf-8"
     )
 
-    assert "'/static/vrm/vrm-vmc-loader.js'" in init_source
+    assert "/static/unity/unity-vrm-loader.js" in init_source
+    assert "src: '/static/vrm/vrm-vmc-loader.js'" in canonical_source
+    assert "if (opts.vmc !== false && !vmcPromise)" in canonical_source
     assert "'/static/vrm/vrm-vmc-sender.js'" not in init_source
     assert "/static/vrm/vrm-vmc-sender.js?v=" in loader_source
     assert "fetch(" not in loader_source
@@ -383,8 +386,8 @@ def test_vmc_disabled_path_is_lazy_and_has_no_background_work():
         sender_source.index("if (!state.enabled) return;")
         < sender_source.index("markSourceActive();")
     )
-    assert "window.__NEKO_VMC_ACTIVE__ === true" in manager_source
-    assert "&& window.__NEKO_VMC_ACTIVE__ === true" in manager_source
+    assert "global.__NEKO_VMC_ACTIVE__ === true" in manager_source
+    assert "|| global.__NEKO_VMC_ACTIVE__ !== true" in manager_source
 
 
 class _FakeSender:

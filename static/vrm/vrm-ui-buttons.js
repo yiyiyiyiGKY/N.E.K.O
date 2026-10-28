@@ -563,7 +563,7 @@ VRMManager.prototype._startUIUpdateLoop = function() {
     const update = () => {
         if (this._uiUpdateLoopId === null || this._uiUpdateLoopId === undefined) return;
 
-        if (!this.currentModel || !this.currentModel.scene) {
+        if (!this.currentModel) {
             scheduleNext();
             return;
         }
@@ -585,14 +585,13 @@ VRMManager.prototype._startUIUpdateLoop = function() {
         const buttonsContainer = document.getElementById('vrm-floating-buttons');
         const lockIcon = this._vrmLockIcon;
 
-        if (!this.camera || !this.renderer) {
+        if (!this.canvas) {
             scheduleNext();
             return;
         }
 
         try {
-            const renderer = this.renderer;
-            const canvasRect = renderer.domElement.getBoundingClientRect();
+            const canvasRect = this.canvas.getBoundingClientRect();
             const canvasWidth = canvasRect.width;
             const canvasHeight = canvasRect.height;
             const isMobile = window.isMobileWidth && window.isMobileWidth();
@@ -1111,7 +1110,7 @@ VRMManager.prototype._addReturnButtonBreathingAnimation = function () {
 /**
  * 清理 VRM UI 资源（浮动按钮、锁图标、"请她回来"按钮及其 document 级拖拽监听）。
  *
- * 历史：旧版 cleanupUI 在 #510 合并 common-ui 时被整体移除，但 vrm-manager.dispose()、
+ * 历史：旧版 cleanupUI 在 #510 合并 common-ui 时被整体移除，但 Unity VRM manager.dispose()、
  * app-character.js、app-interpage 仍按约定调用它（typeof 守卫下静默跳过），导致
  * _returnButtonDragHandlers 等 document 级监听在销毁路径上无人清理。这里恢复为委托
  * mixin 的 cleanupFloatingButtons（覆盖 RAF 循环、按钮/锁图标/返回按钮 DOM、侧边面板、
@@ -1128,35 +1127,11 @@ VRMManager.prototype.cleanupUI = function () {
  * 用于"请她回来"按钮被拖拽后，模型跟随出现在新位置
  */
 VRMManager.prototype.applyScreenDelta = function(screenDx, screenDy, options = {}) {
-    const scene = this.currentModel && this.currentModel.scene;
-    if (!scene || !this.camera || !this.renderer) return;
-
-    const camera = this.camera;
-
-    // canvas 在 goodbye 状态下被 display:none 隐藏，getBoundingClientRect 全为 0
-    const canvasRect = this.renderer.domElement.getBoundingClientRect();
-    const viewWidth = canvasRect.width > 0 ? canvasRect.width : window.innerWidth;
-    const viewHeight = canvasRect.height > 0 ? canvasRect.height : window.innerHeight;
-    if (viewWidth <= 0 || viewHeight <= 0) return;
-
-    const cameraDistance = camera.position.distanceTo(scene.position);
-    if (cameraDistance < 0.001) return;
-
-    const fov = camera.fov * (Math.PI / 180);
-    const worldHeight = 2 * Math.tan(fov / 2) * cameraDistance;
-    const worldWidth = worldHeight * camera.aspect;
-
-    const pixelToWorldX = worldWidth / viewWidth;
-    const pixelToWorldY = worldHeight / viewHeight;
-
-    const right = new window.THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-    const up = new window.THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
-
-    scene.position.add(right.clone().multiplyScalar(screenDx * pixelToWorldX));
-    scene.position.add(up.clone().multiplyScalar(-screenDy * pixelToWorldY));
-
-    if (options.clamp !== false && this.interaction && typeof this.interaction.clampModelPosition === 'function') {
-        const clamped = this.interaction.clampModelPosition(scene.position.clone());
-        if (clamped && clamped.isVector3) scene.position.copy(clamped);
-    }
+    return this._notify('model.dragPixels', {
+        dx: Number.isFinite(Number(screenDx)) ? Number(screenDx) : 0,
+        dy: Number.isFinite(Number(screenDy)) ? Number(screenDy) : 0,
+        width: Math.max(1, this.canvas && this.canvas.clientWidth || window.innerWidth),
+        height: Math.max(1, this.canvas && this.canvas.clientHeight || window.innerHeight),
+        clamp: options.clamp !== false
+    });
 };

@@ -30,7 +30,7 @@ await window.vrmVmcSender.disable()
 
 ## 输出协议
 
-后端把 Three.js 右手坐标转换为 Unity/VMC 坐标，并发送：
+后端把渲染器无关的浏览器协议右手坐标转换为 Unity/VMC 坐标，并发送：
 
 - `/VMC/Ext/OK`
 - `/VMC/Ext/T`

@@ -4,8 +4,8 @@
 
 """VMC Protocol OSC sender used by the dedicated ``/api/vmc/ws`` channel.
 
-The browser samples three-vrm transforms in three.js' right-handed coordinate
-system.  This module validates the payload, converts it to Unity/VMC's
+The browser bridge emits normalized right-handed avatar transforms regardless
+of the renderer implementation. This module validates the payload, converts it to Unity/VMC's
 left-handed convention and emits VMC 2.0 compatible OSC messages over UDP.
 """
 
@@ -609,7 +609,7 @@ class VmcSender:
 
     @staticmethod
     def _extract_transform(data: dict[str, Any]) -> list[float] | None:
-        """Convert a three.js RH transform to Unity/VMC LH coordinates.
+        """Convert the browser protocol's RH transform to Unity/VMC LH coordinates.
 
         Reflection across the XY plane maps position ``(x,y,z)`` to
         ``(x,y,-z)`` and quaternion ``(x,y,z,w)`` to ``(-x,-y,z,w)``.

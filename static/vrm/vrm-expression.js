@@ -492,7 +492,7 @@ class VRMExpression {
             const isLipSyncExpression = lipSyncExpressions.some(lip => lowerName.includes(lip));
 
             if (isLipSyncExpression) {
-                // 跳过口型表情的权重设置，让 VRMAnimation 的 _updateLipSync 独立控制
+                // 跳过口型表情的权重设置，由 Unity VRM 口型同步独立控制
                 return;
             }
 

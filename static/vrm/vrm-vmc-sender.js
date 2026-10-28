@@ -1,7 +1,7 @@
 /**
  * VRM -> VMC bridge.
  *
- * Samples three-vrm in the render loop and sends frames through the isolated
+ * Samples the active Unity VRM state and sends frames through the isolated
  * /api/vmc/ws socket. The backend performs coordinate/name conversion and
  * emits OSC/UDP; chat WebSocket traffic is never involved.
  */
@@ -52,9 +52,8 @@
     // ones displaced here reappear on the next frame that owes no retirements.
     const RETIREMENT_QUOTA_PER_FRAME = 16;
     const CSRF_HEADER_NAME = 'X-CSRF-Token';
-    // VMC owns its coordinate origin. vrm.scene is also moved/scaled/rotated
-    // by webpage layout and drag controls, so it must never be used as the
-    // transmitted avatar root.
+    // VMC owns its coordinate origin. Browser layout transforms must never be
+    // used as the transmitted avatar root.
     const VMC_LOCAL_ROOT = Object.freeze({
         px: 0, py: 0, pz: 0,
         qx: 0, qy: 0, qz: 0, qw: 1,
@@ -93,6 +92,13 @@
         samplingSuspended: false,
         samplingSuspensionGeneration: 0,
     };
+
+    function notifyUnitySamplingState(enabled) {
+        const manager = window.vrmManager;
+        if (manager && typeof manager.setVmcSamplingEnabled === 'function') {
+            manager.setVmcSamplingEnabled(enabled === true);
+        }
+    }
 
     function roundTransform(value) {
         return Math.round(value * 1e6) / 1e6;
@@ -650,6 +656,7 @@
 
             state.enabled = !!data.enabled;
             window.__NEKO_VMC_ACTIVE__ = state.enabled;
+            notifyUnitySamplingState(state.enabled);
             updateStatusPolling();
             if (!state.enabled) clearSourceState();
             applySendRate(data.send_rate_hz);
@@ -891,6 +898,7 @@
                 if (!finishControlMutation(generation)) return data;
                 state.enabled = true;
                 window.__NEKO_VMC_ACTIVE__ = true;
+                notifyUnitySamplingState(true);
                 updateStatusPolling();
                 state.samplingSuspended = false;
                 resetSampleSchedule();
@@ -924,6 +932,7 @@
                 if (!finishControlMutation(generation)) return data;
                 state.enabled = false;
                 window.__NEKO_VMC_ACTIVE__ = false;
+                notifyUnitySamplingState(false);
                 updateStatusPolling();
                 clearSourceState();
                 closeWebSocket();
@@ -966,6 +975,7 @@
     window.addEventListener('beforeunload', function () {
         state.enabled = false;
         window.__NEKO_VMC_ACTIVE__ = false;
+        notifyUnitySamplingState(false);
         updateStatusPolling();
         closeWebSocket();
     }, { once: true });

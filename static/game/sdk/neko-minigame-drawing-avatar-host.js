@@ -618,6 +618,32 @@
       };
       const managerDisposals = new WeakMap();
 
+      function isUnityVrmManager(manager) {
+        const UnityVRMManager = windowImpl.UnityVRMManager;
+        return state.kind === 'vrm'
+          && typeof UnityVRMManager === 'function'
+          && manager instanceof UnityVRMManager;
+      }
+
+      function captureUnityVrmLayout(manager, layer) {
+        const bounds = manager?.getModelScreenBounds?.();
+        if (!bounds || !Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) return null;
+        const layerRect = layer?.getBoundingClientRect?.() || {};
+        const x = Number(bounds.left) - (Number(layerRect.left) || 0);
+        const y = Number(bounds.top) - (Number(layerRect.top) || 0);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+        return {
+          x,
+          y,
+          width: bounds.width,
+          height: bounds.height,
+          scale: state.view.scale / 100,
+          clipped: x < 0 || y < 0
+            || x + bounds.width > state.viewport.width
+            || y + bounds.height > state.viewport.height,
+        };
+      }
+
       function loadIsActive(generation) {
         return !state.disposed && !signal?.aborted && generation === state.modelGeneration;
       }
@@ -766,7 +792,7 @@
         stopSpeaking();
         const manager = state.manager;
         const kind = state.kind;
-        const referenceModel = kind === 'vrm' ? manager?.currentModel?.vrm?.scene : manager?.currentModel?.mesh;
+        const referenceModel = kind === 'mmd' ? manager?.currentModel?.mesh : null;
         if (referenceModel) avatarRuntime.releasePerspectiveReference(referenceModel, manager.camera);
         state.manager = null;
         state.ready = false;
@@ -884,11 +910,15 @@
         });
         if (state.kind === 'live2d') fitLive2D();
         else if (state.kind === 'pngtuber') fitPngtuber(manager);
-        else {
+        else if (state.kind === 'vrm' && isUnityVrmManager(manager)) {
+          manager.resizeSurface?.(state.viewport.width, state.viewport.height, false);
+          manager.fitModel?.(state.viewport, state.fit, state.view);
+          state.layout = captureUnityVrmLayout(manager, layer);
+        } else {
           manager.onWindowResize?.();
           manager.renderer?.setSize?.(state.viewport.width, state.viewport.height);
           manager.effect?.setSize?.(state.viewport.width, state.viewport.height);
-          const model = state.kind === 'mmd' ? manager.currentModel?.mesh : manager.currentModel?.vrm?.scene;
+          const model = state.kind === 'mmd' ? manager.currentModel?.mesh : null;
           if (model && manager.camera) {
             state.layout = avatarRuntime.fitPerspectiveModel(windowImpl.THREE, model, manager.camera,
               state.viewport, state.fit, state.view);
@@ -1002,16 +1032,16 @@
 
       async function loadVrm(model, descriptor, generation) {
         await waitForRuntime(
-          () => Boolean(windowImpl.vrmModuleLoaded) && typeof windowImpl.VRMManager === 'function',
+          () => Boolean(windowImpl.vrmModuleLoaded) && typeof windowImpl.UnityVRMManager === 'function',
           'vrm-modules-ready', 'vrm-modules-failed', 'vrm', signal,
         );
         ensureLoadActive(generation);
-        const manager = new windowImpl.VRMManager();
+        const manager = new windowImpl.UnityVRMManager();
         state.manager = manager;
         suppressChrome(manager);
         const path = typeof windowImpl.convertVRMModelPath === 'function'
           ? windowImpl.convertVRMModelPath(model.path) : model.path;
-        const ok = await manager.initThreeJS('vrm-canvas', 'vrm-container', descriptor?.lighting || null,
+        const ok = await manager.initRenderer('vrm-canvas', 'vrm-container', descriptor?.lighting || null,
           { embed: true, resizeMode: 'fixed' });
         await retireIfStale(manager, 'vrm', generation);
         if (ok === false) fail('renderer_unavailable', 'VRM scene initialization failed');
@@ -1025,21 +1055,6 @@
           idleAnimations: descriptor?.idleAnimations || undefined,
         });
         await retireIfStale(manager, 'vrm', generation);
-        await avatarRuntime.preparePerspectiveReference(windowImpl.THREE, manager, {
-          type: 'vrm', signal, isCurrent: () => !state.disposed && state.modelGeneration === generation,
-        });
-        await retireIfStale(manager, 'vrm', generation);
-        const presentationIdle = descriptor?.idleAnimation || VRM_DEFAULT_IDLE;
-        if (presentationIdle !== VRM_DEFAULT_IDLE && typeof manager.playVRMAAnimation === 'function') {
-          try {
-            await manager.playVRMAAnimation(presentationIdle, { loop: true, immediate: true, isIdle: true,
-              shouldApply: () => !state.disposed && state.modelGeneration === generation });
-            await retireIfStale(manager, 'vrm', generation);
-          } catch (error) {
-            await retireIfStale(manager, 'vrm', generation);
-            windowImpl.console?.warn?.('[Drawing Avatar] VRM presentation idle failed:', error);
-          }
-        }
       }
 
       async function loadMmd(model, descriptor, generation) {

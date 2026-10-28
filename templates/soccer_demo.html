@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Soccer MVP (VRM sensei 接入验证)</title>
 
-<!-- VRM 光照默认值：从后端注入（vrm-core.js 依赖） -->
+<!-- VRM 光照默认值：从后端注入并交给 Unity 渲染器。 -->
 <script id="soccer-runtime-config" type="application/json">{{ {"vrm_defaults": vrm_defaults} | tojson }}</script>
 <link rel="stylesheet" href="/static/game/games/soccer/soccer-demo.css?v={{ static_asset_version }}">
 
@@ -16,6 +16,7 @@
 </div>
 <div id="ai-l2d-container">
   <canvas id="ai-l2d-canvas"></canvas>
+  <canvas id="ai-vrm-canvas" style="display:none"></canvas>
   <div id="soccer-mmd-container" class="soccer-extended-avatar" hidden><canvas id="soccer-mmd-canvas"></canvas></div>
   <div id="soccer-pngtuber-container" class="soccer-extended-avatar" hidden></div>
 </div>
@@ -209,8 +210,6 @@
     "imports": {
         "three": "/static/libs/three.module.js",
         "three/addons/": "/static/libs/three/addons/",
-        "@pixiv/three-vrm": "/static/libs/three-vrm.module.min.js",
-        "@pixiv/three-vrm-animation": "/static/libs/three-vrm-animation.module.js?v={{ static_asset_version }}",
         "@moeru/three-mmd": "/static/libs/three-mmd.module.js?v={{ static_asset_version }}",
         "@moeru/three-mmd-physics-ammo": "/static/libs/three-mmd-physics-ammo.module.js?v={{ static_asset_version }}",
         "ammojs-typed": "/static/libs/ammojs-typed.module.js?v={{ static_asset_version }}"
@@ -232,7 +231,7 @@
 <script src="/static/game/games/soccer/soccer-neko-adapter.js?v={{ static_asset_version }}"></script>
 <script src="/static/game/games/soccer/soccer-demo.js?v={{ static_asset_version }}"></script>
 
-<!-- VRM init（监听 three-ready，再并行加载 vrm-*.js） -->
+<!-- Unity VRM 独立启动；下方 MMD 初始化仍等待上面的 three-ready。 -->
 <script src="/static/vrm/vrm-init.js?v={{ static_asset_version }}"></script>
 <script src="/static/mmd/mmd-init.js?v={{ static_asset_version }}"></script>
 

@@ -82,7 +82,7 @@ DEFAULT_LANLAN_TEMPLATE = {
 }
 
 _DEFAULT_VRM_LIGHTING_MUTABLE = {
-    # Keep synchronized with frontend vrm-core.js defaultLighting
+    # Keep synchronized with the Unity bridge fallback in unity-avatar-manager.js.
     "ambient": 0.83,  # HemisphereLight intensity
     "main": 1.91,     # Key-light intensity
     "fill": 0.0,      # Fill-light intensity (disabled in simplified mode)

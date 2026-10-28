@@ -1,0 +1,27 @@
+{
+  "name": "Neko.Avatar.Unity.Tests",
+  "rootNamespace": "Neko.Avatar.Tests",
+  "references": [
+    "Neko.Avatar.Unity",
+    "Neko.Avatar.Unity.Editor",
+    "UniGLTF.Utils",
+    "VRM10",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

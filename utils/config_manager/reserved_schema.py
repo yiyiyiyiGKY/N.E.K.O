@@ -562,7 +562,7 @@ def flatten_reserved(catgirl_data: dict) -> dict:
 
     idle_animation = get_reserved(result, "avatar", "vrm", "idle_animation", default=None)
     if idle_animation is not None:
-        # idleAnimation (string): consumed by vrm-init / vrm-manager and other runtime code.
+        # idleAnimation (string): consumed by the Unity VRM entry and other runtime code.
         # idleAnimations (list): consumed by model_manager multiselect UI.
         if isinstance(idle_animation, str):
             result["idleAnimation"] = idle_animation

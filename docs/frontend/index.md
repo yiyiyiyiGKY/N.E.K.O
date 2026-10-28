@@ -10,7 +10,7 @@ N.E.K.O. serves its main interface from the FastAPI main server. The repository 
 | Chat UI | React 18 and TypeScript | `frontend/react-neko-chat/` | `static/react/neko-chat/neko-chat-window.iife.js` and `.css` |
 | Plugin manager | Vue 3 and TypeScript | `frontend/plugin-manager/` | `frontend/plugin-manager/dist/`, served by the plugin server |
 
-The avatar renderers are part of the main UI: Live2D uses Pixi/Cubism, VRM and MMD use Three.js, and PNGTuber uses `static/pngtuber-core.js`. The Electron desktop pet is a host mode, not another avatar format.
+The avatar renderers are part of the main UI: Live2D uses Pixi/Cubism, VRM uses Unity WebGL + UniVRM, MMD uses Three.js, and PNGTuber uses `static/pngtuber-core.js`. The Electron desktop pet is a host mode, not another avatar format or a second Unity integration.
 
 ## One chat implementation
 

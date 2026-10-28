@@ -8,8 +8,6 @@ const root = path.resolve(__dirname, '../..');
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
 
 async function main() {
-  const { pathToFileURL } = require('node:url');
-  const THREE = await import(pathToFileURL(path.join(root, 'static/libs/three.module.js')).href);
   const timers = new Map();
   const intervals = new Map();
   const listeners = new Map();
@@ -42,23 +40,31 @@ async function main() {
     } };
   class Manager {
     constructor() {
-      this.core = { init: async () => {
-        this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(30, 1, .01, 100);
-        this.camera.position.z = 5;
-        this.renderer = {};
-      } };
       this.animation = { startLipSync: analyser => { this.analyser = analyser; },
         stopLipSync: () => { this.analyser = null; } };
+      this.expression = { async loadMoodMap() {} };
+      this.interaction = { enableMouseTracking() {} };
+      this._cursorFollow = { setEnabled() {} };
     }
-    startAnimateLoop() {}
+    async initRenderer(canvasId) {
+      this.canvas = { id: canvasId, style: {} };
+      this.initialized = true;
+    }
+    isInitialized() { return this.initialized === true; }
+    getSurfaceCanvas() { return this.canvas; }
+    resizeSurface() {}
+    async loadModel(path) {
+      this.currentModel = { url: path, transform: {} };
+      return this.currentModel;
+    }
+    fitModel(size) { this.bounds = { x: 0, y: 0, width: size.width, height: size.height }; }
+    getModelScreenBounds() { return this.bounds; }
     pauseRendering() {}
     resumeRendering() {}
-    async playVRMAAnimation() {}
     dispose() { this.analyser = null; this.currentModel = null; }
   }
   const response = data => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
-  const window = { THREE, document, console, AbortController, navigator: {},
+  const window = { document, console, AbortController, navigator: {},
     location: { origin: 'http://localhost', search: '' },
     lanlan_config: { lanlan_name: 'Neko' },
     addEventListener: add, removeEventListener: remove,
@@ -70,13 +76,9 @@ async function main() {
     localStorage: { getItem() { return null; }, setItem() {}, removeItem() {}, length: 0 },
     nekoLocalMutationSecurity: { getMutationHeaders: async () => ({}), peekCachedToken: () => '' },
     VRMManager: Manager,
+    UnityVRMManager: Manager,
     live2dManager: { currentModel: model, async initPIXI() {}, async loadModel() { return model; },
       pauseRendering() {}, resumeRendering() {}, destroy() {} },
-    loadTestVrmModule: async name => name === 'loader' ? { GLTFLoader: class {
-      register() {} load(_path, resolve) { resolve({ userData: { vrm: {
-        scene: new THREE.Mesh(new THREE.BoxGeometry(1, 2, .5)), meta: { metaVersion: '1' },
-      } } }); }
-    } } : { VRMLoaderPlugin: class {}, VRMUtils: { deepDispose() {} } },
     fetch: async (url, options = {}) => {
       const payload = options.body ? JSON.parse(options.body) : {};
       requests.push({ url, payload });
@@ -95,9 +97,7 @@ async function main() {
     document.currentScript = null; script.onload?.();
   } };
   run('static/game/sdk/neko-minigame-avatar-host.js');
-  vm.runInContext(read('static/game/games/soccer/soccer-avatar-host.js')
-    .replace("import('three/addons/loaders/GLTFLoader.js')", "window.loadTestVrmModule('loader')")
-    .replace("import('@pixiv/three-vrm')", "window.loadTestVrmModule('vrm')"), context);
+  run('static/game/games/soccer/soccer-avatar-host.js');
   run('static/game/games/soccer/soccer-neko-host-registration.js');
   run('static/game/sdk/neko-minigame-same-origin-bootstrap.js');
   await window.nekoMiniGameSameOriginHostReady;

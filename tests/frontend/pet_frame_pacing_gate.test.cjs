@@ -11,7 +11,6 @@ const read = (rel) => fs.readFileSync(path.join(PROJECT_ROOT, ...rel.split('/'))
 
 const FRAME_PACING_SRC = read('static/frame-pacing.js');
 const LIVE2D_CORE_SRC = read('static/live2d/live2d-core.js');
-const VRM_MANAGER_SRC = read('static/vrm/vrm-manager.js');
 const MMD_CORE_SRC = read('static/mmd/mmd-core.js');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -288,13 +287,13 @@ test('契约：演出舞台的 tween / 漂浮 / 呼吸 / 姿态时间线循环�
     assert.equal(remaining, 3, `裸 rAF 只剩 scheduleStageFrame 内一处 + check 两处，实际 ${remaining}`);
 });
 
-test('契约：Live2D / VRM / MMD 拖拽回弹（吸附）动画通过 frame-pacing 排帧', () => {
+test('契约：Live2D / MMD 拖拽回弹（吸附）动画通过 frame-pacing 排帧', () => {
     const l2d = read('static/live2d/live2d-interaction.js');
     assert.match(l2d, /function scheduleLive2DSnapFrame\(callback\)[\s\S]*?return pacing\.requestPacedFrame\(callback\);/);
     const snap = l2d.slice(l2d.indexOf('Live2DManager.prototype._performSnapAnimation = function'), l2d.indexOf('检测并执行自动吸附'));
     assert.equal((snap.match(/scheduleLive2DSnapFrame\(animate\);/g) || []).length, 2, 'Live2D 首帧与续帧都走 paced');
     assert.doesNotMatch(snap, /requestAnimationFrame\(animate\)/, 'Live2D 吸附动画不允许裸排 rAF');
-    for (const file of ['static/vrm/vrm-interaction.js', 'static/mmd/mmd-interaction.js']) {
+    for (const file of ['static/mmd/mmd-interaction.js']) {
         const src = read(file);
         assert.match(src, /_scheduleSnapFrame\(callback\) \{[\s\S]*?return pacing\.requestPacedFrame\(callback\);/, file + ' 有 paced 排帧 helper');
         assert.equal((src.match(/this\._snapCancelFrame = this\._scheduleSnapFrame\(animate\);/g) || []).length, 2, file + ' 首帧与续帧都走 paced');
@@ -597,61 +596,6 @@ test('Live2D：外部 pauseRendering 时不接管；ticker.start() 让位后 gov
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VRM
-// ─────────────────────────────────────────────────────────────────────────────
-function setupVRM(sb) {
-    sb.load(VRM_MANAGER_SRC, 'vrm-manager.js');
-    const mgr = new sb.window.VRMManager();
-    mgr.renderer = {};
-    mgr.scene = {};
-    mgr.camera = {};
-    mgr.renders = 0;
-    mgr._renderFrame = () => { mgr.renders++; };
-    mgr._rafDriver = () => {};
-    mgr._animationFrameId = sb.sandbox.requestAnimationFrame(mgr._rafDriver);
-    return mgr;
-}
-
-test('VRM Pet + 配置低于刷新率：活动态定时器驱动，衰减只换周期', withMockTimers(() => {
-    const sb = createSandbox({ pet: true, targetFrameRate: 45 });
-    sb.measureRefresh(60);
-    const mgr = setupVRM(sb);
-    mgr._boostInteractiveFPS();
-    assert.equal(mgr._idleTickMode, true);
-    assert.equal(mgr._idleTickFps, 45);
-    assert.equal(mgr._isLowTickRate(), false, '活动态 45fps 定时器驱动不算低频：medium 隔帧物理照常');
-    assert.equal(mgr._animationFrameId, null, 'rAF 链已停');
-    sb.tick(22 * 5);
-    assert.ok(mgr.renders >= 4, '按 45fps 定时渲染');
-    sb.tick(1000);
-    assert.equal(mgr._idleTickMode, true);
-    assert.equal(mgr._idleTickFps, 30);
-    assert.equal(mgr._isLowTickRate(), true, '30fps 地板才绕过隔帧物理');
-    // 非标准配置 35fps：隔帧后步长 57ms 超出 50ms clamp，同样按低频全量物理
-    mgr._enterIdleTickMode(35);
-    assert.equal(mgr._isLowTickRate(), true, '35fps 隔帧步长会超 clamp，不隔帧');
-    mgr._enterIdleTickMode(40);
-    assert.equal(mgr._isLowTickRate(), false, '40fps 隔帧步长恰为 50ms，允许隔帧');
-    assert.equal(sb.rafQueue.length, 0, '从未重新排 rAF');
-    // 设置变更事件驱动换周期
-    sb.window.targetFrameRate = 24;
-    sb.window.vrmManager = mgr;
-    sb.window.dispatchEvent({ type: 'neko-frame-rate-changed', detail: { fps: 24 } });
-    assert.equal(mgr._idleTickFps, 24);
-}));
-
-test('VRM 非 Pet：行为不变——活动态回 rAF', withMockTimers(() => {
-    const sb = createSandbox({ pet: false, targetFrameRate: 45 });
-    const mgr = setupVRM(sb);
-    sb.tick(0);
-    mgr._enterIdleTickMode();
-    assert.equal(mgr._idleTickMode, true);
-    mgr._boostInteractiveFPS();
-    assert.equal(mgr._idleTickMode, false);
-    assert.ok(mgr._animationFrameId, '活动态重新排 rAF');
-}));
-
-// ─────────────────────────────────────────────────────────────────────────────
 // MMD
 // ─────────────────────────────────────────────────────────────────────────────
 function setupMMD(sb) {
@@ -665,7 +609,7 @@ function setupMMD(sb) {
     return { core, manager };
 }
 
-test('负数 targetFrameRate 一律归一为 60：Live2D / VRM / MMD 地板都不会算成负数', withMockTimers(() => {
+test('负数 targetFrameRate 一律归一为 60：Live2D / MMD 地板都不会算成负数', withMockTimers(() => {
     const sb = createSandbox({ pet: false, targetFrameRate: -1 });
     const { mgr, app } = setupLive2D(sb);
     assert.equal(mgr._resolveConfiguredTargetFps(), 60);
@@ -678,165 +622,10 @@ test('负数 targetFrameRate 一律归一为 60：Live2D / VRM / MMD 地板都�
     delete sb.window.__NEKO_DISABLE_AVATAR_IDLE_THROTTLE__;
     assert.doesNotMatch(LIVE2D_CORE_SRC, /this\.pixi_app\.ticker\.maxFPS = window\.targetFrameRate;/, 'initPIXI 也不允许裸写配置进 maxFPS');
     const sb2 = createSandbox({ pet: false, targetFrameRate: -1 });
-    const vrm = setupVRM(sb2);
-    assert.equal(vrm._resolveConfiguredTargetFps(), 60);
-    assert.equal(vrm._resolveIdleFps(), 30);
-    vrm._enterIdleTickMode();
-    assert.equal(vrm._idleTickFps, 30, '空闲周期不会被负数配置拖到 1fps');
-    // rAF 路径也走同一解析，不再直接读 window.targetFrameRate
-    const vrmSrc = read('static/vrm/vrm-manager.js');
-    const loopBody = vrmSrc.slice(vrmSrc.indexOf('startAnimateLoop() {'), vrmSrc.indexOf('_resolveActiveTimerTickFps() {'));
-    assert.match(loopBody, /const targetFps = this\._resolveConfiguredTargetFps\(\);/);
-    assert.doesNotMatch(loopBody, /typeof window\.targetFrameRate === 'number' \? window\.targetFrameRate : 60/, 'rAF 路径不允许绕过归一化直接读配置');
-    sb2.window.targetFrameRate = Infinity;
-    assert.equal(vrm._resolveConfiguredTargetFps(), 60, 'Infinity 也归一为 60');
-    sb2.window.targetFrameRate = NaN;
-    assert.equal(vrm._resolveConfiguredTargetFps(), 60, 'NaN 归一为 60');
-    const sb3 = createSandbox({ pet: false, targetFrameRate: -1 });
-    const { core } = setupMMD(sb3);
+    const { core } = setupMMD(sb2);
     assert.ok([30, 45, 60].includes(core._resolveConfiguredTargetFps()), 'MMD 负数配置退回档位值');
     assert.equal(core._resolveIdleFps(), Math.min(30, core._resolveConfiguredTargetFps()));
 }));
-
-test('契约：VRM medium 隔帧物理按实际 delta 兜底，且模式切换不丢/不重复物理时间', () => {
-    const src = read('static/vrm/vrm-manager.js');
-    assert.match(src, /const VRM_PHYSICS_MAX_STEP_S = 0\.05;/);
-    assert.match(src, /if \(quality === 'medium' && canSplitPhysics && !this\._isLowTickRate\(\) && delta \* 2 <= VRM_PHYSICS_MAX_STEP_S\) \{/);
-    // 跳过帧累计时间，物理更新时补上（受 clamp）；全量分支冲掉累计并重置奇偶计数
-    assert.match(src, /this\._physicsPendingDelta = pendingDelta \+ delta;/);
-    assert.match(src, /const physicsStep = Math\.min\(delta \+ pendingDelta, VRM_PHYSICS_MAX_STEP_S\);/);
-    assert.match(src, /\} else \{\s*this\._physicsFrameSkip = 0;\s*this\._physicsPendingDelta = 0;\s*this\._updateVrmWithPhysicsStep\(this\.currentModel\.vrm, delta, physicsStep\);/);
-    assert.doesNotMatch(src, /vrm\.update\(delta \* 2\)/, '不再盲目用 delta*2，改用实际累计时间');
-    assert.doesNotMatch(src.slice(src.indexOf("const quality = window.renderQuality"), src.indexOf('// 6. CursorFollow')), /currentModel\.vrm\.update\(/, '物理段不再直接整体 vrm.update，累计步长只喂弹簧骨');
-});
-
-// 把源码里「5. VRM 核心更新」整段 + _updateVrmWithPhysicsStep 抠出来单独执行
-// （含 enablePhysics / 画质 / 换模型 / 隔帧分支）
-function loadVrmPhysicsStep() {
-    const src = read('static/vrm/vrm-manager.js');
-    const start = src.indexOf("const quality = window.renderQuality || 'medium';");
-    const end = src.indexOf('// 6. CursorFollow', start);
-    assert.ok(start > 0 && end > start, 'VRM 物理段定位失败');
-    const helperStart = src.indexOf('_updateVrmWithPhysicsStep(vrm, delta, physicsStep) {');
-    const helperEnd = src.indexOf('\n    }\n', helperStart) + 7;
-    assert.ok(helperStart > 0 && helperEnd > helperStart, '_updateVrmWithPhysicsStep 定位失败');
-    const canSplitStart = src.indexOf('_canSplitVrmPhysicsUpdate(vrm) {');
-    const canSplitEnd = src.indexOf('\n    }\n', canSplitStart) + 7;
-    assert.ok(canSplitStart > 0 && canSplitEnd > canSplitStart, '_canSplitVrmPhysicsUpdate 定位失败');
-    const sliceMethod = (name) => {
-        const s = src.indexOf(name + '(vrm, delta) {');
-        const e = src.indexOf('\n    }\n', s) + 7;
-        assert.ok(s > 0 && e > s, name + ' 定位失败');
-        return 'this.' + name + ' = function ' + src.slice(s, e) + ';';
-    };
-    const helperSrc = 'this._canSplitVrmPhysicsUpdate = function ' + src.slice(canSplitStart, canSplitEnd) + ';'
-        + sliceMethod('_updateVrmMaterials')
-        + sliceMethod('_updateVrmPoseComponents')
-        + sliceMethod('_updateVrmWithoutPhysics')
-        + 'this._updateVrmWithPhysicsStep = function ' + src.slice(helperStart, helperEnd) + ';';
-    return new Function('delta', 'window', 'VRM_PHYSICS_MAX_STEP_S', helperSrc + src.slice(start, end));
-}
-function makeVrmPhysicsCtx({ componentApi = true } = {}) {
-    const ctx = { enablePhysics: true, _isLowTickRate: () => false, simulated: 0, lookAtTime: [], materialTime: [], order: [], currentModel: null };
-    ctx.newModel = () => {
-        const vrm = {
-            update: (d) => { ctx.simulated += d; ctx.lookAtTime.push(d); ctx.materialTime.push(d); ctx.order.push('whole'); },
-            lookAt: { update: (d) => { ctx.lookAtTime.push(d); ctx.order.push('lookAt'); } },
-            expressionManager: { update() { ctx.order.push('expression'); } },
-            humanoid: { update() { ctx.order.push('humanoid'); } },
-            nodeConstraintManager: { update() { ctx.order.push('constraint'); } },
-            materials: [{ update: (d) => { ctx.materialTime.push(d); ctx.order.push('material'); } }, {}],
-        };
-        if (componentApi) vrm.springBoneManager = { update: (d) => { ctx.simulated += d; ctx.order.push('spring'); } };
-        ctx.currentModel = { vrm };
-    };
-    ctx.newModel();
-    return ctx;
-}
-
-test('VRM 分量更新顺序与 three-vrm VRM.update 一致：humanoid → lookAt → 表情 → 约束 → 弹簧骨 → 材质', () => {
-    const run = loadVrmPhysicsStep();
-    const ctx = makeVrmPhysicsCtx();
-    run.call(ctx, 0.0167, { renderQuality: 'high' }, 0.05);
-    assert.deepEqual(ctx.order, ['humanoid', 'lookAt', 'expression', 'constraint', 'spring', 'material'],
-        '约束/弹簧骨必须在 LookAt 驱动的姿态之后');
-    // medium 跳过物理的帧：除弹簧骨外全部分量照常按库顺序推进（约束不能只在另一帧跑）
-    const skipCtx = makeVrmPhysicsCtx();
-    run.call(skipCtx, 0.0167, { renderQuality: 'medium' }, 0.05);
-    assert.deepEqual(skipCtx.order, ['humanoid', 'lookAt', 'expression', 'constraint', 'material'], '跳过帧只少弹簧骨');
-    run.call(skipCtx, 0.0167, { renderQuality: 'medium' }, 0.05);
-    assert.deepEqual(skipCtx.order.slice(5), ['humanoid', 'lookAt', 'expression', 'constraint', 'spring', 'material'], '更新帧完整顺序');
-    // 打包版 three-vrm 里 VRM.update 的真实顺序，防止库升级后两边漂移
-    const lib = read('static/libs/three-vrm.module.min.js');
-    assert.match(lib, /update\(e\)\{super\.update\(e\),this\.nodeConstraintManager&&this\.nodeConstraintManager\.update\(\),this\.springBoneManager&&this\.springBoneManager\.update\(e\),this\.materials&&this\.materials\.forEach/);
-});
-
-test('VRM 物理隔帧：累计步长只喂弹簧骨，LookAt / MToon 材质每 tick 只推进当前 delta', () => {
-    const run = loadVrmPhysicsStep();
-    const ctx = makeVrmPhysicsCtx();
-    const frames = [0.0167, 0.0167, 0.0333, 0.0167, 0.0167];
-    let elapsed = 0;
-    for (const d of frames) { elapsed += d; run.call(ctx, d, { renderQuality: 'medium' }, 0.05); }
-    assert.ok(Math.abs(ctx.simulated - elapsed) < 1e-9, '弹簧骨物理时间守恒');
-    assert.deepEqual(ctx.lookAtTime, frames, 'LookAt 每帧只拿当前 delta，不吃累计');
-    // MToon 材质 UV 动画按 delta 累积：跳过物理的帧也要推进，每帧拿当前 delta 而不是累计步长
-    assert.deepEqual(ctx.materialTime, frames, '材质每帧按当前 delta 推进，动画不会变成半速');
-    // 旧版 three-vrm（无 springBoneManager.update）：不隔帧，每帧整体 update(delta)，
-    // 累计步长不会喂给 lookAt/材质
-    const legacy = makeVrmPhysicsCtx({ componentApi: false });
-    const legacyFrames = [0.0167, 0.0167, 0.0167];
-    for (const d of legacyFrames) run.call(legacy, d, { renderQuality: 'medium' }, 0.05);
-    assert.ok(Math.abs(legacy.simulated - 0.0501) < 1e-9, '旧版每帧都整体 update');
-    assert.deepEqual(legacy.lookAtTime, legacyFrames, '旧版 lookAt 每帧只拿当前 delta');
-    assert.equal(legacy._physicsPendingDelta, 0, '旧版从不累计跳帧时间');
-});
-
-test('VRM 物理隔帧：隔帧↔全量切换时物理时间总和 = 实际经过时间', () => {
-    const run = loadVrmPhysicsStep();
-    const ctx = makeVrmPhysicsCtx();
-    // 60fps 隔帧 4 帧 → 切到 30fps 全量 3 帧 → 回 60fps 隔帧 4 帧
-    const frames = [0.0167, 0.0167, 0.0167, 0.0167, 0.0333, 0.0333, 0.0333, 0.0167, 0.0167, 0.0167, 0.0167];
-    let elapsed = 0;
-    for (const d of frames) { elapsed += d; run.call(ctx, d, { renderQuality: 'medium' }, 0.05); }
-    assert.ok(Math.abs(ctx.simulated - elapsed) < 1e-9, `物理累计 ${ctx.simulated} 应等于实际 ${elapsed}`);
-});
-
-test('VRM 物理隔帧：关物理 / 切 low / 换模型都清掉累计时间，不把旧会话的 pending 套到新模型', () => {
-    const run = loadVrmPhysicsStep();
-    // 奇数帧后关闭物理 → pending 必须被清
-    let ctx = makeVrmPhysicsCtx();
-    run.call(ctx, 0.0167, { renderQuality: 'medium' }, 0.05);
-    assert.equal(ctx._physicsPendingDelta, 0.0167, '奇数帧累计了一帧');
-    ctx.enablePhysics = false;
-    run.call(ctx, 0.0167, { renderQuality: 'medium' }, 0.05);
-    assert.equal(ctx._physicsPendingDelta, 0, '关物理时清掉累计');
-    assert.equal(ctx._physicsFrameSkip, 0);
-    ctx.enablePhysics = true;
-    ctx.simulated = 0;
-    run.call(ctx, 0.0167, { renderQuality: 'medium' }, 0.05);
-    assert.equal(ctx.simulated, 0, '重新开启后首帧是干净的「跳过」帧，不会套旧 pending');
-    // 奇数帧后切 low 画质 → 同样清
-    ctx = makeVrmPhysicsCtx();
-    run.call(ctx, 0.0167, { renderQuality: 'medium' }, 0.05);
-    run.call(ctx, 0.0167, { renderQuality: 'low' }, 0.05);
-    assert.equal(ctx._physicsPendingDelta, 0, 'low 画质清掉累计');
-    // 奇数帧后换模型 → 新模型不吃旧 pending
-    ctx = makeVrmPhysicsCtx();
-    run.call(ctx, 0.0167, { renderQuality: 'medium' }, 0.05);
-    ctx.newModel();
-    ctx.simulated = 0;
-    run.call(ctx, 0.0167, { renderQuality: 'medium' }, 0.05);
-    assert.equal(ctx.simulated, 0, '换模型后首帧不套旧 pending');
-    run.call(ctx, 0.0167, { renderQuality: 'medium' }, 0.05);
-    assert.ok(Math.abs(ctx.simulated - 0.0334) < 1e-9, '新模型自己的两帧才合并更新');
-    // 累计后的步长仍受 50ms clamp
-    ctx = makeVrmPhysicsCtx();
-    run.call(ctx, 0.0167, { renderQuality: 'medium' }, 0.05); // 绑定模型 + 奇数帧
-    ctx._physicsPendingDelta = 0.05; // 模拟极端累计
-    ctx.simulated = 0;
-    run.call(ctx, 0.02, { renderQuality: 'medium' }, 0.05);
-    assert.equal(ctx.simulated, 0.05, '步长不超过防爆上限');
-});
 
 test('MMD：目标帧率接到设置里的帧率滑块，0 = 不限帧', withMockTimers(() => {
     const sb = createSandbox({ pet: false, targetFrameRate: 45 });
@@ -893,7 +682,7 @@ test('MMD Pet 没有 window.targetFrameRate 时，总闸按 MMD 自己的 perfor
     }
 }));
 
-test('MMD / VRM：时间戳 0 是合法的活动时间戳，不能被当成未设置', withMockTimers(() => {
+test('MMD：时间戳 0 是合法的活动时间戳，不能被当成未设置', withMockTimers(() => {
     const sb = createSandbox({ pet: false, targetFrameRate: 45 });
     const { core, manager } = setupMMD(sb);
     assert.equal(sb.sandbox.performance.now(), 0);
@@ -906,21 +695,6 @@ test('MMD / VRM：时间戳 0 是合法的活动时间戳，不能被当成未�
     sb.tick(901);
     assert.equal(core._hasRenderActivity(), false);
 
-    const sb2 = createSandbox({ pet: false, targetFrameRate: 45 });
-    const vrm = setupVRM(sb2);
-    assert.equal(vrm._hasRenderActivity(), false);
-    for (const key of ['_lastLookAtPointerMoveAt', '_lastCameraChangeAt', '_lastInteractionBoostTs']) {
-        vrm[key] = 0;
-        assert.equal(vrm._hasRenderActivity(), true, `VRM ${key} = 0 在保持期内算活动`);
-        vrm[key] = undefined;
-    }
-    // CursorFollow 构造/重置时 _lastPointerMoveAt = 0 表示「尚无指针输入」，必须靠 _hasPointerInput 区分
-    vrm._cursorFollow = { isEnabled: () => true, _lastPointerMoveAt: 0, _hasPointerInput: false };
-    assert.equal(vrm._hasRenderActivity(), false, '尚无指针输入时 0 不算活动');
-    vrm._cursorFollow = { isEnabled: () => true, _lastPointerMoveAt: 0, _hasPointerInput: true };
-    assert.equal(vrm._hasRenderActivity(), true, '有过指针输入时时间戳 0 在保持期内算活动');
-    sb2.tick(901);
-    assert.equal(vrm._hasRenderActivity(), false);
 }));
 
 test('MMD：交互升帧的 900ms 保持期到期后活动判定失效', withMockTimers(() => {
@@ -978,38 +752,7 @@ test('契约：Live2D 交互层只有坐标真变了才升帧', () => {
     );
 });
 
-test('VRM legacy 视线跟随（CursorFollow 未加载）：重复坐标不续期活动保持期', withMockTimers(() => {
-    const sb = createSandbox({ pet: false, targetFrameRate: 60 });
-    const vrm = setupVRM(sb);
-    vrm.isMouseTrackingEnabled = () => true;
-    vrm._setLookAtTargetByMouse = () => {};
-    // 从源码抠出 legacy handler 的闭包体，避免依赖 THREE 初始化
-    const src = VRM_MANAGER_SRC;
-    const start = src.indexOf('this._mouseMoveHandler = (event) => {');
-    const end = src.indexOf('document.addEventListener(\'mousemove\', this._mouseMoveHandler', start);
-    assert.ok(start > 0 && end > start, 'legacy handler 定位失败');
-    // 必须在沙盒 realm 里构造，handler 读到的才是沙盒的 performance.now()
-    const install = vm.runInContext('(function () {' + src.slice(start, end) + '})', sb.sandbox);
-    install.call(vrm);
-    sb.tick(1000);
-    vrm._mouseMoveHandler({ clientX: 10, clientY: 20 });
-    const first = vrm._lastLookAtPointerMoveAt;
-    assert.equal(first, sb.sandbox.performance.now(), '首次坐标记录时间戳');
-    sb.tick(500);
-    vrm._mouseMoveHandler({ clientX: 10, clientY: 20 });
-    assert.equal(vrm._lastLookAtPointerMoveAt, first, '同坐标重复事件不刷新时间戳');
-    sb.tick(500);
-    assert.equal(vrm._hasRenderActivity(), false, '保持期过后可进空闲');
-    vrm._mouseMoveHandler({ clientX: 11, clientY: 20 });
-    assert.equal(vrm._lastLookAtPointerMoveAt, sb.sandbox.performance.now(), '坐标一变立即刷新');
-    assert.equal(vrm._hasRenderActivity(), true);
-}));
-
-test('契约：VRM / MMD 光标跟随对坐标没变的事件不刷新活动时间戳', () => {
-    const vrm = read('static/vrm/vrm-cursor-follow.js');
-    assert.match(vrm, /const moved = e\.clientX !== this\._rawMouseX \|\| e\.clientY !== this\._rawMouseY;/);
-    assert.match(vrm, /if \(moved\) this\._lastPointerMoveAt = now;/);
-    assert.doesNotMatch(vrm, /\n\s+this\._lastPointerMoveAt = now;\n/, '不允许无条件刷新');
+test('契约：MMD 光标跟随对坐标没变的事件不刷新活动时间戳', () => {
     const mmd = read('static/mmd/mmd-cursor-follow.js');
     assert.match(mmd, /if \(e\.clientX !== this\._rawMouseX \|\| e\.clientY !== this\._rawMouseY\) \{\n\s+this\._lastPointerMoveTs = now;/);
     assert.equal((mmd.match(/this\._lastPointerMoveTs = now;/g) || []).length, 1, '时间戳只在坐标变化门控内刷新一处');

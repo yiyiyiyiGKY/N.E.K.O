@@ -6,6 +6,7 @@ let _workshopVrmModulesLoaded = false;
 let _workshopMmdModulesLoaded = false;
 let _workshopVrmModulesLoading = false;
 let _workshopMmdModulesLoading = false;
+let _workshopVrmModulesPromise = null;
 let _workshopPreviewGeneration = 0;
 
 function cancelWorkshopPreviewLoads() {
@@ -40,62 +41,55 @@ async function disposeStaleWorkshopPreviewManager(manager, type) {
 // 按需加载 VRM 模块
 async function ensureVrmModulesLoaded() {
     if (_workshopVrmModulesLoaded) return true;
-    if (_workshopVrmModulesLoading) {
-        // 等待加载完成，带超时和失败检测
-        return new Promise((resolve) => {
-            let elapsed = 0;
-            const check = () => {
-                if (_workshopVrmModulesLoaded) resolve(true);
-                else if (!_workshopVrmModulesLoading || elapsed >= 30000) resolve(false);
-                else { elapsed += 100; setTimeout(check, 100); }
-            };
-            check();
-        });
-    }
+    if (_workshopVrmModulesPromise) return _workshopVrmModulesPromise;
     _workshopVrmModulesLoading = true;
-
-    // 等待 THREE 就绪
-    if (typeof window.THREE === 'undefined') {
-        await new Promise(resolve => {
-            window.addEventListener('three-ready', resolve, { once: true });
-        });
-    }
-
-    const vrmModules = [
-        '/static/vrm/vrm-orientation.js',
-        // 共享五元音共振峰分析器：本表是 workshop 预览独立的 VRM 加载链，
-        // 不经过 vrm-init.js，漏了它预览里的口型会退化成旧单通道路径。
-        '/static/vrm/vrm-lipsync-formant.js',
-        '/static/vrm/vrm-core.js',
-        '/static/vrm/vrm-expression.js',
-        '/static/vrm/vrm-animation.js',
-        '/static/avatar/avatar-touch-gestures.js',
-        '/static/vrm/vrm-interaction.js',
-        '/static/vrm/vrm-cursor-follow.js',
-        '/static/vrm/vrm-manager.js'
-    ];
-
-    for (const moduleSrc of vrmModules) {
-        // 检查是否已通过其他途径加载
-        if (moduleSrc.includes('vrm-lipsync-formant') && typeof window.FormantLipSyncAnalyzer !== 'undefined') continue;
-        if (moduleSrc.includes('vrm-manager') && typeof window.VRMManager !== 'undefined') continue;
-        if (moduleSrc.includes('vrm-core') && typeof window.VRMCore !== 'undefined') continue;
-
-        const script = document.createElement('script');
-        script.src = `${moduleSrc}?v=${Date.now()}`;
-        await new Promise((resolve) => {
-            script.onload = resolve;
-            script.onerror = () => {
-                console.error(`[Workshop VRM] 模块加载失败: ${moduleSrc}`);
-                resolve();
-            };
-            document.body.appendChild(script);
-        });
-    }
-
-    _workshopVrmModulesLoaded = typeof window.VRMManager !== 'undefined';
-    _workshopVrmModulesLoading = false;
-    return _workshopVrmModulesLoaded;
+    _workshopVrmModulesPromise = (async () => {
+        if (!window.NekoUnityVRMLoader) {
+            await new Promise((resolve, reject) => {
+                const existing = document.querySelector('script[src^="/static/unity/unity-vrm-loader.js"]');
+                const script = existing || document.createElement('script');
+                let settled = false;
+                let timer = null;
+                const cleanup = () => {
+                    if (timer !== null) clearTimeout(timer);
+                    script.removeEventListener('load', onLoad);
+                    script.removeEventListener('error', onError);
+                };
+                const settle = (callback, value) => {
+                    if (settled) return;
+                    settled = true;
+                    cleanup();
+                    callback(value);
+                };
+                const onLoad = () => window.NekoUnityVRMLoader
+                    ? settle(resolve)
+                    : settle(reject, new Error('Unity VRM loader did not install its API'));
+                const onError = () => settle(reject, new Error('Failed to load Unity VRM loader'));
+                script.addEventListener('load', onLoad, { once: true });
+                script.addEventListener('error', onError, { once: true });
+                timer = setTimeout(() => {
+                    if (window.NekoUnityVRMLoader) settle(resolve);
+                    else settle(reject, new Error('Timed out loading Unity VRM loader'));
+                }, 15000);
+                if (!existing) {
+                    script.src = `/static/unity/unity-vrm-loader.js?v=${Date.now()}`;
+                    (document.head || document.body || document.documentElement).appendChild(script);
+                } else {
+                    setTimeout(() => { if (window.NekoUnityVRMLoader) settle(resolve); }, 0);
+                }
+            });
+        }
+        await window.NekoUnityVRMLoader.ensure({ ui: false, vmc: false, version: Date.now() });
+        _workshopVrmModulesLoaded = typeof window.UnityVRMManager === 'function';
+        return _workshopVrmModulesLoaded;
+    })().catch((error) => {
+        console.error('[Workshop VRM] Unity 渲染模块加载失败:', error);
+        _workshopVrmModulesPromise = null;
+        return false;
+    }).finally(() => {
+        _workshopVrmModulesLoading = false;
+    });
+    return _workshopVrmModulesPromise;
 }
 
 // 按需加载 MMD 模块
@@ -196,10 +190,13 @@ async function disposeWorkshopMmd() {
 }
 
 function syncWorkshop3DPreviewSize(manager, canvasId) {
-    if (!manager || !manager.renderer) return false;
+    if (!manager) return false;
 
     const previewContent = document.getElementById('live2d-preview-content');
-    const canvas = canvasId ? document.getElementById(canvasId) : (manager.renderer.domElement || null);
+    const isUnityVrm = window.UnityVRMManager && manager instanceof window.UnityVRMManager;
+    const canvas = canvasId
+        ? document.getElementById(canvasId)
+        : (isUnityVrm ? manager.getSurfaceCanvas?.() : manager.renderer?.domElement) || null;
     const rect = previewContent ? previewContent.getBoundingClientRect() : null;
     const w = Math.max(1, Math.round(rect?.width || previewContent?.clientWidth || canvas?.clientWidth || 0));
     const h = Math.max(1, Math.round(rect?.height || previewContent?.clientHeight || canvas?.clientHeight || 0));
@@ -212,6 +209,13 @@ function syncWorkshop3DPreviewSize(manager, canvasId) {
         canvas.height = Math.round(h * (window.devicePixelRatio || 1));
     }
 
+    if (isUnityVrm) {
+        manager.setSurfacePixelRatio?.(window.devicePixelRatio || 1);
+        manager.resizeSurface?.(w, h, false);
+        manager.fitModel?.({ width: w, height: h }, { mode: 'contain', align: 'center', padding: 0 });
+        return true;
+    }
+    if (!manager.renderer) return false;
     manager.renderer.setSize(w, h, false);
     if (manager.camera) {
         manager.camera.aspect = w / h;
@@ -284,15 +288,14 @@ async function loadVrmPreview(modelPath, rawData) {
         // 获取光照配置
         const lighting = rawData?.['lighting'] || null;
 
-        // 初始化 Three.js 场景
-        await localVrmManager.initThreeJS('vrm-preview-canvas', 'vrm-preview-container', lighting);
+        // 初始化嵌入式 Unity WebGL 画布
+        await localVrmManager.initRenderer('vrm-preview-canvas', 'vrm-preview-container', lighting);
         if (!isWorkshopPreviewLoadCurrent(previewGeneration) || workshopVrmManager !== localVrmManager) {
             await disposeStaleWorkshopPreviewManager(localVrmManager, 'vrm');
             return;
         }
 
-        // 修正容器样式：VRMCore.init 会设置 position:fixed 覆盖全屏，
-        // 这里覆盖为 absolute 使其嵌入预览区域内
+        // 预览容器必须保持 absolute，避免继承桌宠全屏布局。
         const vrmContainerEl = document.getElementById('vrm-preview-container');
         if (vrmContainerEl) {
             vrmContainerEl.style.position = 'absolute';
@@ -303,7 +306,7 @@ async function loadVrmPreview(modelPath, rawData) {
             vrmContainerEl.style.zIndex = '10';
         }
 
-        // 按预览区域实际尺寸同步 renderer / camera / effect，避免 CSS 尺寸和 WebGL 后备尺寸不一致。
+        // 按预览区域实际尺寸同步渲染表面，避免 CSS 与 WebGL 后备尺寸不一致。
         const previewContent = document.getElementById('live2d-preview-content');
         syncWorkshop3DPreviewSize(localVrmManager, 'vrm-preview-canvas');
 
@@ -322,6 +325,8 @@ async function loadVrmPreview(modelPath, rawData) {
         const result = await localVrmManager.loadModel(modelUrl, {
             canvasId: 'vrm-preview-canvas',
             containerId: 'vrm-preview-container',
+            embed: true,
+            restorePreferences: false,
             addShadow: true,
             idleAnimation: idleAnimation
         });

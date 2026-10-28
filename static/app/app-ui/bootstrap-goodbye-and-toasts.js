@@ -166,7 +166,7 @@ I.mod = window.appUi;
             return !!(ticker && (ticker.started !== false || manager._idleTickMode));
         }
         if (type === 'vrm') {
-            return !!(manager._animationFrameId || manager._idleTickMode);
+            return typeof manager.isRendering === 'function' && manager.isRendering();
         }
         if (type === 'mmd') {
             return !!(manager._animationFrameId || (manager.core && manager.core._idleTickMode));

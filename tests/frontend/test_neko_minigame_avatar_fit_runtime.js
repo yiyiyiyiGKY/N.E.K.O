@@ -48,7 +48,7 @@ for (const bad of [{ autoScale: 'false' }, { minHeight: NaN }, { minWidth: -1 }]
 async function testPerspective() {
   const { pathToFileURL } = require('node:url');
   const THREE = await import(pathToFileURL(path.resolve(__dirname, '../../static/libs/three.module.js')).href);
-  await testEngineFramingOwnership(THREE);
+  await testMmdEmbeddedControls();
   // A cached T-pose box must not be reused as the current skinned pose.
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(
@@ -88,35 +88,33 @@ async function testPerspective() {
   for (const node of [head,lHand,rHand]) {
     skin.skeleton.bones.push(node); skin.skeleton.boneInverses.push(node.matrixWorld.clone().invert());
   }
-  const bones = {head, hips:root, leftUpperArm:left, rightUpperArm:right, leftHand:lHand, rightHand:rHand};
-  for (const type of ['vrm','mmd']) {
-    left.rotation.z = right.rotation.z = 0;
-    const loaded = type === 'vrm' ? {vrm:{scene:skin,humanoid:{getRawBoneNode:name=>bones[name]}}} : {mesh:skin};
-    const manager = {currentModel:loaded,camera:skinCamera};
-    const apply = async () => { left.rotation.z=Math.PI/2; right.rotation.z=-Math.PI/2; return true; };
-    if (type === 'vrm') manager.playVRMAAnimation=apply; else manager.loadAnimation=apply;
-    const reference = await host.preparePerspectiveReference(THREE,manager,{type});
-    assert.equal(reference.source,'standing-reference');
-    near(reference.height,2);
-    left.rotation.z = right.rotation.z = 0;
-    near(host.fitPerspectiveModel(THREE,skin,skinCamera,viewport,fit).height,288);
-    // Missing/failed animations and a nominal idle which is still T-pose must
-    // report fallback, never a falsely validated reference.
-    const method = type === 'vrm' ? 'playVRMAAnimation' : 'loadAnimation';
-    manager[method] = async () => { throw Error('missing fixture'); };
-    assert.equal((await host.preparePerspectiveReference(THREE,manager,{type})).source,'current-pose-fallback');
-    manager[method] = async () => true;
-    assert.equal((await host.preparePerspectiveReference(THREE,manager,{type})).source,'current-pose-fallback');
-    const abort = new AbortController();
-    let settle;
-    manager[method] = () => new Promise(resolve=>{settle=resolve;});
-    const pending = host.preparePerspectiveReference(THREE,manager,{type,signal:abort.signal});
-    abort.abort(); settle(true);
-    await assert.rejects(pending,error=>error.code==='disposed');
-    // No cancelled reference survives: first fit now measures current T-pose.
-    assert.ok(host.fitPerspectiveModel(THREE,skin,skinCamera,viewport,fit).height<150);
-    host.releasePerspectiveReference(skin,skinCamera);
-  }
+  left.rotation.z = right.rotation.z = 0;
+  const manager = {currentModel:{mesh:skin},camera:skinCamera};
+  manager.loadAnimation = async () => { left.rotation.z=Math.PI/2; right.rotation.z=-Math.PI/2; return true; };
+  const reference = await host.preparePerspectiveReference(THREE,manager,{type:'mmd'});
+  assert.equal(reference.source,'standing-reference');
+  near(reference.height,2);
+  left.rotation.z = right.rotation.z = 0;
+  near(host.fitPerspectiveModel(THREE,skin,skinCamera,viewport,fit).height,288);
+  // Missing/failed animations and a nominal idle which is still T-pose must
+  // report fallback, never a falsely validated reference.
+  manager.loadAnimation = async () => { throw Error('missing fixture'); };
+  assert.equal((await host.preparePerspectiveReference(THREE,manager,{type:'mmd'})).source,'current-pose-fallback');
+  manager.loadAnimation = async () => true;
+  assert.equal((await host.preparePerspectiveReference(THREE,manager,{type:'mmd'})).source,'current-pose-fallback');
+  const abort = new AbortController();
+  let settle;
+  manager.loadAnimation = () => new Promise(resolve=>{settle=resolve;});
+  const pending = host.preparePerspectiveReference(THREE,manager,{type:'mmd',signal:abort.signal});
+  abort.abort(); settle(true);
+  await assert.rejects(pending,error=>error.code==='disposed');
+  // No cancelled reference survives: first fit now measures current T-pose.
+  assert.ok(host.fitPerspectiveModel(THREE,skin,skinCamera,viewport,fit).height<150);
+  host.releasePerspectiveReference(skin,skinCamera);
+  await assert.rejects(
+    host.preparePerspectiveReference(THREE,manager,{type:'vrm'}),
+    error=>error.code==='invalid_renderer'
+  );
   geometry.dispose(); skin.material.dispose(); skin.skeleton.dispose();
   for (const dims of [[1, 4, 1], [4, 1, 0.3], [2, 2, 2], [0.01, 0.06, 0.01]]) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(...dims));
@@ -151,69 +149,6 @@ async function testPerspective() {
   process.stdout.write('mini-game Avatar fit runtime test passed (2D + real Three.js projection)\n');
 }
 
-async function testEngineFramingOwnership(THREE) {
-  await testMmdEmbeddedControls();
-  const engineWindow = { THREE, addEventListener() {} };
-  const container = { clientWidth:200, clientHeight:300, style:{setProperty() {}} };
-  const canvas = { id:'test-canvas' };
-  const document = { getElementById:id=>id==='test-canvas'?canvas:container,
-    createElement:()=>({getContext:()=>null}) };
-  const context = { window:engineWindow, document, console:{...console,error() {}}, performance };
-  for (const name of ['vrm/vrm-core.js','vrm/vrm-interaction.js','mmd/mmd-interaction.js']) {
-    vm.runInNewContext(fs.readFileSync(path.resolve(__dirname,'../../static',name),'utf8'),context);
-  }
-  const manager = {};
-  const core = Object.create(engineWindow.VRMCore.prototype);
-  core.manager = manager;
-  core._ensureThreeReady = () => {};
-  // Stop actual init at the WebGL availability check, after camera/ownership
-  // setup. Bounds updates below use real Three.js geometry and camera math.
-  await core.init('test-canvas','test-container',null,{embed:true,resizeMode:'fixed'});
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(.5,2,.1),new THREE.MeshBasicMaterial());
-  manager.currentModel = {vrm:{scene:mesh}};
-  manager.renderer = {domElement:{getBoundingClientRect:()=>({left:30,top:40,width:200,height:300})}};
-  const interaction = new engineWindow.VRMInteraction(manager);
-  host.fitPerspectiveModel(THREE,mesh,manager.camera,{width:200,height:300},{mode:'height',padding:6});
-  const lens = manager.camera.fov;
-  const projection = manager.camera.projectionMatrix.elements.slice();
-  for(let i=0;i<30;i++) interaction.updateModelBoundsCache();
-  near(manager.camera.fov,lens);
-  assert.deepEqual(manager.camera.projectionMatrix.elements,projection);
-  assert.ok(interaction._cachedBox && interaction._cachedScreenBounds,'embed still updates interaction bounds');
-  near(interaction._cachedScreenBounds.maxY-interaction._cachedScreenBounds.minY,288);
-  // Also suppress the delayed relaxation branch, not just FOV expansion.
-  interaction._safeFramingBaselineFov=lens-5;
-  interaction._safeFramingLastExpandedAt=0;
-  mesh.scale.setScalar(.2);
-  interaction.updateModelBoundsCache();
-  near(manager.camera.fov,lens);
-  host.releasePerspectiveReference(mesh,manager.camera);
-  mesh.scale.setScalar(1);
-  // Reinitializing the same manager without embed must restore desktop policy.
-  await core.init('test-canvas','test-container',null,{resizeMode:'fixed'});
-  manager.renderer={domElement:{getBoundingClientRect:()=>({left:30,top:40,width:200,height:300})}};
-  host.fitPerspectiveModel(THREE,mesh,manager.camera,{width:200,height:300},{mode:'height',padding:6});
-  const desktopLens=manager.camera.fov;
-  interaction._safeFramingBaselineFov=null;
-  interaction.updateModelBoundsCache();
-  assert.ok(manager.camera.fov>desktopLens,'desktop still protects animated extremities');
-  interaction._safeFramingLastExpandedAt=0;
-  const expanded=manager.camera.fov;
-  mesh.scale.setScalar(.2);
-  interaction.updateModelBoundsCache();
-  assert.ok(manager.camera.fov<expanded,'desktop still relaxes to its baseline');
-  // MMD's corresponding bounds loop is already read-only for the camera.
-  const MMDInteraction = vm.runInNewContext('MMDInteraction',context);
-  const mmd = Object.create(MMDInteraction.prototype);
-  mmd.manager={...manager,currentModel:{mesh}};
-  mmd._boundsUpdateInterval=0; mmd._lastBoundsUpdateTime=0;
-  const mmdProjection=manager.camera.projectionMatrix.elements.slice();
-  for(let i=0;i<30;i++) mmd.updateScreenBounds();
-  assert.ok(mmd._cachedScreenBounds);
-  assert.deepEqual(manager.camera.projectionMatrix.elements,mmdProjection);
-  host.releasePerspectiveReference(mesh,manager.camera);
-  mesh.geometry.dispose(); mesh.material.dispose();
-}
 async function testMmdEmbeddedControls() {
   const w = { dispatchEvent() {} };
   vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, '../../static/mmd/mmd-manager.js'), 'utf8'), {

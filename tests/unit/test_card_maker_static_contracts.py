@@ -179,10 +179,9 @@ def test_model_manager_parts_load_in_dependency_order():
     assert script_positions == sorted(script_positions)
 
     loaders = (MODEL_MANAGER_JS_DIR / "runtime-loaders.js").read_text(encoding="utf-8")
-    assert loaders.index("window._vrmModulesLoading = true;") < loaders.index(
-        "'/static/vrm/vrm-init.js'"
-    )
-    assert loaders.index("(async function initVRMModules()") < loaders.index(
+    assert "/static/vrm/vrm-init.js" in loaders
+    assert "script.dataset.nekoUnityVrmEntry = 'true';" in loaders
+    assert loaders.index("(function loadCanonicalUnityVRMEntry()") < loaders.index(
         "(async function initMMDModules()"
     )
 
@@ -437,6 +436,22 @@ def test_model_manager_save_completion_is_scoped_to_the_original_model_context()
     bridge = (MODEL_MANAGER_JS_DIR / "page-bridge.js").read_text(encoding="utf-8")
     assert "const shouldCancel = typeof options.shouldCancel === 'function' ? options.shouldCancel : null;" in bridge
     assert "shouldCancel: () => cardFaceSaved || (shouldCancel && shouldCancel())" in bridge
+
+
+def test_model_manager_vrm_card_face_fallback_reads_the_unity_surface():
+    source = (MODEL_MANAGER_JS_DIR / "card-face.js").read_text(encoding="utf-8")
+    capture = source[
+        source.index("async function captureCurrentModelManagerCanvas"):
+        source.index("function getPNGTuberDrawableSize")
+    ]
+    mmd_branch, vrm_branch = capture.split("} else if (modelType === 'live3d') {", 1)
+
+    assert "renderThreeSceneToCanvas" in mmd_branch
+    assert "await sourceManager.waitForRenderedFrame();" in vrm_branch
+    assert "sourceManager?.getSurfaceCanvas?.()" in vrm_branch
+    assert "sourceManager?.renderer" not in vrm_branch
+    assert "sourceManager?.scene" not in vrm_branch
+    assert "sourceManager?.camera" not in vrm_branch
 
 
 def test_card_maker_freezes_layered_pngtuber_frame_for_preview_and_export():

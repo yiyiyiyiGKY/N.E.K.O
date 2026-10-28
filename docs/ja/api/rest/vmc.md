@@ -30,7 +30,7 @@ await window.vrmVmcSender.disable()
 
 ## 出力
 
-backend は Three.js の右手座標を Unity/VMC 座標へ変換し、`/VMC/Ext/OK`、`/VMC/Ext/T`、`/VMC/Ext/Root/Pos`、`/VMC/Ext/Bone/Pos`、`/VMC/Ext/Blend/Val`、`/VMC/Ext/Blend/Apply` を送信します。加えて `/VMC/Ext/VRM` を低頻度で送信します（model 変更時に一度だけ。receiver 側で現在の model を識別するため）。
+backend は renderer に依存しない browser protocol の右手座標を Unity/VMC 座標へ変換し、`/VMC/Ext/OK`、`/VMC/Ext/T`、`/VMC/Ext/Root/Pos`、`/VMC/Ext/Bone/Pos`、`/VMC/Ext/Blend/Val`、`/VMC/Ext/Blend/Apply` を送信します。加えて `/VMC/Ext/VRM` を低頻度で送信します（model 変更時に一度だけ。receiver 側で現在の model を識別するため）。
 
 1 frame あたり bone は最大 64、expression は最大 256 です。2 つの上限は独立に適用されます。bone が 65 本の frame は expression の数に関わらず切り詰められ、その逆も同様です。first-party sampler は固定の 55 humanoid bone を走査するため、bone の上限に達し得るのは `/api/vmc/ws` へ直接送る third-party publisher だけです。expression の上限は browser 側でも到達可能で、custom expression が数百ある model が該当します。
 

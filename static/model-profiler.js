@@ -259,6 +259,7 @@ class ModelProfiler {
         // 检测模型类型
         const ctorName = manager.constructor?.name || '';
         const currentModel = manager.currentModel || null;
+        const isUnityVRM = typeof manager.getModelProfile === 'function';
         const isVRM = ctorName === 'VRMManager' || !!manager._cursorFollow || !!currentModel?.vrm;
         const isMMD = ctorName === 'MMDManager' || !!currentModel?.mesh;
 
@@ -273,7 +274,7 @@ class ModelProfiler {
 
         // 通用渲染器信息
         const renderer = manager.renderer;
-        if (renderer) {
+        if (renderer && !isUnityVRM) {
             const info = renderer.info;
             snap.renderer = {
                 drawCalls: info?.render?.calls || 0,
@@ -294,7 +295,7 @@ class ModelProfiler {
         }
 
         // GPU 信息
-        if (renderer) {
+        if (renderer && !isUnityVRM) {
             const gl = renderer.getContext?.();
             if (gl) {
                 const dbg = gl.getExtension('WEBGL_debug_renderer_info');
@@ -303,6 +304,17 @@ class ModelProfiler {
                     renderer: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
                     maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
                     maxVertexAttribs: gl.getParameter(gl.MAX_VERTEX_ATTRIBS)
+                };
+            }
+        }
+
+        if (isUnityVRM && snap.renderer) {
+            snap.renderer.pixelRatio = manager.getSurfacePixelRatio?.() || 1;
+            const canvas = manager.getSurfaceCanvas?.();
+            if (canvas) {
+                snap.renderer.size = {
+                    width: canvas.width || canvas.clientWidth || snap.renderer.size?.width || 0,
+                    height: canvas.height || canvas.clientHeight || snap.renderer.size?.height || 0
                 };
             }
         }
@@ -415,68 +427,25 @@ class ModelProfiler {
         snap.loaded = true;
         snap.name = model.url || model.name || '(unknown)';
 
-        // VRM 模型信息
-        const vrm = model.vrm || model;
-        const scene = vrm.scene || model.scene || vrm;
-
-        // 遍历场景统计几何信息
-        let totalVertices = 0;
-        let totalFaces = 0;
-        let materialSet = new Set();
-        let textureCount = 0;
-        const texProps = ['map', 'matcap', 'emissiveMap', 'normalMap', 'bumpMap', 'alphaMap', 'shadeMultiplyTexture'];
-
-        scene.traverse?.((child) => {
-            if (child.isMesh) {
-                const geom = child.geometry;
-                if (geom) {
-                    totalVertices += geom.attributes?.position?.count || 0;
-                    totalFaces += geom.index
-                        ? Math.floor(geom.index.count / 3)
-                        : (geom.attributes?.position ? Math.floor(geom.attributes.position.count / 3) : 0);
-                }
-                const mats = Array.isArray(child.material) ? child.material : [child.material];
-                for (const mat of mats) {
-                    if (!mat) continue;
-                    if (!materialSet.has(mat.uuid)) {
-                        materialSet.add(mat.uuid);
-                        for (const prop of texProps) {
-                            if (mat[prop]) textureCount++;
-                        }
-                    }
-                }
-            }
-        });
-
-        snap.geometry = { vertices: totalVertices, faces: totalFaces };
-        snap.materials = { count: materialSet.size, textureCount };
-
-        // Spring Bones（VRM 物理）
-        if (vrm.springBoneManager) {
-            const joints = vrm.springBoneManager.joints || [];
-            const colliders = vrm.springBoneManager.colliders || [];
-            snap.springBones = {
-                jointCount: joints.length,
-                colliderCount: colliders.length
-            };
+        // Unity 持有真实 3D 场景，浏览器 facade 不暴露 Three.js Mesh。使用构建时
+        // 由 Unity 从当前 UniVRM 实例统计并随模型加载缓存的快照，避免把空 facade
+        // 遍历结果误报成 0。
+        const profile = manager.getModelProfile?.();
+        if (!profile) {
+            snap.profileUnavailable = true;
+            return snap;
         }
-
-        // Humanoid 骨骼
-        if (vrm.humanoid) {
-            const bones = vrm.humanoid.humanBones || vrm.humanoid._rawHumanBones;
-            snap.skeleton = {
-                humanBoneCount: bones ? Object.keys(bones).length : 0
-            };
-        }
-
-        // 表情
-        if (vrm.expressionManager) {
-            snap.expressions = {
-                count: vrm.expressionManager.expressions?.length ||
-                       Object.keys(vrm.expressionManager._expressionMap || {}).length || 0
-            };
-        }
-
+        const copy = (value) => value && typeof value === 'object' ? { ...value } : value;
+        snap.name = profile.name || snap.name;
+        snap.geometry = copy(profile.geometry);
+        snap.materials = copy(profile.materials);
+        snap.skeleton = copy(profile.skeleton);
+        snap.springBones = copy(profile.springBones);
+        snap.renderer = copy(profile.renderer);
+        const expressionNames = manager.expression?.getExpressionList?.();
+        snap.expressions = {
+            count: Array.isArray(expressionNames) ? expressionNames.length : 0
+        };
         return snap;
     }
 

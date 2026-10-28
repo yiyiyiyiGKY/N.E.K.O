@@ -917,8 +917,8 @@
                     }
                 }
 
-                if (window.vrmManager && window.vrmManager.core && typeof window.vrmManager.core.setLocked === 'function') {
-                    window.vrmManager.core.setLocked(false);
+                if (window.vrmManager && typeof window.vrmManager.setLocked === 'function') {
+                    window.vrmManager.setLocked(false);
                 }
 
                 // 隐藏Live2D浮动按钮和锁图标

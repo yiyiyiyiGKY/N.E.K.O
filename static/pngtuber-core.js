@@ -2734,7 +2734,7 @@
         // 类淡到 0.12(index.css),提示可以直接操作模型身后的内容。
         // pngtuber 此前只接了消费端(CSS 规则/解锁清类/锁图标随类同步透明度),
         // 触发端从未实现,锁定态永远不淡化。
-        // 实现参照 vrm-interaction.js setupFloatingButtonsMouseTracking 的淡化段:
+        // 与其他 3D/2D avatar 交互层保持一致的按钮淡化行为：
         // 事件驱动 + rAF 节流(不挂常驻帧循环);pointermove/mousemove 都监听 window,
         // 锁定穿透模式下 Electron preload 轮询派发的合成事件才能到达 renderer。
         setupLockedHoverFade() {

@@ -54,7 +54,6 @@
     }
 
     async function loadVRMRuntime() {
-        await ensureThree();
         await loadClassicScript('/static/vrm/vrm-init.js');
     }
 

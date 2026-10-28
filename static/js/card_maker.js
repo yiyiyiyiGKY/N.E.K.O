@@ -680,8 +680,8 @@
                 throw new Error('VRMManager 未定义');
             }
         }
-        if (!window.vrmManager.renderer) {
-            await window.vrmManager.initThreeJS('vrm-canvas', 'vrm-container');
+        if (!window.vrmManager.isInitialized?.()) {
+            await window.vrmManager.initRenderer('vrm-canvas', 'vrm-container');
         }
         resizeModelRendererForCard('vrm');
         if (lighting) {
@@ -700,7 +700,9 @@
         // 制卡页居中；嵌入页使用与 Live2D 对称的左侧半身构图。
         resizeModelRendererForCard('vrm');
         if (isEmbedMode) frameVRMModelForEmbed(window.vrmManager);
-        else centerThreeCamera(window.vrmManager);
+        else if (!fitUnityVRMForCard(window.vrmManager, CARD_BASE_WIDTH, CARD_BASE_HEIGHT, false)) {
+            throw new Error('Unity VRM 管理器不可用');
+        }
     }
 
     async function loadMMDIdlePoseForEmbed(mgr) {
@@ -849,8 +851,33 @@
     }
 
     function frameVRMModelForEmbed(mgr) {
-        const model = mgr?.currentModel?.vrm?.scene || mgr?.currentModel?.scene;
-        frameThreeModelForEmbed(mgr, model);
+        if (!fitUnityVRMForCard(mgr, window.innerWidth, window.innerHeight, true)) {
+            throw new Error('Unity VRM 管理器不可用');
+        }
+    }
+
+    function fitUnityVRMForCard(mgr, width, height, embed) {
+        const UnityVRMManager = window.UnityVRMManager;
+        if (typeof UnityVRMManager !== 'function' || !(mgr instanceof UnityVRMManager)
+            || !mgr.currentModel || typeof mgr.fitModel !== 'function') return false;
+        const viewportWidth = Math.max(1, Number(width) || 1);
+        const viewportHeight = Math.max(1, Number(height) || 1);
+        const heightRatio = embed && embedModelLayout
+            ? embedModelLayout.HEIGHT_RATIO : 0.85;
+        const centerX = embed && embedModelLayout
+            ? embedModelLayout.CENTER_X_RATIO : 0.5;
+        const centerY = embed && embedModelLayout
+            ? embedModelLayout.CENTER_Y_RATIO : 0.5;
+        mgr.fitModel(
+            { width: viewportWidth, height: viewportHeight },
+            { mode: 'height', align: 'center', padding: 0 },
+            {
+                scale: heightRatio * 100,
+                x: (centerX - 0.5) * 100,
+                y: (centerY - 0.5) * 100
+            }
+        );
+        return true;
     }
 
     function frameMMDModelForEmbed(mgr) {
@@ -876,7 +903,7 @@
             }
             // Reuse the first stable pose's bounds. Re-measuring a skinned
             // model during resize makes the camera follow whichever animation
-            // frame happened to be active, which is the source of VRM/MMD
+            // frame happened to be active, which is the source of MMD
             // model-specific drift.
             const center = bounds.center;
             const size = bounds.size;
@@ -1023,6 +1050,17 @@
         }
 
         const mgr = type === 'vrm' ? window.vrmManager : window.mmdManager;
+        if (type === 'vrm') {
+            if (!mgr?.getSurfaceCanvas?.()) return;
+            mgr.setSurfacePixelRatio?.(ratio);
+            mgr.resizeSurface?.(w, h, false);
+            const canvas = mgr.getSurfaceCanvas();
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+            fitUnityVRMForCard(mgr, w, h, isEmbedMode);
+            if (isEmbedMode) frameVRMModelForEmbed(mgr);
+            return;
+        }
         const renderer = mgr?.renderer;
         if (!renderer) return;
         renderer.setPixelRatio?.(ratio);
@@ -1037,8 +1075,7 @@
         }
         mgr.effect?.setSize?.(w, h);
         if (isEmbedMode) {
-            if (type === 'vrm') frameVRMModelForEmbed(mgr);
-            else frameMMDModelForEmbed(mgr);
+            frameMMDModelForEmbed(mgr);
         }
     }
 
@@ -1081,7 +1118,7 @@
 
     /**
      * 将 Three.js 相机重置为正对模型中心，模型高度填满画布约 85%
-     * 适用于 VRM / MMD 的 manager 对象（需具有 scene, camera, renderer）
+     * 适用于 MMD 的 manager 对象（需具有 scene, camera, renderer）
      */
     function centerThreeCamera(mgr) {
         const THREE = window.THREE;
@@ -1103,7 +1140,7 @@
             mgr.camera.lookAt(center.x, center.y, center.z);
             mgr.camera.updateProjectionMatrix();
 
-            // 同步 _cameraTarget（VRM 用）
+            // 同步管理器可选的相机目标缓存
             if (mgr._cameraTarget) {
                 mgr._cameraTarget.set(center.x, center.y, center.z);
             }
@@ -1335,7 +1372,7 @@
         }
         if (currentModelType === 'vrm') {
             const mgr = window.vrmManager;
-            if (mgr?.renderer?.domElement) return mgr.renderer.domElement;
+            if (typeof mgr?.getSurfaceCanvas === 'function') return mgr.getSurfaceCanvas();
             return document.getElementById('vrm-canvas');
         }
         if (currentModelType === 'mmd') {
@@ -1359,11 +1396,6 @@
             if (mgr?.pixi_app?.renderer && mgr?.pixi_app?.stage) {
                 mgr.pixi_app.renderer.render(mgr.pixi_app.stage);
             }
-        } else if (currentModelType === 'vrm') {
-            const mgr = window.vrmManager;
-            if (mgr?.renderer && mgr?.scene && mgr?.camera) {
-                mgr.renderer.render(mgr.scene, mgr.camera);
-            }
         } else if (currentModelType === 'mmd') {
             const mgr = window.mmdManager;
             if (mgr?.renderer && mgr?.scene && mgr?.camera) {
@@ -1382,6 +1414,15 @@
             if (mgr?.isLayeredActive?.()) {
                 mgr.drawLayeredState?.('idle');
             }
+        }
+    }
+
+    async function ensureCaptureFrame() {
+        ensureRender();
+        if (currentModelType !== 'vrm') return;
+        const mgr = window.vrmManager;
+        if (typeof mgr?.waitForRenderedFrame === 'function') {
+            await mgr.waitForRenderedFrame();
         }
     }
 
@@ -1773,14 +1814,14 @@
         if (activeModelSourceScale !== exportSourceScale) {
             resizeModelRendererForCard(currentModelType, exportSourceScale);
         }
-        ensureRender();
+        await ensureCaptureFrame();
 
         const srcCanvas = getModelCanvas();
         const srcSize = getDrawableSourceSize(srcCanvas);
         if (!srcCanvas || srcSize.width <= 0 || srcSize.height <= 0) {
             if (activeModelSourceScale !== previousSourceScale) {
                 resizeModelRendererForCard(currentModelType, previousSourceScale);
-                ensureRender();
+                await ensureCaptureFrame();
             }
             return null;
         }
@@ -1829,7 +1870,7 @@
         } finally {
             if (activeModelSourceScale !== previousSourceScale) {
                 resizeModelRendererForCard(currentModelType, previousSourceScale);
-                ensureRender();
+                await ensureCaptureFrame();
                 refreshPreview();
             }
         }

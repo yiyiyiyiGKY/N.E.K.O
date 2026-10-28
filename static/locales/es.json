@@ -4070,22 +4070,11 @@
     "vrm": {
         "error": {
             "modulesNotAvailable": "Los módulos VRM no se pudieron cargar, no se puede cambiar al modo VRM. Por favor actualice.",
-            "coreNotLoaded": "VRMCore no cargado",
-            "sceneNotInitialized": "No se puede cargar el modelo: escena no inicializada.",
-            "threeNotLoaded": "Biblioteca Three.js no cargada",
             "containerNotFound": "Elemento contenedor no encontrado: {{id}}",
             "canvasNotFound": "Elemento de lienzo no encontrado: {{id}}",
-            "threeNotLoadedForModel": "Three.js no cargado, no se puede cargar el modelo VRM",
             "modelLoadFailed": "No se pudo cargar el modelo VRM: {{url}} y {{fallback}} fallaron",
             "invalidVRMFormat": "El modelo cargado no es un formato VRM válido. Archivo: {{file}}",
-            "sceneNotInitializedForAdd": "Escena no inicializada. Llame primero a initThreeJS().",
-            "animationClipError": "Error al crear el clip de animación: {{error}}",
-            "animationClipNoBones": "Falló la creación del clip de animación: no se encontraron huesos coincidentes",
-            "cannotCreateAnimationAction": "No se puede crear una acción de animación.",
-            "invalidModelPath": "Ruta del modelo VRM no válida: {{path}}",
-            "gltfLoaderImportFailed": "No se pudo importar GLTFLoader: {{error}}",
-            "threeIncomplete": "Dependencia de Three.js incompleta, falta: {{missing}}",
-            "vrmLoaderImportFailed": "No se pudo importar VRMLoaderPlugin: {{error}}"
+            "invalidModelPath": "Ruta del modelo VRM no válida: {{path}}"
         },
         "lighting": {
             "title": "Configuración de iluminación VRM",

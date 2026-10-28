@@ -81,10 +81,10 @@ def test_formant_behaviour_suite():
 # lazily all the way to the *next* array's closing bracket and swallowed
 # `mmdModules` whole -- the MMD chain was then never checked on its own.
 EXPECTED_CHAIN_ARRAYS = {
-    "static/vrm/vrm-init.js": {"parallelModules"},
+    "static/vrm/vrm-init.js": set(),
     "static/mmd/mmd-init.js": {"parallelModules"},
-    "static/js/model_manager/runtime-loaders.js": {"vrmModules", "mmdModules"},
-    "static/js/character_card_manager/model-previews.js": {"vrmModules", "mmdModules"},
+    "static/js/model_manager/runtime-loaders.js": {"mmdModules"},
+    "static/js/character_card_manager/model-previews.js": {"mmdModules"},
 }
 
 
@@ -109,15 +109,19 @@ def test_chains_that_load_animation_also_load_the_analyzer(chain):
     check stays green when only one of them carries the entry -- a mutation of
     exactly that shape survived the first version of this test.
 
-    The predicate is semantic, not a hand-kept list: vrm-animation /
-    mmd-animation are what construct FormantLipSyncAnalyzer, so any chain that
-    loads one of them and omits the analyzer degrades to the legacy driver.
-    The first version of this feature wired only vrm-init.js and mmd-init.js,
-    leaving the model-manager page and the card-maker preview behind; both of
-    those set the ``_vrmModulesLoading`` / ``_mmdModulesLoading`` flags that make
-    the init IIFEs return early, so they cannot inherit the entry from vrm-init.
+    The Unity VRM chain has its own canonical loader and is checked directly.
+    For the remaining array-based MMD consumers, any chain that loads the MMD
+    animation module must load the analyzer first.
     """
     source = _read(chain)
+    if chain == "static/vrm/vrm-init.js":
+        assert "/static/unity/unity-vrm-loader.js" in source
+        assert "loader.ensure({" in source
+        canonical = _read("static/unity/unity-vrm-loader.js")
+        assert FORMANT_MODULE in canonical
+        assert "/static/unity/unity-avatar-manager.js" in canonical
+        assert "FormantLipSyncAnalyzer" in _read("static/unity/unity-avatar-manager.js")
+        return
     arrays = list(_module_arrays(source))
     names = {name for name, _ in arrays}
 
@@ -132,7 +136,7 @@ def test_chains_that_load_animation_also_load_the_analyzer(chain):
     consumers = [
         (name, body)
         for name, body in arrays
-        if "vrm-animation.js" in body or "mmd-animation.js" in body
+        if "mmd-animation.js" in body
     ]
     assert consumers, (
         f"{chain}: no array loads an animation module -- the matcher has drifted"
@@ -174,28 +178,24 @@ def test_formant_module_exposes_global_and_no_esm():
 
 
 def test_vowel_key_tables_agree():
-    """The three vowel-key tables in the codebase stay in sync.
+    """Unity and MMD keep using the analyzer's canonical five vowel keys.
 
     Without pinning the literal here, a reviewer changing the analyzer's
     VOWEL_KEYS would change this test's own expectation at the same time and
     the derived comparison below would keep passing vacuously.
     """
     analyzer = _read("static/vrm/vrm-lipsync-formant.js")
-    animation = _read("static/vrm/vrm-animation.js")
+    animation = _read("static/unity/unity-avatar-manager.js")
     expression = _read("static/mmd/mmd-expression.js")
 
     analyzer_keys = analyzer.split("const VOWEL_KEYS = Object.freeze([", 1)[1].split("]", 1)[0]
-    fallback_keys = animation.split("static FALLBACK_VOWEL_KEYS = Object.freeze([", 1)[1].split("]", 1)[0]
 
     def parsed(chunk):
         return tuple(part.strip().strip("'\"") for part in chunk.split(",") if part.strip())
 
     assert parsed(analyzer_keys) == EXPECTED_VOWEL_KEYS
-    assert parsed(fallback_keys) == EXPECTED_VOWEL_KEYS
-
-    # vrm-animation reads the shared table at runtime and only falls back to
-    # its own copy when the analyzer script has not executed yet.
-    assert "window.VRM_LIPSYNC_VOWEL_KEYS" in animation
+    for vowel in EXPECTED_VOWEL_KEYS:
+        assert f"{vowel}: clamp(weights.{vowel}, 0, 1)" in animation
     # The MMD map is keyed by the analyzer's vowel keys.
     mmd_map = expression.split("const FORMANT_TO_MMD_VOWEL = Object.freeze(", 1)[1].split(")", 1)[0]
     for vowel in EXPECTED_VOWEL_KEYS:
@@ -291,51 +291,24 @@ def test_host_owns_the_shared_analyser_format():
 # ───────────────────────────────── VRM wiring ────────────────────────────────
 
 
-def test_animation_lazy_instantiates_analyzer_with_fallback():
-    """startLipSync instantiates lazily; the constructor must not touch window."""
-    source = _read("static/vrm/vrm-animation.js")
-    assert "new window.FormantLipSyncAnalyzer(analyser)" in source
-    # Constructor only declares the field; it must not reference the global
-    # class at load time because parallel module load order is not guaranteed.
-    constructor = source.split("constructor(", 1)[1].split("startLipSync(", 1)[0]
-    assert "new window.FormantLipSyncAnalyzer" not in constructor
-
-
-def test_vrm_analyzer_construction_is_guarded():
-    """A throwing analyzer must degrade to the legacy path, not escape.
-
-    startLipSync is called from scheduleAudioChunks; an exception there aborts
-    the rest of that chunk's scheduling bookkeeping. mmd-animation already
-    wraps the same construction, so VRM has to match.
-    """
-    source = _read("static/vrm/vrm-animation.js")
-    start = source.split("startLipSync(analyser) {", 1)[1].split("stopLipSync()", 1)[0]
-    construct_at = start.index("new window.FormantLipSyncAnalyzer(analyser)")
+def test_unity_animation_lazy_instantiates_analyzer_with_guarded_fallback():
+    source = _read("static/unity/unity-avatar-manager.js")
+    start = source.split("startLipSync(analyser) {", 1)[1].split("\n        stopLipSync() {", 1)[0]
+    construct_at = start.index("new global.FormantLipSyncAnalyzer(analyser)")
     try_at = start.index("try {")
-    catch_at = start.index("} catch (e) {")
+    catch_at = start.index("catch (error)")
     assert try_at < construct_at < catch_at
-    assert "this._lipSyncAnalyzer = null;" in start[catch_at:]
+    assert "this._formantAnalyzer = null;" in start[catch_at:]
 
 
-def test_update_lipsync_prefers_formant_then_falls_back():
-    """_updateLipSync tries the formant path first, and the branches are exclusive.
-
-    Ordering alone is not enough to assert: without the ``return`` the formant
-    path falls through into the legacy single-channel driver, which then
-    overwrites all five vowels with its volume-only 'aa' write every frame --
-    the feature is off but every ordering assertion still holds.
-    """
-    source = _read("static/vrm/vrm-animation.js")
-    method = source.split("_updateLipSync(delta) {", 1)[1]
-    formant_branch = method.index("this._updateLipSyncFormant(expressionManager, delta);")
-    fallback_branch = method.index("getByteFrequencyData(this.frequencyData)")
+def test_unity_lipsync_formant_and_volume_paths_are_exclusive():
+    source = _read("static/unity/unity-avatar-manager.js")
+    method = source.split("const tick = (timestamp) => {", 1)[1].split("return true;", 1)[0]
+    formant_branch = method.index("if (this._formantAnalyzer) {")
+    fallback_branch = method.index("} else {", formant_branch)
     assert formant_branch < fallback_branch
-
-    between = method[formant_branch:fallback_branch]
-    assert "return;" in between, (
-        "the formant branch must return; otherwise it falls through into the "
-        "legacy path and the vowel weights are immediately overwritten"
-    )
+    assert "'viseme.setWeights'" in method[formant_branch:fallback_branch]
+    assert "'viseme.set'" in method[fallback_branch:]
 
 
 def test_mmd_formant_branch_is_exclusive():
@@ -351,83 +324,10 @@ def test_mmd_formant_branch_is_exclusive():
     )
 
 
-def test_formant_path_writes_all_five_vowels_with_preset_fallback():
-    """Formant path writes every vowel each frame, via the shared name resolver.
-
-    The legacy path drove ``this.mouthExpressions.aa || 'aa'``, so a model whose
-    expression list could not be enumerated still moved its mouth. Skipping
-    unmapped vowels instead would freeze the mouth shut without even logging,
-    because setValue would never be called.
-    """
-    source = _read("static/vrm/vrm-animation.js")
-    formant_method = source.split("_updateLipSyncFormant(expressionManager, delta) {", 1)[1]
-    formant_method = formant_method.split("\n    }", 1)[0]
-    assert "VRMAnimation.VOWEL_KEYS" in formant_method
-    assert "this._mouthExpressionName(vowel)" in formant_method
-    assert "expressionManager.setValue(name, target);" in formant_method
-    assert "continue;" not in formant_method, "unmapped vowels must not be skipped"
-
-
-def test_mouth_write_set_equals_reset_set():
-    """Whatever lip-sync writes, stopLipSync must be able to clear.
-
-    The preset-name fallback only fires when the expression mapping came up
-    empty -- exactly the case where a reset loop keyed on "skip if the mapping
-    is empty" clears nothing. The two sides would then disagree precisely when
-    the fallback is load-bearing, and the mouth stays frozen at its last frame
-    after speech ends. Both sides therefore go through _mouthExpressionName.
-    """
-    source = _read("static/vrm/vrm-animation.js")
-    assert "_mouthExpressionName(vowel) {" in source
-    resolver = source.split("_mouthExpressionName(vowel) {", 1)[1].split("\n    }", 1)[0]
-    assert "this.mouthExpressions[vowel] || vowel" in resolver
-
-    reset = source.split("resetMouthExpressions() {", 1)[1].split("\n    }", 1)[0]
-    assert "VRMAnimation.VOWEL_KEYS" in reset, "reset must cover every vowel key"
-    assert "this._mouthExpressionName(vowel)" in reset, (
-        "reset must resolve names the same way the write paths do"
-    )
-    assert "if (name)" not in reset, (
-        "skipping unmapped vowels on reset is what leaves fallback-driven "
-        "expressions stuck after stopLipSync"
-    )
-
-    # Neither write path may re-derive the name locally.
-    for marker in (
-        "_updateLipSyncFormant(expressionManager, delta) {",
-        "_updateLipSync(delta) {",
-    ):
-        body = source.split(marker, 1)[1].split("\n    }", 1)[0]
-        assert "mouthExpressions.aa || 'aa'" not in body
-        assert "this.mouthExpressions[vowel] || vowel" not in body
-
-
-def test_mapping_is_rebuilt_not_merged_on_model_switch():
-    """updateMouthExpressionMapping clears before it enumerates.
-
-    VRMManager only constructs VRMAnimation when it has none, so switching
-    models reuses the instance and re-runs this method, while the match loop
-    only assigns on a hit. Left uncleared, a vowel the new model does not match
-    keeps the previous model's expression name -- and a stale name is worse
-    than an empty one, because _mouthExpressionName only falls back to the VRM
-    preset when the mapping is empty. setValue then targets an expression the
-    new model does not have, is silently ignored, and that vowel stops moving.
-    """
-    source = _read("static/vrm/vrm-animation.js")
-    method = source.split("updateMouthExpressionMapping() {", 1)[1].split("\n    }", 1)[0]
-    clear_at = method.index("this.mouthExpressions[vowel] = null;")
-    assign_at = method.index("if (match) this.mouthExpressions[vowel] = match;")
-    assert clear_at < assign_at, "the clear must happen before the match loop"
-
-
-def test_fallback_path_still_clears_other_vowels_before_aa():
-    """Fallback single-channel path keeps the clear-others-then-write-aa guard."""
-    source = _read("static/vrm/vrm-animation.js")
-    method = source.split("_updateLipSync(delta) {", 1)[1].split(
-        "_updateLipSyncFormant(expressionManager, delta) {", 1
-    )[0]
-    assert "if (vowel === 'aa') continue;" in method
-    assert "expressionManager.setValue(name, 0);" in method
+def test_unity_lipsync_stop_clears_all_five_vowels():
+    source = _read("static/unity/unity-avatar-manager.js")
+    stop = source.split("stopLipSync() {", 1)[1].split("playVRMAAnimation", 1)[0]
+    assert "'viseme.setWeights', { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 }" in stop
 
 
 # ─────────────────────── MMD side (shares the same analyzer) ─────────────────

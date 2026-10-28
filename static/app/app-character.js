@@ -102,13 +102,7 @@
 
         try {
             if (modelType === 'vrm' && window.vrmManager) {
-                if (window.vrmManager.core && typeof window.vrmManager.core.setLocked === 'function') {
-                    window.vrmManager.core.setLocked(false);
-                } else if (window.vrmManager.interaction && typeof window.vrmManager.interaction.setLocked === 'function') {
-                    window.vrmManager.interaction.setLocked(false);
-                } else {
-                    window.vrmManager.isLocked = false;
-                }
+                window.vrmManager.setLocked?.(false);
                 const lockIcon = document.getElementById('vrm-lock-icon');
                 if (lockIcon) lockIcon.style.backgroundImage = 'url(/static/icons/unlocked_icon.png)';
             } else if (modelType === 'mmd' && window.mmdManager) {
@@ -559,14 +553,6 @@
         try {
             window.appChatAvatarState?.beginCharacterSwitch(myAttemptId);
             emitAssistantSpeechCancel('character_switch');
-            // VRM applyLighting retry ownership token：无论新角色是 VRM/Live2D/MMD 都先刷新。
-            // 之前只在 VRM 分支刷的话，VRM→Live2D/MMD 时旧 VRM retry 仍持有相同 token →
-            // 继续 mutate vrmManager.scene 灯光（即便 VRM 已隐藏，scene 状态被污染、下次切回
-            // VRM 时残留）。这里无条件刷成 attempt 级 token，旧 retry 比对 !== 立刻自杀。
-            // 提到 try 顶部还覆盖了"非 VRM 分支也参与 ownership 流转"的语义。
-            const currentSwitchId = Symbol();
-            window._currentCatgirlSwitchId = currentSwitchId;
-
             // 0. 紧急制动：立即停止所有渲染循环
             // 停止 Live2D Ticker
             if (window.live2dManager && window.live2dManager.pixi_app && window.live2dManager.pixi_app.ticker) {
@@ -695,16 +681,8 @@
                         }
                     }
 
-                    // 3. 清理模型（从场景中移除，但不销毁scene）
-                    if (window.vrmManager.currentModel && window.vrmManager.currentModel.vrm) {
-                        const vrm = window.vrmManager.currentModel.vrm;
-                        if (vrm.scene) {
-                            vrm.scene.visible = false;
-                            if (window.vrmManager.scene) {
-                                window.vrmManager.scene.remove(vrm.scene);
-                            }
-                        }
-                    }
+                    // 3. 通过 Unity 协议卸载模型；浏览器侧不持有或遍历渲染场景。
+                    await window.vrmManager.unloadModel();
 
                     // 4. 清理动画混合器
                     if (window.vrmManager.animationMixer) {
@@ -712,41 +690,8 @@
                         window.vrmManager.animationMixer = null;
                     }
 
-                    // 5. 清理场景中剩余的模型对象（但保留光照、相机和控制器）
-                    // 注意：vrm.scene 已经在上面（步骤3）从场景中移除了
-                    // 这里只需要清理可能残留的其他模型对象
-                    if (window.vrmManager.scene) {
-                        const childrenToRemove = [];
-                        window.vrmManager.scene.children.forEach((child) => {
-                            // 只移除模型相关的对象，保留光照、相机和控制器
-                            if (!child.isLight && !child.isCamera) {
-                                // 检查是否是VRM模型场景（通过检查是否有 SkinnedMesh）
-                                if (child.type === 'Group' || child.type === 'Object3D') {
-                                    let hasMesh = false;
-                                    child.traverse((obj) => {
-                                        if (obj.isSkinnedMesh || obj.isMesh) {
-                                            hasMesh = true;
-                                        }
-                                    });
-                                    if (hasMesh) {
-                                        childrenToRemove.push(child);
-                                    }
-                                }
-                            }
-                        });
-                        // 移除模型对象
-                        childrenToRemove.forEach(child => {
-                            window.vrmManager.scene.remove(child);
-                        });
-                    }
-
-                    // 6. 隐藏渲染器（但不销毁）
-                    if (window.vrmManager.renderer && window.vrmManager.renderer.domElement) {
-                        window.vrmManager.renderer.domElement.style.display = 'none';
-                    }
-
-                    // 7. 重置模型引用
-                    window.vrmManager.currentModel = null;
+                    // 5. 隐藏 Unity 输出面；manager 与 runtime 保留供下一角色复用。
+                    window.vrmManager.setSurfaceVisible(false);
                     // 不在这里设置 _goodbyeClicked = true，因为这会永久短路 showCurrentModel
                     // 标志会在 finally 块中统一重置，或在加载新模型时清除
                 }
@@ -997,7 +942,7 @@
                 }
                 resetAvatarLockForCharacterSwitch('pngtuber');
             } else if (effectiveModelType === 'vrm') {
-                // 加载 VRM 模型（currentSwitchId 在 try 顶部已无条件刷过，VRM 分支直接复用）
+                // 加载 VRM 模型
                 console.log('[猫娘切换] 进入VRM加载分支');
 
                 // VRM 模型路径解析：复用前面已 _sanitize 的 vrmPath（涵盖 _reserved.avatar
@@ -1084,15 +1029,13 @@
                 }
 
                 // 确保 VRM 管理器已初始化
-                console.log('[猫娘切换] 检查VRM管理器 - 存在:', !!window.vrmManager, '已初始化:', window.vrmManager?._isInitialized);
+                console.log('[猫娘切换] 检查VRM管理器 - 存在:', !!window.vrmManager, '已初始化:', window.vrmManager?.isInitialized?.());
 
                 // 等待 VRM 模块加载（双保险：事件 + 轮询）
-                // VRMManager 与 VRMCore 由 vrm-init.js 并行加载，加载顺序不确定；
-                // 只检查 VRMManager 会在 VRMCore 未就绪时放行，导致 initThreeJS
-                // 抛 "VRMCore 尚未加载"。因此就绪条件需同时覆盖两者。
+                // 唯一 VRM 运行时必须是 Unity manager 及其全局别名。
                 const isVRMRuntimeReady = () =>
-                    typeof window.VRMManager !== 'undefined' &&
-                    typeof window.VRMCore !== 'undefined';
+                    typeof window.UnityVRMManager === 'function' &&
+                    window.VRMManager === window.UnityVRMManager;
 
                 if (!isVRMRuntimeReady()) {
                     await new Promise((resolve, reject) => {
@@ -1146,10 +1089,7 @@
                         };
                     });
                 }
-                // VRMRuntimeReady wait（5s timeout）resolve 后立刻做 stale 检查：stale attempt
-                // 苏醒后接下来的 vrmManager 创建 / canvas 创建 / initThreeJS 都会 mutate 共享
-                // three.js 状态，必须在调任何 mutation 之前拦下，否则即便 line 723 的 throwIfStale
-                // 抛错，污染已经发生了。
+                // 等待结束后、创建 manager 或 canvas 前再次验证切换所有权。
                 throwIfStale();
 
                 if (!window.vrmManager) {
@@ -1158,10 +1098,7 @@
                 // 每次都清除 goodbyeClicked 标志，确保新模型可以正常显示
                 window.vrmManager._goodbyeClicked = false;
 
-                // 确保容器和 canvas 存在，并初始化 Three.js 场景。
-                // 即使 vrmManager 已初始化也要调用 initThreeJS：在已初始化时是幂等的，
-                // 但会无条件恢复容器/canvas 可见性——修复在 Live2D/VRM 反复切换后，
-                // 容器/canvas 仍保持 display:none 导致 VRM 模型加载不出来的问题。
+                // 确保 Unity 宿主 canvas 存在。重复初始化会恢复输出面可见性。
                 {
                     const vrmContainerEl = document.getElementById('vrm-container');
                     if (vrmContainerEl && !vrmContainerEl.querySelector('canvas')) {
@@ -1171,10 +1108,10 @@
                     }
                 }
                 const lightingConfig = catgirlConfig.lighting || null;
-                await window.vrmManager.initThreeJS('vrm-canvas', 'vrm-container', lightingConfig);
+                await window.vrmManager.initRenderer('vrm-canvas', 'vrm-container', lightingConfig);
                 throwIfStale();
 
-                // 转换路径为 URL（基本格式处理，vrm-core.js 会处理备用路径）
+                // 转换路径为 URL；Unity VRM 适配器负责最终的资源 URL 归一化。
                 // 再次验证 vrmModelPath 的有效性
                 if (!vrmModelPath ||
                     vrmModelPath === 'undefined' ||
@@ -1228,7 +1165,7 @@
                 if (/^\/(?:user_vrm|static\/vrm|workshop)\//.test(modelUrl)) {
                     modelUrl = modelUrl.split('/').map(encodeURIComponent).join('/');
                 }
-                // 加载 VRM 模型（vrm-core.js 内部已实现备用路径机制，会自动尝试 /user_vrm/ 和 /static/vrm/）
+                // 通过唯一的 Unity VRM manager 加载模型。
                 console.log('[猫娘切换] 开始加载VRM模型:', modelUrl);
                 await window.vrmManager.loadModel(modelUrl);
                 throwIfStale();
@@ -1250,83 +1187,19 @@
                     console.log('[猫娘切换] VRM渲染循环已启动，ID:', window.vrmManager._animationFrameId);
                 }
 
-                // 应用角色的光照配置（currentSwitchId 在 VRM 分支顶部已刷新）
+                // Unity runtime 已就绪，直接通过协议应用角色光照。
                 if (catgirlConfig.lighting && window.vrmManager) {
                     const lighting = catgirlConfig.lighting;
-
-                    // 确保光照已初始化，如果没有则等待（添加最大重试次数和切换取消条件）
-                    let applyLightingRetryCount = 0;
-                    const MAX_RETRY_COUNT = 50; // 最多重试50次（5秒）
-                    let applyLightingTimerId = null;
-
-                    const applyLighting = () => {
-                        // 检查是否切换已被取消（新的切换已开始）
-                        if (window._currentCatgirlSwitchId !== currentSwitchId) {
-                            if (applyLightingTimerId) {
-                                clearTimeout(applyLightingTimerId);
-                                applyLightingTimerId = null;
-                            }
-                            return;
-                        }
-
-                        if (window.vrmManager?.ambientLight && window.vrmManager?.mainLight &&
-                            window.vrmManager?.fillLight && window.vrmManager?.rimLight) {
-                            // 引用全局唯一默认值（定义于 vrm-core.js）
-                            const defaultLighting = window.VRM_DEFAULT_LIGHTING || {
-                                ambient: 0.83, main: 1.91, fill: 0.0,
-                                rim: 0.0, top: 0.0, bottom: 0.0
-                            };
-
-                            if (window.vrmManager.ambientLight) {
-                                window.vrmManager.ambientLight.intensity = lighting.ambient ?? defaultLighting.ambient;
-                            }
-                            if (window.vrmManager.mainLight) {
-                                window.vrmManager.mainLight.intensity = lighting.main ?? defaultLighting.main;
-                            }
-                            if (window.vrmManager.fillLight) {
-                                window.vrmManager.fillLight.intensity = lighting.fill ?? defaultLighting.fill;
-                            }
-                            if (window.vrmManager.rimLight) {
-                                window.vrmManager.rimLight.intensity = lighting.rim ?? defaultLighting.rim;
-                            }
-                            if (window.vrmManager.topLight) {
-                                window.vrmManager.topLight.intensity = lighting.top ?? defaultLighting.top;
-                            }
-                            if (window.vrmManager.bottomLight) {
-                                window.vrmManager.bottomLight.intensity = lighting.bottom ?? defaultLighting.bottom;
-                            }
-
-                            // 应用描边粗细设置
-                            if (lighting.outlineWidthScale !== undefined && typeof applyVRMOutlineWidth === 'function') {
-                                applyVRMOutlineWidth(lighting.outlineWidthScale, window.vrmManager);
-                            }
-
-                            // 强制渲染一次，确保光照立即生效
-                            if (window.vrmManager.renderer && window.vrmManager.scene && window.vrmManager.camera) {
-                                window.vrmManager.renderer.render(window.vrmManager.scene, window.vrmManager.camera);
-                            }
-
-                            // 成功应用，清理定时器
-                            if (applyLightingTimerId) {
-                                clearTimeout(applyLightingTimerId);
-                                applyLightingTimerId = null;
-                            }
-                        } else {
-                            // 光照未初始化，延迟重试（但限制重试次数）
-                            applyLightingRetryCount++;
-                            if (applyLightingRetryCount < MAX_RETRY_COUNT) {
-                                applyLightingTimerId = setTimeout(applyLighting, 100);
-                            } else {
-                                console.warn('[猫娘切换] 光照应用失败：已达到最大重试次数');
-                                if (applyLightingTimerId) {
-                                    clearTimeout(applyLightingTimerId);
-                                    applyLightingTimerId = null;
-                                }
-                            }
-                        }
+                    const defaultLighting = window.VRM_DEFAULT_LIGHTING || {
+                        ambient: 0.83, main: 1.91, fill: 0.0,
+                        rim: 0.0, top: 0.0, bottom: 0.0
                     };
-
-                    applyLighting();
+                    window.vrmManager.applyLighting({ ...defaultLighting, ...lighting });
+                    if (lighting.outlineWidthScale !== undefined) {
+                        window.vrmManager.setOutlineWidthScale(lighting.outlineWidthScale);
+                    }
+                    await window.vrmManager.waitForRenderedFrame();
+                    throwIfStale();
                 }
 
                 if (window.LanLan1) {
@@ -1370,12 +1243,11 @@
                     clearMMDCanvasLoadingSession(mmdCanvasVrm);
                 }
 
-                // 确保 VRM 渲染器可见
-                if (window.vrmManager && window.vrmManager.renderer && window.vrmManager.renderer.domElement) {
-                    window.vrmManager.renderer.domElement.style.display = 'block';
-                    window.vrmManager.renderer.domElement.style.visibility = 'visible';
-                    window.vrmManager.renderer.domElement.style.opacity = '1';
-                    console.log('[猫娘切换] VRM渲染器已设置为可见');
+                // 确保 Unity 输出面可见
+                if (window.vrmManager?.setSurfaceVisible(true)) {
+                    const canvas = window.vrmManager.canvas;
+                    if (canvas) canvas.style.opacity = '1';
+                    console.log('[猫娘切换] Unity VRM 输出面已设置为可见');
 
                     // 恢复 VRM canvas 的指针事件
                     const vrmCanvasEl = document.getElementById('vrm-canvas');
@@ -1384,11 +1256,12 @@
                     }
 
                     // 检查canvas的实际状态
-                    const canvas = window.vrmManager.renderer.domElement;
-                    const computedStyle = window.getComputedStyle(canvas);
-                    console.log('[猫娘切换] VRM Canvas状态 - display:', computedStyle.display, 'visibility:', computedStyle.visibility, 'opacity:', computedStyle.opacity, 'zIndex:', computedStyle.zIndex);
+                    if (canvas) {
+                        const computedStyle = window.getComputedStyle(canvas);
+                        console.log('[猫娘切换] VRM Canvas状态 - display:', computedStyle.display, 'visibility:', computedStyle.visibility, 'opacity:', computedStyle.opacity, 'zIndex:', computedStyle.zIndex);
+                    }
                 } else {
-                    console.warn('[猫娘切换] VRM渲染器不存在或未初始化');
+                    console.warn('[猫娘切换] Unity VRM 输出面不存在或未初始化');
                 }
 
                 const chatContainerVrm = document.getElementById('chat-container');
@@ -1479,8 +1352,9 @@
                     vrmCanvasMmd.style.pointerEvents = 'none';
                 }
                 // 【修复】清除 VRM canvas 缓存帧，防止在模型切换窗口期透穿显示旧 VRM 模型
-                if (window.vrmManager && window.vrmManager.renderer) {
-                    try { window.vrmManager.renderer.clear(); } catch (_) { /* ignore */ }
+                if (window.vrmManager) {
+                    window.vrmManager.setSurfaceVisible(false);
+                    window.vrmManager.clearSurface();
                 }
 
                 // 显示 MMD 容器
@@ -2080,12 +1954,6 @@
             if (isCurrentAttempt) {
                 S.isSwitchingCatgirl = false;
                 S._currentSwitchAttemptId = null;
-                // window._currentCatgirlSwitchId 故意不清——它是 VRM applyLighting retry loop
-                // 的 ownership token（line 794-800 用 Symbol() 标识 attempt，retry 比对
-                // !== currentSwitchId 自我退出）。retry 是 setTimeout 链，可能跨 finally 还在跑；
-                // 慢设备上首轮检查可能晚于 finally → null !== Symbol 判 true → retry 自杀，
-                // 灯光偶发不生效。留给下次切换 line 796 的新 Symbol() 自然覆盖；老 retry 比对
-                // 新 Symbol 仍然 !==，自然退出。stale attempt 苏醒走 else 分支也不动这个 token。
             } else {
                 console.warn('[猫娘切换] attempt', myAttemptId, '苏醒走到 finally，但当前 attempt 已经是', S._currentSwitchAttemptId, '——保留新一轮的 isSwitchingCatgirl 不动');
             }

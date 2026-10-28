@@ -605,8 +605,8 @@
                 });
                 return true;
             } finally {
-                // GLTFLoader.loadAsync 已在 playVRMAAnimation 返回前完成读取和解析，
-                // 此时撤销临时 URL 不影响当前 AnimationClip 播放。
+                // Unity 已在 playVRMAAnimation 返回前完成动作资源读取和解析，
+                // 此时撤销临时 URL 不影响当前动作播放。
                 if (url && temporaryUrl) URL.revokeObjectURL(url);
             }
         }

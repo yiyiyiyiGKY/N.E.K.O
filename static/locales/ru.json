@@ -4070,22 +4070,11 @@
     "vrm": {
         "error": {
             "modulesNotAvailable": "Модули VRM не загрузились, нельзя переключиться в режим VRM. Обновите страницу.",
-            "coreNotLoaded": "VRMCore не загружен",
-            "sceneNotInitialized": "Невозможно загрузить модель: сцена не инициализирована.",
-            "threeNotLoaded": "Библиотека Three.js не загружена",
             "containerNotFound": "Элемент контейнера не найден: {{id}}",
             "canvasNotFound": "Элемент canvas не найден: {{id}}",
-            "threeNotLoadedForModel": "Three.js не загружен, невозможно загрузить модель VRM",
             "modelLoadFailed": "Не удалось загрузить модель VRM: {{url}} и {{fallback}} — обе попытки неудачны",
             "invalidVRMFormat": "Загруженная модель не является допустимым форматом VRM. Файл: {{file}}",
-            "sceneNotInitializedForAdd": "Сцена не инициализирована. Вызовите initThreeJS().",
-            "animationClipError": "Ошибка создания анимационного клипа: {{error}}",
-            "animationClipNoBones": "Создание клипа не удалось: совпадающие кости не найдены",
-            "cannotCreateAnimationAction": "Невозможно создать действие анимации",
-            "invalidModelPath": "Недопустимый путь к модели VRM: {{path}}",
-            "gltfLoaderImportFailed": "Ошибка импорта GLTFLoader: {{error}}",
-            "threeIncomplete": "Зависимость Three.js неполная, отсутствует: {{missing}}",
-            "vrmLoaderImportFailed": "Ошибка импорта VRMLoaderPlugin: {{error}}"
+            "invalidModelPath": "Недопустимый путь к модели VRM: {{path}}"
         },
         "lighting": {
             "title": "Настройки освещения VRM",

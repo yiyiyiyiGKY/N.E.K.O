@@ -7,56 +7,52 @@ SOCCER_AVATAR_HOST_PATH = (
 )
 
 
-def test_soccer_vrm0_fixed_camera_facing_fix_is_scoped_to_vrm0():
+def test_soccer_vrm_slots_require_the_unity_renderer():
     source = SOCCER_AVATAR_HOST_PATH.read_text(encoding="utf-8")
 
-    assert "function isVrm0(gltf, vrm)" in source
-    assert "if (extensions.includes('VRMC_vrm')) return false;" in source
-    assert "if (extensions.includes('VRM')) return true;" in source
-    assert "function applyVrm0FixedCameraFacingFix(gltf, vrm, manager)" in source
-
-
-def test_soccer_vrm0_fixed_camera_facing_fix_uses_bone_and_head_evidence():
-    source = SOCCER_AVATAR_HOST_PATH.read_text(encoding="utf-8")
-
-    assert "function countReversedVrmBonePairs(vrm)" in source
-    assert "['leftEye', 'rightEye']" in source
-    assert "['leftUpperArm', 'rightUpperArm']" in source
-    assert "function sampleVrmHeadFaceZ(vrm)" in source
-    assert "headFaceZ.negative > headFaceZ.positive * 1.25" in source
-
-
-def test_soccer_vrm0_fixed_camera_facing_fix_runs_on_both_soccer_load_paths():
-    source = SOCCER_AVATAR_HOST_PATH.read_text(encoding="utf-8")
-
-    assert "manager.controls?.target?.copy?.(manager._cameraTarget);" in source
-
-    fit_section = source.split("function fitVrmManagerCamera", 1)[1].split(
-        "function isVrm0",
-        1,
+    load_section = source.split("async function loadVrmIntoManager", 1)[1].split(
+        "function observeAsyncDisposal", 1
     )[0]
-    assert "window.NekoMiniGameAvatarHost.fitPerspectiveModel(" in fit_section
-    assert "THREE, model, manager.camera, size, fit," in fit_section
+    assert "manager instanceof window.UnityVRMManager" in load_section
+    assert "Unity VRM renderer required" in load_section
+    assert "manager.loadModel(path, { embed: true, restorePreferences: false })" in load_section
+    assert "GLTFLoader" not in load_section
+    assert "three-vrm" not in load_section
+    assert "preparePerspectiveReference" not in load_section
 
-    helper_section = source.split(
-        "async function loadVrmIntoManager",
-        1,
-    )[1].split("return manager.currentModel;", 1)[0]
-    assert "applyVrm0FixedCameraFacingFix(gltf, vrm, staged);" in helper_section
-    assert "fitVrmManagerCamera(staged, containerId, label, viewport, fit);" in helper_section
-    assert "manager.__soccerFixedCameraNormalizeYaw = staged.__soccerFixedCameraNormalizeYaw;" in helper_section
+
+def test_soccer_unity_fit_contract_runs_on_load_and_resize():
+    source = SOCCER_AVATAR_HOST_PATH.read_text(encoding="utf-8")
+
+    fit_section = source.split("function fitUnityVrmManager", 1)[1].split(
+        "async function loadVrmIntoManager", 1
+    )[0]
+    assert "manager.resizeSurface?.(size.width, size.height, false);" in fit_section
+    assert "manager.fitModel?.(size, fit);" in fit_section
+    assert "manager.getModelScreenBounds?.()" in fit_section
+
+    load_section = source.split("async function loadVrmIntoManager", 1)[1].split(
+        "function observeAsyncDisposal", 1
+    )[0]
+    assert "fitUnityVrmManager(manager, containerId, viewport, fit);" in load_section
 
     controller_section = source.split("function createController", 1)[1]
     assert "canvasId: 'player-vrm-canvas'" in controller_section
-    assert "canvasId: 'ai-l2d-canvas'" in controller_section
+    assert "canvasId: 'ai-vrm-canvas'" in controller_section
+    template = (PROJECT_ROOT / "templates" / "soccer_demo.html").read_text(encoding="utf-8")
+    assert 'id="ai-vrm-canvas"' in template
     assert controller_section.count("await loadVrmIntoManager(") >= 2
+    assert "state.layout = fitUnityVrmManager(" in controller_section
 
 
-def test_soccer_vrm0_fixed_camera_facing_fix_keeps_yaw_offset_alive():
-    soccer_source = SOCCER_AVATAR_HOST_PATH.read_text(encoding="utf-8")
-    interaction_source = (PROJECT_ROOT / "static/vrm/vrm-interaction.js").read_text(encoding="utf-8")
+def test_soccer_host_contains_no_three_vrm_fallback():
+    source = SOCCER_AVATAR_HOST_PATH.read_text(encoding="utf-8")
 
-    assert "manager.__soccerFixedCameraNormalizeYaw = shouldNormalize;" in soccer_source
-    assert "vrm.scene.rotation.y = Math.PI;" in soccer_source
-    assert "if (this.manager.__soccerFixedCameraNormalizeYaw)" in interaction_source
-    assert "targetAngle += Math.PI;" in interaction_source
+    for legacy_symbol in (
+        "GLTFLoader",
+        "VRMLoaderPlugin",
+        "VRMUtils",
+        "fitPerspectiveModel",
+        "applyVrm0FixedCameraFacingFix",
+    ):
+        assert legacy_symbol not in source

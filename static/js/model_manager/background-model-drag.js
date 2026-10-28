@@ -123,7 +123,9 @@
     function createThreeDAdapter(event, type) {
         const manager = type === 'mmd' ? window.mmdManager : window.vrmManager;
         const interaction = manager && manager.interaction;
-        const canvas = manager && manager.renderer && manager.renderer.domElement;
+        const canvas = type === 'mmd'
+            ? manager?.renderer?.domElement
+            : manager?.getSurfaceCanvas?.();
         if (!manager || !interaction || !canvas || event.target !== canvas) return null;
         if (!manager._isModelReadyForInteraction ||
             (typeof interaction.checkLocked === 'function' && interaction.checkLocked())) {
@@ -147,8 +149,6 @@
                 if (type === 'mmd' && manager.core &&
                     typeof manager.core._boostInteractiveFPS === 'function') {
                     manager.core._boostInteractiveFPS();
-                } else if (type === 'vrm' && typeof manager._boostInteractiveFPS === 'function') {
-                    manager._boostInteractiveFPS();
                 }
                 return interaction._moveModelCenterToWindowPoint(
                     center.x + deltaX,

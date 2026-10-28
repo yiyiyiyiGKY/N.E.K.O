@@ -4001,34 +4001,22 @@
             } catch (e) { /* ignore */ }
         }
 
-        // VRM (Three.js)
-        var THREE = window.THREE;
-        if (isNaN(avatarCx) && THREE && window.vrmManager) {
+        // Unity VRM 已经提供视口像素边界，直接复用，避免把 facade 当成 Three.js 场景。
+        if (isNaN(avatarCx) && window.vrmManager &&
+            typeof window.vrmManager.getModelScreenBounds === 'function') {
             try {
-                var vrm = window.vrmManager;
-                var model = (typeof vrm.getCurrentModel === 'function' ? vrm.getCurrentModel() : vrm.currentModel);
-                if (model && model.vrm && model.vrm.scene && vrm.camera) {
-                    var canvas = vrm.renderer && vrm.renderer.domElement || document.getElementById('vrm-canvas');
-                    if (canvas) {
-                        var box = new THREE.Box3().setFromObject(model.vrm.scene);
-                        var size3 = box.getSize(new THREE.Vector3());
-                        var boxCenter = box.getCenter(new THREE.Vector3());
-                        var cProj = boxCenter.clone().project(vrm.camera);
-                        var cw = canvas.clientWidth || 1;
-                        var ch = canvas.clientHeight || 1;
-                        avatarCx = (cProj.x * 0.5 + 0.5) * cw;
-                        avatarCy = (-cProj.y * 0.5 + 0.5) * ch;
-                        var topPt = new THREE.Vector3(boxCenter.x, box.max.y, boxCenter.z).project(vrm.camera);
-                        var botPt = new THREE.Vector3(boxCenter.x, box.min.y, boxCenter.z).project(vrm.camera);
-                        avatarH = Math.abs((-topPt.y * 0.5 + 0.5) - (-botPt.y * 0.5 + 0.5)) * ch;
-                        avatarW = avatarH * (size3.x / Math.max(size3.y, 0.01));
-                        avatarW = Math.max(avatarW, 1);
-                        avatarH = Math.max(avatarH, 1);
-                    }
+                var vrmBounds = window.vrmManager.getModelScreenBounds();
+                if (vrmBounds && vrmBounds.width > 0 && vrmBounds.height > 0) {
+                    avatarCx = vrmBounds.centerX;
+                    avatarCy = vrmBounds.centerY;
+                    avatarW = vrmBounds.width;
+                    avatarH = vrmBounds.height;
                 }
-            } catch (e) { /* ignore */ }
+            } catch (e) { /* fall through to legacy Three.js projection */ }
         }
 
+        // VRM 只接受 Unity 提供的屏幕边界；MMD 仍继续使用 Three.js。
+        var THREE = window.THREE;
         // MMD (Three.js)
         if (isNaN(avatarCx) && THREE && window.mmdManager) {
             try {

@@ -2867,8 +2867,8 @@
     function _syncVmcStateOnConnect() {
         if (!window.vrmVmcSender
             || typeof window.vrmVmcSender.syncStatusFromBackend !== 'function') {
-            // vrm-vmc-loader.js 要等 three-ready 之后才开始拉取，聊天 WS 的
-            // onopen 有可能先到。此时不能直接放弃：本次连接周期会永远错过
+            // Unity VRM 模块按页面需要异步装载，聊天 WS 的 onopen 有可能先到。
+            // 此时不能直接放弃：本次连接周期会永远错过
             // 恢复窗口。挂一次性监听，等 VRM 模块就绪事件再补一次探测。
             // 非 VRM 页面不会加载门面，事件也不会来，监听器随页面闲置。
             //

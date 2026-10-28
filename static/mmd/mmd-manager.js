@@ -1,6 +1,6 @@
 /**
  * MMD Manager - 统一管理器，整合所有 MMD 子模块
- * 参考 vrm-manager.js 结构，提供统一 API
+ * MMD 的统一管理 API。
  */
 class MMDManager {
     static DEFAULT_MODEL_PATH = '/static/mmd/Miku/Miku.pmx';

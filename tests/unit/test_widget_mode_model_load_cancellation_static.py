@@ -8,7 +8,7 @@ def test_widget_mode_model_load_cancellation_contract_is_removed() -> None:
     paths = [
         ROOT / "static" / "app" / "app-widget-mode.js",
         ROOT / "static" / "live2d" / "live2d-model.js",
-        ROOT / "static" / "vrm" / "vrm-manager.js",
+        ROOT / "static" / "unity" / "unity-avatar-manager.js",
         ROOT / "static" / "mmd" / "mmd-manager.js",
     ]
     source = "\n".join(path.read_text(encoding="utf-8") for path in paths)
@@ -28,13 +28,18 @@ def test_mmd_superseded_load_blocks_default_model_fallback() -> None:
     assert token_guard < fallback
 
 
-def test_vrm_and_mmd_keep_their_full_pending_load_lifecycle() -> None:
-    for directory, filename in (("vrm", "vrm-manager.js"), ("mmd", "mmd-manager.js")):
-        source = (ROOT / "static" / directory / filename).read_text(encoding="utf-8")
-        assert "this._pendingModelLoadCount += 1;" in source
-        assert "this._pendingModelLoadCount = Math.max(0, this._pendingModelLoadCount - 1);" in source
-        assert "this._isLoadingModel = this._pendingModelLoadCount > 0;" in source
-        assert "_activeLoadToken" in source
+def test_unity_vrm_and_mmd_keep_latest_load_wins_lifecycle() -> None:
+    unity = (ROOT / "static" / "unity" / "unity-avatar-manager.js").read_text(encoding="utf-8")
+    assert "const loadToken = ++this._activeLoadToken;" in unity
+    assert "loadToken !== this._activeLoadToken" in unity
+    assert "this._isLoadingModel = true;" in unity
+    assert "this._isLoadingModel = false;" in unity
+
+    mmd = (ROOT / "static" / "mmd" / "mmd-manager.js").read_text(encoding="utf-8")
+    assert "this._pendingModelLoadCount += 1;" in mmd
+    assert "this._pendingModelLoadCount = Math.max(0, this._pendingModelLoadCount - 1);" in mmd
+    assert "this._isLoadingModel = this._pendingModelLoadCount > 0;" in mmd
+    assert "_activeLoadToken" in mmd
 
 
 def test_live2d_keeps_generic_superseded_load_protection() -> None:

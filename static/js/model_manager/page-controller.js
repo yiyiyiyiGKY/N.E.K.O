@@ -333,7 +333,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _idleRotationTimers = { vrm: null, mmd: null };
     const _idleRotationLast = { vrm: null, mmd: null };
     const _idleLoopCleanup = { vrm: null, mmd: null };
-    const _idleFadeState = { vrm: null, mmd: null };
     // MMD 待机动作切换期间临时禁用物理，防止头发/裙摆因瞬时姿态跳变而飞甩。
     // MMD 无 crossfade（loadAnimation 一步落位），骨架会单帧跳变 → MMDPhysics 积分为冲击。
     // VRM 侧走 crossfade + 跨 clip 同半球对齐，骨骼每帧位移极小，SpringBone 无冲击，不走这条路径。
@@ -341,28 +340,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _idleMmdPhysicsSavedState = { mmd: null };
     // VRM 待机动作 crossfade 时长（秒）。mixer 对每根骨做加权 slerp，把单帧姿态跳变稀释成
     // 逐帧小幅位移，避开 LookAt 奇点 / 四元数跨半球长路径 / 物理飞甩。
-    // previousAction 的延迟 stop 已下沉到 vrm-animation.js `_playAction` 的每次 fadeOut，
+    // previousAction 的延迟 stop 已由 Unity 动画适配层按每次 fadeOut 处理，
     // 跟 idle/手动切换路径解耦，不在此处维护 pending 槽。
     //
-    // 0.35s 选型理由：aa2458e 之后的保护（LookAt proxy 永久 no-op / _alignClipToCurrentPose
-    // 跨 clip 同半球对齐）都是根因修复，与 fadeDuration 无关，窗口可自由放宽。配合下方
-    // 视觉 fade：fade-in 在 ~370ms 完成，若 crossfade 仍取 0.15s（300ms 结束），用户第一眼
-    // 看到的是已定格的新 pose —— 正是主诉「硬直」的来源。拉到 0.35s 让 fade-in 完成后仍有
-    // ~130ms 可见 slerp 尾巴，用户看到的第一帧是「正在微动」而不是「突然定格」，才真正
-    // 消除硬直感。再长（>0.6s）无视觉 fade 配合会暴露两段无关 pose 中间态的「融化感」。
+    // 由 Unity Animator 在引擎内完成 clip crossfade；浏览器侧不再访问材质或场景。
     const IDLE_VRM_FADE_SEC = 0.35;
-
-    // 待机动作切换的视觉渐隐渐显（material opacity），仅 VRM 使用。
-    // 骨骼 crossfade 只平滑骨旋转，无法掩盖两段不相关待机 clip 之间的「pose 跳变感」
-    // （用户主诉的 VRM 硬直），所以 VRM 叠一层 fade-out → 切换 → fade-in 遮盖过渡。
-    //
-    // MMD 不走 visual fade：OutlineEffect 把描边作为独立 pass 渲染，主材质 opacity 归零时
-    // 描边仍全不透明，会出现「只剩描边」的视觉 bug；强制 transparent=true 还会让 MMDToonMaterial
-    // 从不透明走 alpha blend 排序、face/hair/body 多层 z-sort 错乱。原本 MMD fade 要遮盖的
-    // T-pose 闪帧已在 mmd-init.js 移除 stopAnimation 调用后根治（loadAnimation 内部的
-    // skeleton.pose() → mixer.update(0) 是同步块，RAF 无法插入）。
-    const IDLE_VRM_VISUAL_FADE_OUT_MS = 150;
-    const IDLE_VRM_VISUAL_FADE_IN_MS = 220;
     const IDLE_MMD_PHYSICS_RESTORE_MS = 250;
 
     function markMMDCanvasLoadingSession(canvas, loadingSessionId) {
@@ -2329,32 +2311,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 【新增】清理VRM资源
             if (window.vrmManager) {
                 try {
-                    // 停止VRM动画循环
-                    if (window.vrmManager._animationFrameId) {
-                        cancelAnimationFrame(window.vrmManager._animationFrameId);
-                        window.vrmManager._animationFrameId = null;
-                    }
-
-                    // 清理VRM管理器
                     if (typeof window.vrmManager.dispose === 'function') {
                         await window.vrmManager.dispose();
                     }
-
-                    // 清理Three.js渲染器（但不移除canvas，因为后续可能还要用）
-                    if (window.vrmManager.renderer) {
-                        window.vrmManager.renderer.dispose();
-                        window.vrmManager.renderer = null;
-                    }
-
-                    // 清理场景
-                    if (window.vrmManager.scene) {
-                        window.vrmManager.scene.clear();
-                        window.vrmManager.scene = null;
-                    }
-
-                    // 重置当前模型引用
-                    window.vrmManager.currentModel = null;
-                    window.vrmManager._isInitialized = false;
                     window._isVRMInitializing = false;
 
                     // 清理VRM的UI元素
@@ -2708,8 +2667,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (parameterEditorGroup) parameterEditorGroup.style.display = 'none';
 
             // 初始化 VRM 管理器
-            // 【修复】仅在 VRM 子类型时初始化 VRM 场景。MMD 子类型时若调用 initThreeJS，
-            // 会强制显示 vrm-container（见 vrm-manager.js initThreeJS），导致 VRM 场景中缓存的
+            // 仅在 VRM 子类型时初始化 Unity VRM 表面，避免 MMD 分支误显示 VRM canvas。
+            // 初始化会显示 vrm-container，错误调用会导致缓存的
             // 模型（如 sister1.0）被浏览器绘制并短暂闪现。
             if (currentLive3dSubType !== 'mmd') {
             // 1. 如果 vrmManager 不存在，创建实例
@@ -2784,9 +2743,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     container.appendChild(canvas);
                 }
 
-                // 3. 检查并初始化 Three.js 场景（移到 if 块外部，每次切换都会检查）
-                if (!vrmManager.scene || !vrmManager.camera || !vrmManager.renderer) {
-                    console.log('[模型管理] VRM 场景未完全初始化，正在初始化...');
+                // 3. 检查并初始化 Unity 渲染表面
+                if (!vrmManager.isInitialized?.()) {
+                    console.log('[模型管理] Unity VRM 表面未初始化，正在初始化...');
                     // 获取已保存的光照配置，避免用错误的默认值初始化场景
                     let savedLightingConfig = null;
                     try {
@@ -2798,11 +2757,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } catch (e) {
                         console.warn('[模型管理] 获取光照配置失败，使用默认值:', e);
                     }
-                    await vrmManager.initThreeJS('vrm-canvas', 'vrm-container', savedLightingConfig);
-                    // 再次验证初始化是否成功
-                    if (!vrmManager.scene || !vrmManager.camera || !vrmManager.renderer) {
-                        throw new Error('场景初始化后仍缺少必要组件');
-                    }
+                    await vrmManager.initRenderer('vrm-canvas', 'vrm-container', savedLightingConfig);
+                    if (!vrmManager.isInitialized?.()) throw new Error('Unity VRM 表面初始化失败');
                     // 同步光照值到 UI 滑块
                     if (savedLightingConfig) {
                         applyLightingValues(savedLightingConfig);
@@ -2811,11 +2767,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     showStatus(t('live2d.vrmInitialized', 'VRM 管理器初始化成功'));
                 }
                 // 【修复】对称恢复：从 MMD 子类型切回 VRM 时，MMD 分支会把 canvas 隐藏并
-                // 暂停渲染循环。若场景已初始化则 initThreeJS 不会被调用，需要在此显式
+                // 暂停渲染循环。若表面已初始化则 initRenderer 不会被调用，需要在此显式
                 // 恢复 canvas 可见性并重启渲染循环，避免预览空白或卡在旧帧。
-                if (vrmManager && vrmManager.renderer && vrmManager.renderer.domElement) {
-                    vrmManager.renderer.domElement.style.display = 'block';
-                }
+                vrmManager?.setSurfaceVisible?.(true);
                 if (vrmManager && typeof vrmManager.resumeRendering === 'function') {
                     try { vrmManager.resumeRendering(); } catch (_) { /* ignore */ }
                 }
@@ -2828,30 +2782,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // MMD 子类型：暂停 VRM 渲染循环，避免后台仍然绘制已缓存的 VRM 模型
                 // （即使容器 display:none，某些浏览器在过渡/重排时仍可能短暂显示 canvas）
                 //
-                // 【修复 MMD→VRM 切换闪现】额外把当前 VRM 模型节点隐藏：
-                // 仅靠 pauseRendering + canvas display:none 不足以覆盖从 MMD 切回 VRM 的缝隙。
+                // 【修复 MMD→VRM 切换闪现】额外让 Unity 隐藏当前 VRM avatar：
+                // 仅靠暂停 Unity 与 canvas display:none 不足以覆盖从 MMD 切回 VRM 的缝隙。
                 // 切回 VRM 时，switchModelDisplay 的 VRM 分支会显式 resumeRendering +
                 // 显示 canvas（见上方"对称恢复"），而真正替换模型的 vrmManager.loadModel
                 // 要等到 switchModelDisplay 之后才被 vrmModelSelect handler 调用。
                 // 期间 loadLive3DModels / loadIdleAnimationOptions / restoreVrmIdleAnimation
-                // 等多处 await 都会让浏览器绘制若干帧，此时旧 sister1.0 仍留在 scene 中
-                // 就会被画出来。把 scene.visible 置 false 后，即便 canvas 可见也画不出内容
-                // （renderer 使用 alpha:true，画面为透明）；新模型加载时 disposeVRM 会清掉
-                // 旧节点，新节点走自己的 visible=false → fadeIn 流水线，不受影响。
-                if (vrmManager && vrmManager.currentModel &&
-                    vrmManager.currentModel.vrm && vrmManager.currentModel.vrm.scene) {
-                    vrmManager.currentModel.vrm.scene.visible = false;
-                }
+                // 等多处 await 都会让浏览器绘制若干帧，此时 Unity 里仍保留旧 avatar。
+                // setSurfaceVisible(false) 会把隐藏命令交给 Unity；随后暂停 player 并清掉
+                // canvas 缓存帧，直到新模型载入后再恢复表面。
+                vrmManager?.setSurfaceVisible?.(false);
                 if (vrmManager && typeof vrmManager.pauseRendering === 'function') {
                     try { vrmManager.pauseRendering(); } catch (_) { /* ignore */ }
                 }
                 // 【修复】清除 VRM canvas 缓存帧，防止 canvas 内容在容器短暂可见时被绘制
-                if (vrmManager && vrmManager.renderer) {
-                    try { vrmManager.renderer.clear(); } catch (_) { /* ignore */ }
-                }
-                if (vrmManager && vrmManager.renderer && vrmManager.renderer.domElement) {
-                    vrmManager.renderer.domElement.style.display = 'none';
-                }
+                try { vrmManager?.clearSurface?.(); } catch (_) { /* ignore */ }
             }
 
             // 加载模型列表
@@ -3652,8 +3597,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         container.appendChild(canvas);
                     }
 
-                    if (!vrmManager._isInitialized && (!vrmManager.scene || !vrmManager.camera || !vrmManager.renderer)) {
-                        await vrmManager.initThreeJS('vrm-canvas', 'vrm-container');
+                    if (!vrmManager.isInitialized?.()) {
+                        await vrmManager.initRenderer('vrm-canvas', 'vrm-container');
                         if (!isCurrentSelection()) return;
                     }
 
@@ -3667,16 +3612,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            // 确保场景已完全初始化（即使 vrmManager 已存在，场景也可能未初始化）
-            if (vrmManager && (!vrmManager.scene || !vrmManager.camera || !vrmManager.renderer)) {
-                console.log('[模型管理] VRM 场景未完全初始化，正在初始化...');
+            // 确保 Unity 渲染表面已初始化
+            if (vrmManager && !vrmManager.isInitialized?.()) {
+                console.log('[模型管理] Unity VRM 表面未初始化，正在初始化...');
                 try {
-                    await vrmManager.initThreeJS('vrm-canvas', 'vrm-container');
+                    await vrmManager.initRenderer('vrm-canvas', 'vrm-container');
                     if (!isCurrentSelection()) return;
-                    // 再次验证初始化是否成功
-                    if (!vrmManager.scene || !vrmManager.camera || !vrmManager.renderer) {
-                        throw new Error('场景初始化后仍缺少必要组件');
-                    }
+                    if (!vrmManager.isInitialized?.()) throw new Error('Unity VRM 表面初始化失败');
                     console.log('[模型管理] VRM 场景初始化成功');
                 } catch (initError) {
                     if (!isCurrentSelection()) return;
@@ -3796,7 +3738,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 避免外部 await 造成 showAndFadeIn 先于动画播放、让 T-pose 露出的竞态。
                 // 用户保存的 idle 选择由 loadCharacterLighting 恢复后通过 startIdleRotation 覆盖。
                 //增加 addShadow: false
-                // 【注意】朝向会自动从preferences中加载（在vrm-core.js的loadModel中处理）
+                // 【注意】朝向会由 Unity VRM manager 的 loadModel 从 preferences 恢复。
                 await loadVrmModelWithCatalogReset(vrmMotionCatalogPlayer, vrmManager, modelUrl, {
                     addShadow: false,
                     idleAnimation: '/static/vrm/animation/wait03.vrma.gz'
@@ -3810,16 +3752,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // 检查是否从preferences加载了朝向
                 if (vrmManager.currentModel) {
-                    const vrm = vrmManager.currentModel.vrm || vrmManager.currentModel;
-                    if (vrm && vrm.scene) {
+                    const transform = vrmManager.currentModel.transform;
+                    if (transform) {
                         // 如果朝向不是0度，说明从preferences加载了保存的朝向
-                        if (Math.abs(vrm.scene.rotation.y) > 0.01) {
+                        if (Math.abs(transform.rotation.y) > 0.01) {
                             // 禁用自动面向相机，保持手动设置的朝向
                             if (vrmManager.interaction) {
                                 vrmManager.interaction.enableFaceCamera = false;
                             }
                         }
-                        // 模型缩放计算已统一在 vrm-core.js 的 loadModel() 中处理
+                        // 模型缩放计算已统一在 Unity VRM manager 的 loadModel() 中处理。
                     }
                 }
 
@@ -3957,8 +3899,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isAlive = () => !vrmSelectionLoadsDisposed && !manager?._isDisposed && window.vrmManager === manager;
         if (!manager) return false;
         if (!isAlive()) return null;
-        if (!manager.scene) {
-            await manager.initThreeJS('vrm-canvas', 'vrm-container');
+        if (!manager.isInitialized?.()) {
+            await manager.initRenderer('vrm-canvas', 'vrm-container');
             if (!isAlive()) return null;
         }
         // The manager increments its token synchronously when this call starts.
@@ -3973,53 +3915,37 @@ document.addEventListener('DOMContentLoaded', async () => {
             throw error;
         }
         if (!isAlive() || manager._activeLoadToken !== loadToken) return null;
-        if (!result?.vrm) return false;
-        if (manager.currentModel?.vrm !== result.vrm) return null;
+        if (!result || !manager.currentModel) return false;
+        if (manager.currentModel !== result && manager.currentModel?.vrm !== result.vrm) return null;
         // An owned fallback asset is a real identity failure, not supersession.
         if (new URL(manager.currentModel.url, window.location.href).href !== new URL(modelUrl, window.location.href).href) return false;
-        const isCurrent = () => isAlive() && manager._activeLoadToken === loadToken && Boolean(result?.vrm)
-            && manager.currentModel?.vrm === result.vrm
+        const activeModel = manager.currentModel;
+        const isCurrent = () => isAlive() && manager._activeLoadToken === loadToken
+            && manager.currentModel === activeModel
             && new URL(manager.currentModel.url, window.location.href).href === new URL(modelUrl, window.location.href).href;
         if (!isCurrent()) return null;
-        for (let i = 0; i < 3; i++) {
-            await new Promise(resolve => requestAnimationFrame(resolve));
-            if (!isCurrent()) return null;
-        }
-        const vrm = result.vrm;
-        const detectedRotation = { x: vrm.scene.rotation.x, y: vrm.scene.rotation.y, z: vrm.scene.rotation.z };
-        window.VRMOrientationDetector.applyRotation(vrm, detectedRotation);
-        await new Promise(resolve => requestAnimationFrame(resolve));
+        const orientation = await manager.detectOrientation();
         if (!isCurrent()) return null;
-        if (manager.core && typeof manager.core.saveUserPreferences === 'function') {
-            const position = vrm.scene.position.clone();
-            const scale = vrm.scene.scale.clone();
-            let saveSuccess;
-            try {
-                saveSuccess = await manager.core.saveUserPreferences(modelUrl,
-                    { x: position.x, y: position.y, z: position.z },
-                    { x: scale.x, y: scale.y, z: scale.z }, detectedRotation, null);
-            } catch (error) {
-                if (!isCurrent()) return null;
-                throw error;
-            }
-            // A dispatched save may finish, but must never clean up a newer model.
-            if (!isCurrent()) return null;
-            if (saveSuccess) {
-                const rotationDegrees = (detectedRotation.y * 180 / Math.PI).toFixed(1);
-                uploadStatus.textContent = t('live2d.vrmUpload.orientationFixed',
-                    `✓ 模型朝向已修正并保存 (${rotationDegrees}度)`, { degrees: rotationDegrees });
-            } else {
-                uploadStatus.textContent = t('live2d.vrmUpload.orientationFixedButSaveFailed', '⚠ 朝向已修正但保存失败');
-                console.error(`[上传检测] 保存失败: ${modelUrl}`);
-            }
-        } else {
-            uploadStatus.textContent = t('live2d.vrmUpload.cannotSaveOrientation', '⚠ 无法保存朝向配置');
-            console.error('[上传检测] saveUserPreferences方法不存在');
+        if (!orientation?.orientationReliable) {
+            uploadStatus.textContent = t(
+                'live2d.vrmUpload.orientationDetectionFailed',
+                '⚠ 无法可靠判断模型朝向，但模型已上传'
+            );
+            await manager.unloadModel();
+            return false;
         }
-        if (!isCurrent()) return null;
-        manager.scene.remove(vrm.scene);
-        manager.core.disposeVRM();
-        manager.currentModel = null;
+        if (orientation.needsRotation) {
+            const applied = await manager.setModelRotation(orientation.suggestedRotation);
+            if (!applied || !isCurrent()) return null;
+            const saveSuccess = await manager.savePreferences({ isCurrent, awaitPersistence: true });
+            if (!isCurrent()) return null;
+            const rotationDegrees = (orientation.suggestedRotation.y * 180 / Math.PI).toFixed(1);
+            uploadStatus.textContent = saveSuccess
+                ? t('live2d.vrmUpload.orientationFixed',
+                    `✓ 模型朝向已修正并保存 (${rotationDegrees}度)`, { degrees: rotationDegrees })
+                : t('live2d.vrmUpload.orientationFixedButSaveFailed', '⚠ 朝向已修正但保存失败');
+        }
+        await manager.unloadModel();
         return true;
     }
 
@@ -5045,8 +4971,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 vrmContainer.style.display = 'none';
             }
             // 【修复】清除 VRM canvas 缓存帧，防止旧 VRM 模型在切换窗口期短暂闪现
-            if (window.vrmManager && window.vrmManager.renderer) {
-                try { window.vrmManager.renderer.clear(); } catch (_) { /* ignore */ }
+            if (window.vrmManager && typeof window.vrmManager.clearSurface === 'function') {
+                try { window.vrmManager.clearSurface(); } catch (_) { /* ignore */ }
             }
             // 显示 MMD 容器
             if (mmdContainer) {
@@ -5525,9 +5451,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ambientLightSlider.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             ambientLightValue.textContent = value.toFixed(2);
-            if (vrmManager && vrmManager.ambientLight) {
-                vrmManager.ambientLight.intensity = value;
-            }
+            vrmManager?.applyLighting?.({ ambient: value });
             window.hasUnsavedChanges = true;
         });
     }
@@ -5537,9 +5461,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         mainLightSlider.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             mainLightValue.textContent = value.toFixed(2);
-            if (vrmManager && vrmManager.mainLight) {
-                vrmManager.mainLight.intensity = value;
-            }
+            vrmManager?.applyLighting?.({ main: value });
             window.hasUnsavedChanges = true;
         });
     }
@@ -5549,9 +5471,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         fillLightSlider.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             fillLightValue.textContent = value.toFixed(2);
-            if (vrmManager && vrmManager.fillLight) {
-                vrmManager.fillLight.intensity = value;
-            }
+            vrmManager?.applyLighting?.({ fill: value });
         });
     }
 
@@ -5560,9 +5480,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         rimLightSlider.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             rimLightValue.textContent = value.toFixed(2);
-            if (vrmManager && vrmManager.rimLight) {
-                vrmManager.rimLight.intensity = value;
-            }
+            vrmManager?.applyLighting?.({ rim: value });
         });
     }
 
@@ -5571,9 +5489,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         topLightSlider.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             topLightValue.textContent = value.toFixed(2);
-            if (vrmManager && vrmManager.topLight) {
-                vrmManager.topLight.intensity = value;
-            }
+            vrmManager?.applyLighting?.({ top: value });
         });
     }
 
@@ -5582,9 +5498,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         bottomLightSlider.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             bottomLightValue.textContent = value.toFixed(2);
-            if (vrmManager && vrmManager.bottomLight) {
-                vrmManager.bottomLight.intensity = value;
-            }
+            vrmManager?.applyLighting?.({ bottom: value });
         });
     }
 
@@ -5593,9 +5507,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         exposureSlider.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             exposureValue.textContent = value.toFixed(2);
-            if (vrmManager && vrmManager.renderer) {
-                vrmManager.renderer.toneMappingExposure = value;
-            }
+            vrmManager?.applyLighting?.({ exposure: value });
             window.hasUnsavedChanges = true;
         });
     }
@@ -5604,17 +5516,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (tonemappingSelect) {
         tonemappingSelect.addEventListener('change', (e) => {
             const value = parseInt(e.target.value);
-            if (vrmManager && vrmManager.renderer) {
-                vrmManager.renderer.toneMapping = value;
-                // 需要更新材质才能生效
-                if (vrmManager.currentModel?.vrm?.scene) {
-                    vrmManager.currentModel.vrm.scene.traverse((obj) => {
-                        if (obj.material) {
-                            obj.material.needsUpdate = true;
-                        }
-                    });
-                }
-            }
+            vrmManager?.applyLighting?.({ toneMapping: value });
             // 无色调映射时禁用曝光滑块
             const isNoToneMapping = value === 0;
             if (exposureSlider) {
@@ -5632,21 +5534,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     function applyVrmOutlineWidth(scale) {
         const label = document.getElementById('vrm-outline-width-value');
         if (label) label.textContent = scale.toFixed(2);
-        if (!vrmManager?.currentModel?.vrm?.scene) return;
-        vrmManager.currentModel.vrm.scene.traverse((object) => {
-            if (!object.isMesh && !object.isSkinnedMesh) return;
-            const mats = Array.isArray(object.material) ? object.material : [object.material];
-            mats.forEach(mat => {
-                if (!mat || !(mat._isOutline || mat.isOutline)) return;
-                if (mat._originalOutlineWidthFactor === undefined) {
-                    mat._originalOutlineWidthFactor = mat.outlineWidthFactor !== undefined ? mat.outlineWidthFactor : 0.002;
-                }
-                if (mat.outlineWidthFactor !== undefined) {
-                    mat.outlineWidthFactor = mat._originalOutlineWidthFactor * scale;
-                    mat.needsUpdate = true;
-                }
-            });
-        });
+        if (typeof vrmManager?.setOutlineWidthScale === 'function') {
+            vrmManager.setOutlineWidthScale(scale);
+        } else {
+            console.warn('[模型管理] Unity VRM manager 缺少 setOutlineWidthScale');
+        }
     }
 
     const vrmOutlineWidthSlider = document.getElementById('vrm-outline-width-slider');
@@ -5797,167 +5689,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, IDLE_MMD_PHYSICS_RESTORE_MS);
     }
 
-    // ═══════════════════ 待机动作视觉渐隐渐显 ═══════════════════
-    // 每个材质保存 {mat, origOpacity, origTransparent}，tween 期间临时翻 transparent=true
-    // 让 opacity 真正生效；结束在 alpha=1 时还原 transparent，避免 MToon/MMDToonShader
-    // 长期开 transparent 后的 z-sort 混乱。按 scene root uuid 验证材质身份，模型换装时
-    // 旧快照自动作废（避免 setOpacity 打到已 dispose 的材质）。
-    function _getFadeSceneRootUuid(type) {
-        if (type === 'vrm') return vrmManager?.currentModel?.vrm?.scene?.uuid || null;
-        if (type === 'mmd') return window.mmdManager?.currentModel?.mesh?.uuid || null;
-        return null;
-    }
-
-    function _collectFadeMaterials(type) {
-        const mats = [];
-        if (type === 'vrm') {
-            const scene = vrmManager?.currentModel?.vrm?.scene;
-            if (!scene) return mats;
-            scene.traverse(obj => {
-                if (!obj.material) return;
-                const arr = Array.isArray(obj.material) ? obj.material : [obj.material];
-                for (const m of arr) {
-                    if (m && typeof m.opacity === 'number') mats.push(m);
-                }
-            });
-        } else if (type === 'mmd') {
-            const mesh = window.mmdManager?.currentModel?.mesh;
-            if (!mesh || !mesh.material) return mats;
-            const arr = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-            for (const m of arr) {
-                if (m && typeof m.opacity === 'number') mats.push(m);
-            }
-        }
-        return mats;
-    }
-
-    // 同时取消：rAF tween / 延迟 fade-in setTimeout / 未决的 _fadeAlpha Promise。
-    //
-    // 关键点：不 resolve pendingResolve 的话，上一轮 `await _fadeAlpha(...)` 会
-    // 永远挂住，调用方（_playIdleAnimation）的 try/finally 永远不执行 → MMD
-    // 物理冻结无法恢复 / loop 监听器无法注册 / 回退定时器无法启动（Codex PR#774 P1）。
-    // 延迟 fade-in 的 setTimeout 若不清，过期回调会在下一轮 fade-out 期间触发
-    // `_fadeAlpha(type, 1, ...)`，cancel 当前 tween 并让新 await 挂住（Codex PR#774 P2）。
-    function _cancelFadeTween(type) {
-        const st = _idleFadeState[type];
-        if (!st) return;
-        if (st.rafId) {
-            cancelAnimationFrame(st.rafId);
-            st.rafId = null;
-        }
-        if (st.delayTimerId) {
-            clearTimeout(st.delayTimerId);
-            st.delayTimerId = null;
-        }
-        if (st.pendingResolve) {
-            const r = st.pendingResolve;
-            st.pendingResolve = null;
-            try { r(); } catch (_) { /* resolve 不应抛，防御性忽略 */ }
-        }
-    }
-
-    function _ensureFadeState(type) {
-        const rootUuid = _getFadeSceneRootUuid(type);
-        if (!rootUuid) return null;
-
-        const existing = _idleFadeState[type];
-        if (existing && existing.rootUuid === rootUuid && existing.targets.length > 0) {
-            return existing;
-        }
-        // 根节点换了（模型切换）：丢弃旧快照，旧材质已随旧 scene 一起释放
-        if (existing) _cancelFadeTween(type);
-
-        const mats = _collectFadeMaterials(type);
-        if (mats.length === 0) return null;
-
-        _idleFadeState[type] = {
-            rootUuid,
-            rafId: null,
-            targets: mats.map(m => ({
-                mat: m,
-                origOpacity: m.opacity,
-                origTransparent: m.transparent,
-            })),
-        };
-        return _idleFadeState[type];
-    }
-
-    /** 立即把所有材质还原到原始 opacity/transparent，清空快照。 */
-    function _restoreFadeMaterials(type) {
-        _cancelFadeTween(type);
-        const st = _idleFadeState[type];
-        if (!st) return;
-        for (const t of st.targets) {
-            if (!t.mat) continue;
-            try {
-                t.mat.opacity = t.origOpacity;
-                t.mat.transparent = t.origTransparent;
-            } catch (_) { /* 材质已 dispose，忽略 */ }
-        }
-        _idleFadeState[type] = null;
-    }
-
-    /**
-     * 把指定模型的材质 opacity 在 durationMs 内 tween 到 toAlpha * origOpacity。
-     * toAlpha: 0 = 完全不可见，1 = 还原原始 opacity。
-     * 到达 alpha=1 时自动还原 transparent 标志，避免长期开 transparent 导致的 z-sort 问题。
-     * 返回 Promise，tween 完成或被取消时都会 resolve（被 `_cancelFadeTween` 取消时
-     * 由 cancel 端 drain pendingResolve，防止 await 挂住调用方的 try/finally）。
-     */
-    function _fadeAlpha(type, toAlpha, durationMs) {
-        return new Promise(resolve => {
-            const state = _ensureFadeState(type);
-            if (!state) { resolve(); return; }
-            // 先 cancel 上一次（包括 drain 其 pendingResolve），再把自己的 resolve 装进 state
-            _cancelFadeTween(type);
-            state.pendingResolve = resolve;
-
-            // tween 期间强制 transparent=true，否则 opacity 在不透明材质上无视觉效果
-            for (const t of state.targets) {
-                if (t.mat && !t.mat.transparent) t.mat.transparent = true;
-            }
-
-            const startTs = performance.now();
-            const startAlphas = state.targets.map(t =>
-                (t.mat && t.origOpacity > 0) ? Math.max(0, Math.min(1, t.mat.opacity / t.origOpacity)) : 0
-            );
-
-            const safeDur = Math.max(1, durationMs);
-            const step = (now) => {
-                const elapsed = now - startTs;
-                const p = Math.min(1, elapsed / safeDur);
-                // ease-in-out cubic
-                const eased = p < 0.5
-                    ? 4 * p * p * p
-                    : 1 - Math.pow(-2 * p + 2, 3) / 2;
-
-                for (let i = 0; i < state.targets.length; i++) {
-                    const t = state.targets[i];
-                    if (!t.mat) continue;
-                    const a = startAlphas[i] + (toAlpha - startAlphas[i]) * eased;
-                    const clamped = Math.max(0, Math.min(1, a));
-                    try { t.mat.opacity = t.origOpacity * clamped; } catch (_) {}
-                }
-
-                if (p < 1) {
-                    state.rafId = requestAnimationFrame(step);
-                } else {
-                    state.rafId = null;
-                    // 先把 pendingResolve 摘下来再做 restore（_restoreFadeMaterials 会调
-                    // _cancelFadeTween，若 pendingResolve 还在 state 上会被再 resolve 一次
-                    // —— Promise 第二次 resolve 是 no-op，但避免顺序混乱更清楚）
-                    state.pendingResolve = null;
-                    if (toAlpha >= 1) {
-                        // 完全不透明：还原 transparent，清空快照，下次 fade 重新 ensure
-                        _restoreFadeMaterials(type);
-                    }
-                    resolve();
-                }
-            };
-            state.rafId = requestAnimationFrame(step);
-        });
-    }
-
     /** 停止待机动作轮换 */
     function stopIdleRotation(type) {
         if (_idleRotationTimers[type]) {
@@ -5974,9 +5705,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             _alignAndRestoreMmdIdlePhysics();
         }
-        // 若 _playIdleAnimation 被中途打断（用户手动切换动画/禁用轮换），
-        // 材质可能停留在 opacity<1 的半透明状态。立即还原，避免模型永久半隐。
-        _restoreFadeMaterials(type);
         _idleRotationLast[type] = null;
     }
 
@@ -6087,30 +5815,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             mmdFrozen = true;
         }
 
-        // 视觉渐隐：仅 VRM 走这条路径，遮盖两段待机 clip 姿态差异造成的「硬直」感
-        // （mixer 0.35s slerp 视觉上仍突兀）。失败分支（guard return / model 未就绪）
-        // 会在 finally 里 fade-in 还原，不留残影。
-        //
-        // MMD 不再走 visual fade：
-        //   1. OutlineEffect 把描边作为独立 pass 用内部 outline material 渲染，不会跟着
-        //      `mesh.material[i].opacity` 一起 fade，tween 到 0 时就会出现「只剩描边」的视觉 bug。
-        //   2. 强制 `transparent=true` 会让 MMDToonMaterial 从不透明走 alpha blend 排序，
-        //      face/hair/body 多层材质之间的 z-sort 会错乱。
-        //   3. 原本这个 fade 要遮盖的 T-pose 闪帧，根源在主页面 _startMmdIdleRotation 调用
-        //      `stopAnimation()`（skeleton.pose() → T-pose）后才 `await loadAnimation`；该问题
-        //      已在 mmd-init.js 移除 stopAnimation 修复，loadAnimation 内部 pose() → mixer.update(0)
-        //      是同步的，RAF 无法插入，不会暴露 T-pose。
-        //   4. MMD 物理飞甩由 freeze → physics.reset → unfreeze 独立覆盖，与视觉 fade 无关。
-        if (type === 'vrm') {
-            await _fadeAlpha('vrm', 0, IDLE_VRM_VISUAL_FADE_OUT_MS);
-        }
-
-        // await 期间可能发生：stopIdleRotation 清空轮换（会 drain pendingResolve 唤醒这里）/
-        // 用户手动播 VRMA/VMD / 切模式。原先 `_cancelFadeTween` 不 resolve Promise，await
-        // 永挂成事实上的 stop gate；Codex PR#774 P1 修复后必须显式重校 guards，否则会
-        // 绕过 stopIdleRotation 继续激活 mixer、注册 loop 监听器、启动回退定时器。
-        // aborted 分支走完 try 仍进 finally：played=false → _alignAndRestoreMmdIdlePhysics
-        // (idempotent) + fade-in（materials 已被 stopIdleRotation 还原则是 1→1 的 no-op tween）。
+        // 前端不再读取 Unity 材质或场景；切换平滑度由 Unity Animator crossfade 保证。
         const aborted = !_isIdleTypeActive(type) ||
                         (type === 'vrm' && isVrmAnimationPlaying) ||
                         (type === 'mmd' && isMmdAnimationPlaying);
@@ -6118,12 +5823,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         let played = false;
         try {
             if (aborted) {
-                console.debug(`[${type.toUpperCase()} IdleAnimation] fade-out 期间被打断，跳过动画切换`);
+                console.debug(`[${type.toUpperCase()} IdleAnimation] 切换期间被打断，跳过动画切换`);
             } else if (type === 'vrm') {
                 if (vrmManager && vrmManager.animation && vrmManager.currentModel) {
                     // 不再先 stopVRMAAnimation（它会 0.5s fadeOut，过长且是为手动动画设计的），
                     // 改由 _playAction 的 crossfade 分支直接 fadeOut(old) + fadeIn(new)。
-                    // previousAction 的延迟 stop 在 vrm-animation.js `_playAction` 内部按本次
+                    // previousAction 的延迟 stop 在 Unity 动画适配层内部按本次
                     // fadeDuration schedule，不再依赖 idle 轮换路径来 drain。
                     const idlePlaybackStarted = await vrmManager.playVRMAAnimation(url, {
                         loop: true,
@@ -6183,15 +5888,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     _alignAndRestoreMmdIdlePhysics();
                 }
-            }
-
-            // 视觉渐显：仅 VRM 走这条路径。playVRMAAnimation 已 await 返回，currentAction
-            // 已是新 action，立即淡入即可。失败分支（played=false）也淡入还原，防止模型永久不可见。
-            //
-            // MMD 不走 visual fade（原因见 fade-out 处注释）。012 crossfade 系统提供骨骼级
-            // 平滑混合，物理系统自然跟随，不需要 freeze/reset/unfreeze 也不需要视觉遮盖。
-            if (type === 'vrm') {
-                _fadeAlpha('vrm', 1, IDLE_VRM_VISUAL_FADE_IN_MS);
             }
         }
     }
@@ -6682,9 +6378,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 应用打光值到UI和场景
     function applyLightingValues(lighting) {
         // 【修复】非 VRM 子类型不应用 VRM 打光配置：
-        // MMD 子类型时 switchModelDisplay 会跳过 VRM 初始化（避免 sister1.0 闪现），
-        // 此时 vrmManager.ambientLight 等永远不存在，若继续执行会陷入每 100ms 的
-        // setTimeout 重试循环，造成后台定时器长期挂起。
+        // MMD 子类型时 switchModelDisplay 会跳过 Unity VRM 初始化（避免 sister1.0 闪现），
+        // 因此不向未启用的 Unity 运行时发送光照命令。
         if (currentModelType !== 'live3d' || currentLive3dSubType === 'mmd') {
             return;
         }
@@ -6707,75 +6402,56 @@ document.addEventListener('DOMContentLoaded', async () => {
             vrmOutlineWidthSlider: document.getElementById('vrm-outline-width-slider')
         };
 
-        // 确保光照已经初始化，如果没有则等待一小段时间
-        if (!vrmManager?.ambientLight || !vrmManager?.mainLight || !vrmManager?.fillLight || !vrmManager?.rimLight) {
-            // 如果光照未初始化，延迟重试
-            setTimeout(() => {
-                applyLightingValues(lighting);
-            }, 100);
-            return;
-        }
+        if (typeof vrmManager?.applyLighting !== 'function') return;
+
+        const resolvedLighting = {
+            ambient: lighting.ambient,
+            main: lighting.main,
+            fill: lighting.fill ?? 0.0,
+            rim: lighting.rim ?? 0.0,
+            top: lighting.top ?? 0.0,
+            bottom: lighting.bottom ?? 0.0,
+            ...(lighting.exposure !== undefined ? { exposure: lighting.exposure } : {}),
+            ...(lighting.toneMapping !== undefined ? { toneMapping: Number(lighting.toneMapping) } : {})
+        };
+        vrmManager.applyLighting(resolvedLighting);
 
         if (ui.ambientLightSlider && ui.ambientLightValue) {
             ui.ambientLightSlider.value = lighting.ambient;
             ui.ambientLightValue.textContent = lighting.ambient.toFixed(2);
-            if (vrmManager.ambientLight) {
-                vrmManager.ambientLight.intensity = lighting.ambient;
-            }
         }
         if (ui.mainLightSlider && ui.mainLightValue) {
             ui.mainLightSlider.value = lighting.main;
             ui.mainLightValue.textContent = lighting.main.toFixed(2);
-            if (vrmManager.mainLight) {
-                vrmManager.mainLight.intensity = lighting.main;
-            }
         }
         if (ui.fillLightSlider && ui.fillLightValue) {
             const fillValue = lighting.fill ?? 0.0;
             ui.fillLightSlider.value = fillValue;
             ui.fillLightValue.textContent = fillValue.toFixed(2);
-            if (vrmManager.fillLight) {
-                vrmManager.fillLight.intensity = fillValue;
-            }
         }
         if (ui.rimLightSlider && ui.rimLightValue) {
             const rimValue = lighting.rim ?? 0.0;
             ui.rimLightSlider.value = rimValue;
             ui.rimLightValue.textContent = rimValue.toFixed(2);
-            if (vrmManager.rimLight) {
-                vrmManager.rimLight.intensity = rimValue;
-            }
         }
         if (ui.topLightSlider && ui.topLightValue) {
             const topValue = lighting.top ?? 0.0;
             ui.topLightSlider.value = topValue;
             ui.topLightValue.textContent = topValue.toFixed(2);
-            if (vrmManager.topLight) {
-                vrmManager.topLight.intensity = topValue;
-            }
         }
         if (ui.bottomLightSlider && ui.bottomLightValue) {
             const bottomValue = lighting.bottom ?? 0.0;
             ui.bottomLightSlider.value = bottomValue;
             ui.bottomLightValue.textContent = bottomValue.toFixed(2);
-            if (vrmManager.bottomLight) {
-                vrmManager.bottomLight.intensity = bottomValue;
-            }
         }
         if (ui.exposureSlider && ui.exposureValue && lighting.exposure !== undefined) {
             ui.exposureSlider.value = lighting.exposure;
             ui.exposureValue.textContent = lighting.exposure.toFixed(2);
-            if (vrmManager.renderer) {
-                vrmManager.renderer.toneMappingExposure = lighting.exposure;
-            }
         }
         if (ui.tonemappingSelect && lighting.toneMapping !== undefined) {
             // 统一使用数值类型，避免字符串和数字混用
             const toneMappingValue = Number(lighting.toneMapping);
             ui.tonemappingSelect.value = toneMappingValue.toString();
-            if (vrmManager.renderer) {
-                vrmManager.renderer.toneMapping = toneMappingValue;
-            }
             // 根据色调映射设置曝光滑块禁用状态
             const isNoToneMapping = toneMappingValue === 0;
             if (ui.exposureSlider) {
@@ -6796,10 +6472,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 强制渲染一次，确保光照立即生效
-        if (vrmManager?.renderer && vrmManager?.scene && vrmManager?.camera) {
-            vrmManager.renderer.render(vrmManager.scene, vrmManager.camera);
-        }
+        // 等待 Unity 把设置提交到真实帧，避免预览停留在旧画面。
+        void vrmManager?.waitForRenderedFrame?.().catch?.(() => {});
     }
 
     // 加载角色的打光配置并应用
@@ -8632,7 +8306,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // 【新增】在上传成功后，先检测并修正模型朝向，然后再添加到列表
 
-                if (result.model_path && window.VRMOrientationDetector && window.vrmManager) {
+                if (result.model_path && window.vrmManager?.detectOrientation) {
                     try {
                         uploadStatus.textContent = t('live2d.vrmUpload.detectingOrientation', '正在检测并修正模型朝向...');
 
@@ -9436,56 +9110,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 智能检测并修正 VRM 模型朝向
-    // 【强力调试版】智能检测并修正 VRM 模型朝向
-    function autoCorrectVRMOrientation(vrm) {
-
-        // 1. 检查对象是否存在
-        if (!vrm) {
-            console.error("【调试失败】传入的 vrm 是空的 (null/undefined)！无法检测。");
-            // 尝试去 vrmManager 里找一下备用的
-            if (window.vrmManager && window.vrmManager.model) {
-                vrm = window.vrmManager.model;
-            } else {
-                return;
-            }
-        }
-
-        // 2. 检查 Humanoid 组件
-        if (!vrm.humanoid) {
-            console.error("【调试失败】模型存在，但没有 Humanoid (人形骨骼) 组件！");
-            return;
-        }
-
-        try {
-            const humanoid = vrm.humanoid;
-            const scene = vrm.scene;
-
-            scene.updateMatrixWorld(true);
-
-            const footNode = humanoid.getNormalizedBoneNode('leftFoot');
-            const toesNode = humanoid.getNormalizedBoneNode('leftToes');
-
-            if (footNode && toesNode) {
-                const footPos = new THREE.Vector3();
-                const toesPos = new THREE.Vector3();
-
-                footNode.getWorldPosition(footPos);
-                toesNode.getWorldPosition(toesPos);
-
-
-                if (toesPos.z < footPos.z - 0.001) {
-                    scene.rotation.y = Math.PI;
-                } else {
-                    scene.rotation.y = 0;
-                }
-            } else {
-                console.warn('【VRM Check】⚠️ 未找到脚部骨骼 (leftFoot 或 leftToes 缺失)，无法判断。');
-            }
-        } catch (e) {
-            console.error('【VRM Check】❌ 检测过程发生异常:', e);
-        }
-    }
     // 加载当前角色模型的函数
     async function loadCurrentCharacterModel() {
         try {

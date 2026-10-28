@@ -713,8 +713,6 @@
   "imports": {
     "three": "/static/libs/three.module.js",
     "three/addons/": "/static/libs/three/addons/",
-    "@pixiv/three-vrm": "/static/libs/three-vrm.module.min.js",
-    "@pixiv/three-vrm-animation": "/static/libs/three-vrm-animation.module.js",
     "@moeru/three-mmd": "/static/libs/three-mmd.module.js",
     "@moeru/three-mmd-physics-ammo": "/static/libs/three-mmd-physics-ammo.module.js"
   }
@@ -1302,10 +1300,14 @@
   var playerActionTimer = 0;
   var playerVrmPoseFrame = 0;
   var playerVrmPoseState = null;
-  var playerVrmRestPose = null;
-  var playerVrmRacket = null;
-  var playerVrmHeldShuttle = null;
-  var yuiVrmRacket = null;
+  var playerHeldShuttleAccessoryVisible = null;
+  var PLAYER_VRM_POSE_ID = 'badminton-player-pose';
+  var PLAYER_RACKET_ACCESSORY_ID = 'badminton-player-racket';
+  var PLAYER_SHUTTLE_ACCESSORY_ID = 'badminton-player-held-shuttle';
+  var YUI_RACKET_ACCESSORY_ID = 'badminton-yui-racket';
+  var PLAYER_RACKET_ANCHOR = 'badminton-player-racket-sweet-spot';
+  var PLAYER_SHUTTLE_ANCHOR = 'badminton-player-held-shuttle';
+  var PLAYER_LEFT_HAND_ANCHOR = 'badminton-player-left-hand';
   var SENSEI_VRM_PATH = '/static/vrm/sensei.vrm';
   function badmintonAssetUrl(path) {
     var version = '';
@@ -3480,11 +3482,15 @@
     try {
       var follower = manager._cursorFollow || manager.cursorFollow;
       if (follower) {
-        follower._rawMouseX = sx;
-        follower._rawMouseY = sy;
-        follower._hasPointerInput = true;
-        follower._lastPointerMoveAt = performance.now();
-        if (typeof follower.setEnabled === 'function') follower.setEnabled(true);
+        if (typeof follower._onPointerMove === 'function') {
+          follower._onPointerMove({ clientX: sx, clientY: sy });
+        } else {
+          follower._rawMouseX = sx;
+          follower._rawMouseY = sy;
+          follower._hasPointerInput = true;
+          follower._lastPointerMoveAt = performance.now();
+          if (typeof follower.setEnabled === 'function') follower.setEnabled(true);
+        }
       } else if (typeof manager._setLookAtTargetByMouse === 'function') {
         manager._setLookAtTargetByMouse(sx, sy);
       }
@@ -3549,336 +3555,129 @@
     applyPlayerVrmEmotion('idle');
     stopPlayerVrmPose();
   }
-  function getPlayerVrm() {
-    return window.badmintonPlayerVrmManager &&
-      window.badmintonPlayerVrmManager.currentModel &&
-      window.badmintonPlayerVrmManager.currentModel.vrm;
-  }
-  function getPlayerVrmBone(vrm, name) {
-    if (!vrm || !vrm.humanoid || !name) return null;
-    try {
-      if (typeof vrm.humanoid.getNormalizedBoneNode === 'function') {
-        return vrm.humanoid.getNormalizedBoneNode(name);
-      }
-    } catch (_) {}
-    try {
-      if (typeof vrm.humanoid.getRawBoneNode === 'function') {
-        return vrm.humanoid.getRawBoneNode(name);
-      }
-    } catch (_) {}
-    return null;
-  }
-  function getPlayerVrmAttachmentBone(vrm, name) {
-    if (!vrm || !vrm.humanoid || !name) return null;
-    try {
-      if (typeof vrm.humanoid.getRawBoneNode === 'function') {
-        var rawBone = vrm.humanoid.getRawBoneNode(name);
-        if (rawBone) return rawBone;
-      }
-    } catch (_) {}
-    return getPlayerVrmBone(vrm, name);
-  }
-  function createVrmBadmintonRacket(name, options) {
-    if (!window.THREE) return null;
-    options = options || {};
-    var THREE = window.THREE;
-    var racket = new THREE.Group();
-    racket.name = name || 'badminton-right-hand-racket';
-
-    var frameMat = new THREE.MeshStandardMaterial({
-      color: 0xf3fbff,
-      roughness: 0.34,
-      metalness: 0.28
+  function settleBadmintonUnityCommand(result, label) {
+    if (!result || typeof result.catch !== 'function') return;
+    result.catch(function (error) {
+      console.warn('[badminton_demo] Unity ' + label + ' failed:', error);
     });
-    var gripMat = new THREE.MeshStandardMaterial({
-      color: 0x596b75,
-      roughness: 0.72,
-      metalness: 0.08
-    });
-    var stringMat = new THREE.MeshBasicMaterial({
-      color: 0xc7e0eb,
-      transparent: true,
-      opacity: 0.62,
-      depthWrite: false
-    });
-
-    var handle = new THREE.Mesh(new THREE.CylinderGeometry(0.0088, 0.0108, 0.16, 12), gripMat);
-    handle.name = 'racket-handle';
-    handle.position.y = 0;
-    racket.add(handle);
-
-    var butt = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.012, 12), gripMat);
-    butt.name = 'racket-butt-cap';
-    butt.position.y = -0.086;
-    racket.add(butt);
-
-    for (var wrap = -2; wrap <= 2; wrap++) {
-      var gripWrap = new THREE.Mesh(new THREE.TorusGeometry(0.0115, 0.0008, 5, 18), stringMat);
-      gripWrap.name = 'racket-grip-wrap';
-      gripWrap.rotation.x = Math.PI / 2;
-      gripWrap.position.y = wrap * 0.026;
-      racket.add(gripWrap);
-    }
-
-    var shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0035, 0.255, 10), frameMat);
-    shaft.name = 'racket-shaft';
-    shaft.position.y = 0.205;
-    racket.add(shaft);
-
-    var throat = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0055, 0.055, 10), frameMat);
-    throat.name = 'racket-throat';
-    throat.position.y = 0.36;
-    racket.add(throat);
-
-    var head = new THREE.Mesh(new THREE.TorusGeometry(0.082, 0.0042, 10, 56), frameMat);
-    head.name = 'racket-head';
-    head.scale.set(0.68, 1.28, 1);
-    head.position.y = 0.475;
-    racket.add(head);
-
-    for (var i = -4; i <= 4; i++) {
-      var vertical = new THREE.Mesh(new THREE.CylinderGeometry(0.00055, 0.00055, 0.19, 5), stringMat);
-      vertical.name = 'racket-string-v';
-      vertical.position.set(i * 0.0105, 0.475, 0.001);
-      racket.add(vertical);
-    }
-    for (var j = -4; j <= 4; j++) {
-      var horizontal = new THREE.Mesh(new THREE.CylinderGeometry(0.00055, 0.00055, 0.098, 5), stringMat);
-      horizontal.name = 'racket-string-h';
-      horizontal.rotation.z = Math.PI / 2;
-      horizontal.position.set(0, 0.475 + j * 0.021, 0.002);
-      racket.add(horizontal);
-    }
-
-    racket.position.set(
-      options.x == null ? 0.006 : options.x,
-      options.y == null ? 0.002 : options.y,
-      options.z == null ? 0.012 : options.z
-    );
-    racket.rotation.set(
-      options.rotX == null ? 0.22 : options.rotX,
-      options.rotY == null ? -0.12 : options.rotY,
-      options.rotZ == null ? -0.54 : options.rotZ
-    );
-    racket.scale.setScalar(options.scale == null ? 1.18 : options.scale);
-    racket.traverse(function (node) {
-      if (node) node.frustumCulled = false;
-    });
-    return racket;
-  }
-  function createPlayerVrmRacket() {
-    return createVrmBadmintonRacket('badminton-player-right-hand-racket', {
-      scale: 1.26,
-      x: 0.006,
-      y: 0.002,
-      z: 0.012,
-      rotX: 0.22,
-      rotY: -0.12,
-      rotZ: -0.54
-    });
-  }
-  function drawVrmHeldShuttlecockTexture(ctx, size) {
-    ctx.clearRect(0, 0, size, size);
-    drawBadmintonShuttlecockOnContext(ctx, size * 0.50, size * 0.58, size * 0.23, -0.28);
-  }
-  function createVrmHeldShuttlecock(name, options) {
-    if (!window.THREE) return null;
-    options = options || {};
-    var THREE = window.THREE;
-    var shuttle = new THREE.Group();
-    shuttle.name = name || 'badminton-player-held-shuttle';
-
-    var textureCanvas = document.createElement('canvas');
-    textureCanvas.width = 256;
-    textureCanvas.height = 256;
-    var textureCtx = textureCanvas.getContext('2d');
-    if (textureCtx) drawVrmHeldShuttlecockTexture(textureCtx, 256);
-    var texture = new THREE.CanvasTexture(textureCanvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.needsUpdate = true;
-    var material = new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-      depthWrite: false,
-      depthTest: false
-    });
-    var sprite = new THREE.Sprite(material);
-    sprite.name = 'held-shuttle-vrm-hand-sprite';
-    sprite.position.set(0, 0, 0);
-    sprite.scale.set(0.34, 0.34, 1);
-    sprite.renderOrder = 30;
-    shuttle.add(sprite);
-
-    shuttle.position.set(
-      options.x == null ? 0.038 : options.x,
-      options.y == null ? -0.018 : options.y,
-      options.z == null ? -0.014 : options.z
-    );
-    shuttle.rotation.set(
-      options.rotX == null ? -0.74 : options.rotX,
-      options.rotY == null ? 0.18 : options.rotY,
-      options.rotZ == null ? -0.32 : options.rotZ
-    );
-    shuttle.scale.setScalar(options.scale == null ? 1 : options.scale);
-    shuttle.renderOrder = 10;
-    shuttle.traverse(function (node) {
-      if (!node) return;
-      node.frustumCulled = false;
-      node.renderOrder = 10;
-    });
-    return shuttle;
   }
   function syncPlayerHeldShuttleVisibility() {
-    if (!playerVrmHeldShuttle) return;
-    playerVrmHeldShuttle.visible = !!shouldDrawHeldShuttle();
-  }
-  function attachPlayerRacketToHand(vrm) {
-    if (!vrm || !window.THREE) return false;
-    var hand = getPlayerVrmAttachmentBone(vrm, 'rightHand');
-    if (!hand || typeof hand.add !== 'function') return false;
-    if (playerVrmRacket && playerVrmRacket.parent) {
-      playerVrmRacket.parent.remove(playerVrmRacket);
+    var manager = window.badmintonPlayerVrmManager;
+    if (!manager || !playerSenseiContainer || playerSenseiContainer.dataset.heldShuttle3d !== 'ready') return;
+    var visible = !!shouldDrawHeldShuttle();
+    if (visible === playerHeldShuttleAccessoryVisible) return;
+    playerHeldShuttleAccessoryVisible = visible;
+    var update = manager.setAccessoryVisible(PLAYER_SHUTTLE_ACCESSORY_ID, visible);
+    if (update && typeof update.catch === 'function') {
+      update.catch(function (error) {
+        playerHeldShuttleAccessoryVisible = null;
+        console.warn('[badminton_demo] Unity held shuttle visibility failed:', error);
+      });
     }
-    playerVrmRacket = createPlayerVrmRacket();
-    if (!playerVrmRacket) return false;
-    hand.add(playerVrmRacket);
+  }
+  async function attachPlayerRacketToHand(manager) {
+    if (!manager || typeof manager.attachAccessory !== 'function') return false;
+    try {
+      await manager.attachAccessory({
+        id: PLAYER_RACKET_ACCESSORY_ID,
+        preset: 'badmintonRacket',
+        bone: 'rightHand',
+        position: { x: 0.006, y: 0.002, z: 0.012 },
+        eulerRadians: { x: 0.22, y: -0.12, z: -0.54 },
+        scale: { x: 1.26, y: 1.26, z: 1.26 },
+        anchors: [{ name: 'sweetSpot', localPosition: { x: 0, y: 0.475, z: 0.002 } }]
+      });
+    } catch (error) {
+      console.warn('[badminton_demo] player racket accessory failed:', error);
+      return false;
+    }
     if (playerSenseiContainer) playerSenseiContainer.dataset.racket3d = 'ready';
     return true;
   }
-  function attachPlayerHeldShuttleToHand(vrm) {
-    if (!vrm || !window.THREE) return false;
-    var hand = getPlayerVrmAttachmentBone(vrm, 'leftHand');
-    if (!hand || typeof hand.add !== 'function') return false;
-    if (playerVrmHeldShuttle && playerVrmHeldShuttle.parent) {
-      playerVrmHeldShuttle.parent.remove(playerVrmHeldShuttle);
+  async function attachPlayerHeldShuttleToHand(manager) {
+    if (!manager || typeof manager.attachAccessory !== 'function') return false;
+    try {
+      await manager.attachAccessory({
+        id: PLAYER_SHUTTLE_ACCESSORY_ID,
+        preset: 'badmintonShuttle',
+        bone: 'leftHand',
+        position: { x: 0.040, y: 0.000, z: 0.135 },
+        eulerRadians: { x: -0.82, y: 0.20, z: -0.20 },
+        scale: { x: 1, y: 1, z: 1 },
+        anchors: [{ name: 'origin', localPosition: { x: 0, y: 0, z: 0 } }]
+      });
+    } catch (error) {
+      console.warn('[badminton_demo] player shuttle accessory failed:', error);
+      return false;
     }
-    playerVrmHeldShuttle = createVrmHeldShuttlecock('badminton-player-held-shuttle', {
-      scale: 1,
-      x: 0.040,
-      y: 0.000,
-      z: 0.135,
-      rotX: -0.82,
-      rotY: 0.20,
-      rotZ: -0.20
-    });
-    if (!playerVrmHeldShuttle) return false;
-    hand.add(playerVrmHeldShuttle);
-    syncPlayerHeldShuttleVisibility();
+    playerHeldShuttleAccessoryVisible = null;
     if (playerSenseiContainer) playerSenseiContainer.dataset.heldShuttle3d = 'ready';
+    syncPlayerHeldShuttleVisibility();
     return true;
   }
-  function attachYuiRacketToHand(vrm) {
-    if (!vrm || !window.THREE) return false;
-    var hand = getPlayerVrmAttachmentBone(vrm, 'rightHand');
-    if (!hand || typeof hand.add !== 'function') return false;
-    if (yuiVrmRacket && yuiVrmRacket.parent) {
-      yuiVrmRacket.parent.remove(yuiVrmRacket);
+  async function attachYuiRacketToHand(manager) {
+    if (!manager || typeof manager.attachAccessory !== 'function') return false;
+    try {
+      await manager.attachAccessory({
+        id: YUI_RACKET_ACCESSORY_ID,
+        preset: 'badmintonRacket',
+        bone: 'rightHand',
+        position: { x: 0.006, y: 0.002, z: 0.012 },
+        eulerRadians: { x: 0.22, y: -0.12, z: -0.54 },
+        scale: { x: 1.20, y: 1.20, z: 1.20 }
+      });
+    } catch (error) {
+      console.warn('[badminton_demo] Yui racket accessory failed:', error);
+      return false;
     }
-    yuiVrmRacket = createVrmBadmintonRacket('badminton-yui-right-hand-racket', {
-      scale: 1.20,
-      x: 0.006,
-      y: 0.002,
-      z: 0.012,
-      rotX: 0.22,
-      rotY: -0.12,
-      rotZ: -0.54
-    });
-    if (!yuiVrmRacket) return false;
-    hand.add(yuiVrmRacket);
     if (nekoVrmContainer) nekoVrmContainer.dataset.racket3d = 'ready';
     return true;
   }
-  function capturePlayerVrmRestPose(vrm) {
-    if (!vrm || !vrm.scene || !window.THREE) return null;
-    var boneNames = [
-      'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
-      'leftUpperArm', 'leftLowerArm', 'leftHand',
-      'rightUpperArm', 'rightLowerArm', 'rightHand'
-    ];
-    var bones = {};
-    boneNames.forEach(function (name) {
-      var bone = getPlayerVrmBone(vrm, name);
-      if (bone && bone.quaternion) bones[name] = bone.quaternion.clone();
-    });
-    return {
-      scenePosition: vrm.scene.position.clone(),
-      sceneRotation: vrm.scene.rotation.clone(),
-      bones: bones
-    };
-  }
-  function ensurePlayerVrmRestPose(vrm) {
-    if (!playerVrmRestPose && vrm) playerVrmRestPose = capturePlayerVrmRestPose(vrm);
-    return playerVrmRestPose;
-  }
-  function setPlayerVrmBonePose(vrm, name, x, y, z, weight) {
-    var rest = ensurePlayerVrmRestPose(vrm);
-    var bone = getPlayerVrmBone(vrm, name);
-    var base = rest && rest.bones && rest.bones[name];
-    if (!bone || !base || !window.THREE) return;
-    var q = new window.THREE.Quaternion().setFromEuler(new window.THREE.Euler(
-      (x || 0) * weight,
-      (y || 0) * weight,
-      (z || 0) * weight,
-      'XYZ'
-    ));
-    bone.quaternion.copy(base).multiply(q);
-  }
   function resetPlayerVrmPose() {
-    var vrm = getPlayerVrm();
-    var rest = ensurePlayerVrmRestPose(vrm);
-    if (!vrm || !rest) return;
-    Object.keys(rest.bones || {}).forEach(function (name) {
-      var bone = getPlayerVrmBone(vrm, name);
-      if (bone && bone.quaternion) bone.quaternion.copy(rest.bones[name]);
-    });
-    if (vrm.scene && rest.scenePosition && rest.sceneRotation) {
-      vrm.scene.position.copy(rest.scenePosition);
-      vrm.scene.rotation.copy(rest.sceneRotation);
-    }
-    if (vrm.humanoid && typeof vrm.humanoid.update === 'function') {
-      try { vrm.humanoid.update(); } catch (_) {}
-    }
-    if (vrm.scene && typeof vrm.scene.updateMatrixWorld === 'function') {
-      vrm.scene.updateMatrixWorld(true);
-    }
+    var manager = window.badmintonPlayerVrmManager;
+    if (!manager || typeof manager.resetPose !== 'function') return;
+    settleBadmintonUnityCommand(manager.resetPose(PLAYER_VRM_POSE_ID), 'pose reset');
   }
   function applyPlayerVrmPoseFrame(action, progress) {
-    var vrm = getPlayerVrm();
-    var rest = ensurePlayerVrmRestPose(vrm);
-    if (!vrm || !rest || !window.THREE) return;
-    resetPlayerVrmPose();
+    var manager = window.badmintonPlayerVrmManager;
+    if (!manager || typeof manager.setPose !== 'function') return;
     var t = clamp(progress || 0, 0, 1);
     var pulse = 0.5 + Math.sin(t * Math.PI * 2) * 0.5;
     var strike = Math.sin(Math.min(1, t) * Math.PI);
     var w = action === 'charging' ? 0.55 + pulse * 0.25 : 1;
+    var bones = [];
+    var rootOffset = { x: 0, y: 0, z: 0 };
+    function addBone(name, x, y, z, weight) {
+      bones.push({ name: name, eulerRadians: { x: x || 0, y: y || 0, z: z || 0 }, weight: weight });
+    }
 
     if (action === 'charging') {
-      setPlayerVrmBonePose(vrm, 'hips', 0.035, 0, -0.012, w);
-      setPlayerVrmBonePose(vrm, 'spine', 0.055, 0, 0.018, w);
-      setPlayerVrmBonePose(vrm, 'chest', 0.045, 0, 0.026, w);
-      if (vrm.scene && rest.scenePosition) vrm.scene.position.y = rest.scenePosition.y - 0.012 * w;
+      addBone('hips', 0.035, 0, -0.012, w);
+      addBone('spine', 0.055, 0, 0.018, w);
+      addBone('chest', 0.045, 0, 0.026, w);
+      rootOffset.y = -0.012 * w;
     } else if (action === 'shooting') {
-      setPlayerVrmBonePose(vrm, 'hips', 0.018, -0.045 * strike, 0.035 * strike, 1);
-      setPlayerVrmBonePose(vrm, 'spine', 0.025, -0.085 * strike, 0.065 * strike, 1);
-      setPlayerVrmBonePose(vrm, 'chest', 0.012, -0.12 * strike, 0.095 * strike, 1);
-      if (vrm.scene && rest.scenePosition) vrm.scene.position.y = rest.scenePosition.y + 0.014 * strike;
+      addBone('hips', 0.018, -0.045 * strike, 0.035 * strike, 1);
+      addBone('spine', 0.025, -0.085 * strike, 0.065 * strike, 1);
+      addBone('chest', 0.012, -0.12 * strike, 0.095 * strike, 1);
+      rootOffset.y = 0.014 * strike;
     } else if (action === 'react-celebrate') {
-      setPlayerVrmBonePose(vrm, 'spine', -0.02, 0, -0.04, 1);
-      setPlayerVrmBonePose(vrm, 'chest', -0.08, 0, -0.08, 1);
-      if (vrm.scene && rest.scenePosition) vrm.scene.position.y = rest.scenePosition.y + 0.035 * strike;
+      addBone('spine', -0.02, 0, -0.04, 1);
+      addBone('chest', -0.08, 0, -0.08, 1);
+      rootOffset.y = 0.035 * strike;
     } else if (action === 'react-disappointed') {
-      setPlayerVrmBonePose(vrm, 'hips', 0.1, 0, 0, 1);
-      setPlayerVrmBonePose(vrm, 'spine', 0.18, 0, -0.04, 1);
-      setPlayerVrmBonePose(vrm, 'chest', 0.2, 0, -0.08, 1);
-      setPlayerVrmBonePose(vrm, 'head', 0.18, 0, 0.04, 1);
-      if (vrm.scene && rest.scenePosition) vrm.scene.position.y = rest.scenePosition.y - 0.025 * strike;
+      addBone('hips', 0.1, 0, 0, 1);
+      addBone('spine', 0.18, 0, -0.04, 1);
+      addBone('chest', 0.2, 0, -0.08, 1);
+      addBone('head', 0.18, 0, 0.04, 1);
+      rootOffset.y = -0.025 * strike;
     }
-    if (vrm.humanoid && typeof vrm.humanoid.update === 'function') {
-      try { vrm.humanoid.update(); } catch (_) {}
-    }
-    if (vrm.scene && typeof vrm.scene.updateMatrixWorld === 'function') {
-      vrm.scene.updateMatrixWorld(true);
-    }
+    settleBadmintonUnityCommand(manager.setPose({
+      poseId: PLAYER_VRM_POSE_ID,
+      reset: true,
+      rootOffset: rootOffset,
+      bones: bones
+    }), 'pose update');
   }
   function startPlayerVrmPose(action, duration) {
     stopPlayerVrmPose({ keepPose: true });
@@ -3943,49 +3742,27 @@
     }
   }
   function waitForVRMModules() {
-    var vrmModulesReady = window.vrmModuleLoaded ? Promise.resolve() : new Promise(function (resolve) {
+    return window.vrmModuleLoaded ? Promise.resolve() : new Promise(function (resolve) {
       window.addEventListener('vrm-modules-ready', resolve, { once: true });
       window.addEventListener('vrm-modules-failed', function (e) {
         console.warn('[badminton_demo] VRM modules failed:', e.detail);
         resolve();
       }, { once: true });
     });
-    return Promise.all([vrmModulesReady, waitForThreeModule()]).then(function () {});
   }
-  function waitForThreeModule() {
-    if (window.THREE) return Promise.resolve();
-    return new Promise(function (resolve) {
-      window.addEventListener('three-ready', resolve, { once: true });
-    });
+  function fitVRMToContainer(manager, container) {
+    if (!manager || !manager.currentModel || typeof manager.fitModel !== 'function') return;
+    var width = Math.max(1, (container && container.clientWidth) || 150);
+    var height = Math.max(1, (container && container.clientHeight) || 230);
+    manager.resizeSurface?.(width, height, false);
+    manager.fitModel(
+      { width: width, height: height },
+      { mode: 'height', align: 'bottom-center', padding: 0 },
+      { scale: 78.125, x: 0, y: 0 }
+    );
   }
-  function fitVRMToContainer(manager, vrm, container) {
-    if (!manager || !vrm || !vrm.scene || !manager.camera || !window.THREE) return;
-    var THREE = window.THREE;
-    vrm.scene.updateMatrixWorld(true);
-    var box = new THREE.Box3().setFromObject(vrm.scene);
-    var mid = new THREE.Vector3();
-    box.getCenter(mid);
-    vrm.scene.position.x -= mid.x;
-    vrm.scene.position.z -= mid.z;
-    vrm.scene.position.y -= box.min.y;
-    vrm.scene.updateMatrixWorld(true);
-    var box2 = new THREE.Box3().setFromObject(vrm.scene);
-    var h = Math.max(0.1, box2.max.y - box2.min.y);
-    var cam = manager.camera;
-    var fovRad = cam.fov * Math.PI / 180;
-    var aspect = (container && container.clientWidth && container.clientHeight) ? container.clientWidth / container.clientHeight : 150 / 230;
-    var visibleH = h * 1.28;
-    var dist = visibleH / (2 * Math.tan(fovRad / 2));
-    var lookY = visibleH / 2;
-    cam.aspect = aspect;
-    cam.near = 0.01;
-    cam.far = 100;
-    cam.position.set(0, lookY, dist);
-    cam.lookAt(0, lookY, 0);
-    cam.updateProjectionMatrix();
-  }
-  function fitVRMToAudience(manager, vrm) {
-    fitVRMToContainer(manager, vrm, nekoVrmContainer);
+  function fitVRMToAudience(manager) {
+    fitVRMToContainer(manager, nekoVrmContainer);
   }
   async function initLive2DAvatar(live2dPath) {
     if (!nekoL2dContainer || !nekoL2dCanvas || !window.live2dManager) return;
@@ -4051,43 +3828,25 @@
       delete nekoVrmContainer.dataset.racket3d;
       await waitForVRMModules();
       var ManagerClass = window.VRMManager;
-      if (!ManagerClass || !window.THREE) throw new Error('VRMManager or THREE missing');
+      if (!ManagerClass) throw new Error('Unity VRMManager missing');
       window.badmintonVrmManager = new ManagerClass();
       var manager = window.badmintonVrmManager;
-      await manager.core.init('neko-vrm-canvas', 'neko-vrm-container', null, { embed: true });
-      var imports = await Promise.all([
-        import('three/addons/loaders/GLTFLoader.js'),
-        import('@pixiv/three-vrm')
-      ]);
-      var GLTFLoader = imports[0].GLTFLoader;
-      var vrmModule = imports[1];
-      var loader = new GLTFLoader();
-      loader.register(function (parser) { return new vrmModule.VRMLoaderPlugin(parser); });
-      var gltf = await new Promise(function (resolve, reject) {
-        loader.load(vrmPath, resolve, null, reject);
+      await manager.initRenderer('neko-vrm-canvas', 'neko-vrm-container', null);
+      await manager.loadModel(vrmPath, {
+        embed: true,
+        restorePreferences: false,
+        idleAnimation: '/static/vrm/animation/wait03.vrma.gz'
       });
-      var vrm = gltf.userData && gltf.userData.vrm;
-      if (!vrm) throw new Error('Loaded file is not a valid VRM');
-      manager.scene.add(vrm.scene);
-      manager.currentModel = { vrm: vrm, gltf: gltf, scene: vrm.scene, url: vrmPath };
-      vrm.scene.visible = true;
-      if (!attachYuiRacketToHand(vrm)) {
+      if (!await attachYuiRacketToHand(manager)) {
         delete nekoVrmContainer.dataset.racket3d;
         console.warn('[badminton_demo] Yui VRM right-hand racket attach failed; no CSS racket fallback is rendered');
       }
-      fitVRMToAudience(manager, vrm);
-      if (manager.renderer && manager.renderer.domElement) manager.renderer.domElement.style.opacity = '1';
+      fitVRMToAudience(manager);
+      if (manager.canvas) manager.canvas.style.opacity = '1';
       if (typeof manager.startAnimateLoop === 'function' && !manager._animationFrameId) manager.startAnimateLoop();
       if (typeof manager._initMouseLookAtTracking === 'function') manager._initMouseLookAtTracking();
       if (manager.interaction && typeof manager.interaction.enableMouseTracking === 'function') manager.interaction.enableMouseTracking(true);
       if (manager._cursorFollow && typeof manager._cursorFollow.setEnabled === 'function') manager._cursorFollow.setEnabled(true);
-      try {
-        await manager.playVRMAAnimation('/static/vrm/animation/wait03.vrma.gz', {
-          loop: true, immediate: true, isIdle: true
-        });
-      } catch (animErr) {
-        console.warn('[badminton_demo] VRM idle animation failed:', animErr);
-      }
       nekoVrmContainer.dataset.vrm = 'ready';
       applyNekoControl({ expression: lastFinalStreak >= 15 ? 'anticipate' : 'idle', intensity: lastFinalStreak >= 15 ? 'medium' : 'low' }, {});
     } catch (err) {
@@ -4556,6 +4315,12 @@
     updateYuiPosition(game.distance);
     updatePlayerAvatarPosition();
     updateDuelShooterAvatars();
+    if (activeAvatarType === 'vrm' && window.badmintonVrmManager?.currentModel) {
+      fitVRMToAudience(window.badmintonVrmManager);
+    }
+    if (playerSenseiReady && window.badmintonPlayerVrmManager?.currentModel) {
+      fitVRMToContainer(window.badmintonPlayerVrmManager, playerSenseiContainer);
+    }
   }
   function scheduleBadmintonResize() {
     if (badmintonResizeFrame) return;
@@ -5157,19 +4922,15 @@
     return Math.random() < chance;
   }
   function getPlayerVrmRacketContactPoint() {
-    if (!playerSenseiReady || !playerVrmRacket || !playerSenseiContainer || playerSenseiContainer.hidden) return null;
-    if (!window.THREE || !window.badmintonPlayerVrmManager || !window.badmintonPlayerVrmManager.camera) return null;
+    var manager = window.badmintonPlayerVrmManager;
+    if (!playerSenseiReady || !playerSenseiContainer || playerSenseiContainer.hidden || !manager) return null;
     try {
-      var THREE = window.THREE;
       var rect = playerSenseiContainer.getBoundingClientRect();
       if (!rect || rect.width <= 0 || rect.height <= 0) return null;
-      if (typeof playerVrmRacket.updateMatrixWorld === 'function') playerVrmRacket.updateMatrixWorld(true);
-      var sweetSpot = new THREE.Vector3(0, 0.475, 0.002);
-      playerVrmRacket.localToWorld(sweetSpot);
-      var projected = sweetSpot.clone().project(window.badmintonPlayerVrmManager.camera);
-      if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y) || !Number.isFinite(projected.z)) return null;
-      var clientX = rect.left + (projected.x + 1) * 0.5 * rect.width;
-      var clientY = rect.top + (1 - (projected.y + 1) * 0.5) * rect.height;
+      var anchor = manager.getScreenAnchor(PLAYER_RACKET_ANCHOR);
+      if (!anchor || !anchor.visible || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) return null;
+      var clientX = anchor.x;
+      var clientY = anchor.y;
       var point = {
         x: clientX / Math.max(1, window.innerWidth) * BASE_W,
         y: clientY / Math.max(1, window.innerHeight) * BASE_H,
@@ -5182,7 +4943,7 @@
         clientX: clientX,
         clientY: clientY,
         container: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-        projected: { x: projected.x, y: projected.y, z: projected.z }
+        anchor: { x: anchor.x, y: anchor.y, visible: anchor.visible }
       };
       return point;
     } catch (_) {
@@ -5190,19 +4951,15 @@
     }
   }
   function getPlayerVrmHeldShuttleCanvasPoint() {
-    if (!playerSenseiReady || !playerVrmHeldShuttle || !playerSenseiContainer || playerSenseiContainer.hidden) return null;
-    if (!window.THREE || !window.badmintonPlayerVrmManager || !window.badmintonPlayerVrmManager.camera) return null;
+    var manager = window.badmintonPlayerVrmManager;
+    if (!playerSenseiReady || !playerSenseiContainer || playerSenseiContainer.hidden || !manager) return null;
     try {
-      var THREE = window.THREE;
       var rect = playerSenseiContainer.getBoundingClientRect();
       if (!rect || rect.width <= 0 || rect.height <= 0) return null;
-      if (typeof playerVrmHeldShuttle.updateMatrixWorld === 'function') playerVrmHeldShuttle.updateMatrixWorld(true);
-      var heldPoint = new THREE.Vector3(0, 0, 0);
-      playerVrmHeldShuttle.localToWorld(heldPoint);
-      var projected = heldPoint.clone().project(window.badmintonPlayerVrmManager.camera);
-      if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y) || !Number.isFinite(projected.z)) return null;
-      var clientX = rect.left + (projected.x + 1) * 0.5 * rect.width;
-      var clientY = rect.top + (1 - (projected.y + 1) * 0.5) * rect.height;
+      var anchor = manager.getScreenAnchor(PLAYER_SHUTTLE_ANCHOR);
+      if (!anchor || !anchor.visible || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) return null;
+      var clientX = anchor.x;
+      var clientY = anchor.y;
       var point = {
         x: clientX / Math.max(1, window.innerWidth) * BASE_W,
         y: clientY / Math.max(1, window.innerHeight) * BASE_H,
@@ -5215,7 +4972,7 @@
         clientX: clientX,
         clientY: clientY,
         container: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-        projected: { x: projected.x, y: projected.y, z: projected.z }
+        anchor: { x: anchor.x, y: anchor.y, visible: anchor.visible }
       };
       return point;
     } catch (_) {
@@ -5227,23 +4984,17 @@
     var rect = playerSenseiContainer.getBoundingClientRect();
     if (!rect || rect.width <= 0 || rect.height <= 0) return null;
     var source = 'player-vrm-held-shuttle-serve-hand-fallback';
-    var projected = null;
+    var trackedAnchor = null;
     var localX = rect.width * 0.82;
     var localY = rect.height * 0.65;
-    if (window.THREE && window.badmintonPlayerVrmManager && window.badmintonPlayerVrmManager.camera) {
+    var manager = window.badmintonPlayerVrmManager;
+    if (manager && typeof manager.getScreenAnchor === 'function') {
       try {
-        var vrm = getPlayerVrm();
-        var hand = getPlayerVrmBone(vrm, 'leftHand');
-        if (hand && typeof hand.updateMatrixWorld === 'function') hand.updateMatrixWorld(true);
-        if (hand && typeof hand.getWorldPosition === 'function') {
-          var handWorld = new window.THREE.Vector3();
-          hand.getWorldPosition(handWorld);
-          projected = handWorld.clone().project(window.badmintonPlayerVrmManager.camera);
-          if (Number.isFinite(projected.x) && Number.isFinite(projected.y) && Number.isFinite(projected.z)) {
-            localX = (projected.x + 1) * 0.5 * rect.width + rect.width * 0.012;
-            localY = (1 - (projected.y + 1) * 0.5) * rect.height + rect.height * 0.195;
-            source = 'player-vrm-held-shuttle-left-hand';
-          }
+        trackedAnchor = manager.getScreenAnchor(PLAYER_LEFT_HAND_ANCHOR);
+        if (trackedAnchor && trackedAnchor.visible && Number.isFinite(trackedAnchor.x) && Number.isFinite(trackedAnchor.y)) {
+          localX = trackedAnchor.x - rect.left + rect.width * 0.012;
+          localY = trackedAnchor.y - rect.top + rect.height * 0.195;
+          source = 'player-vrm-held-shuttle-left-hand';
         }
       } catch (_) {}
     }
@@ -5264,7 +5015,7 @@
       clientY: clientY,
       container: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
       local: { x: localX, y: localY },
-      projected: projected ? { x: projected.x, y: projected.y, z: projected.z } : null
+      anchor: trackedAnchor ? { x: trackedAnchor.x, y: trackedAnchor.y, visible: trackedAnchor.visible } : null
     };
     return point;
   }
@@ -5341,75 +5092,64 @@
     try {
       await waitForVRMModules();
       var ManagerClass = window.VRMManager;
-      if (!ManagerClass || !window.THREE) throw new Error('VRMManager or THREE missing');
+      if (!ManagerClass) throw new Error('Unity VRMManager missing');
       window.badmintonPlayerVrmManager = new ManagerClass();
       var manager = window.badmintonPlayerVrmManager;
-      if (!manager.scene || !manager.camera || !manager.renderer) {
-        if (manager.core && typeof manager.core.init === 'function') {
-          await manager.core.init('player-sensei-vrm-canvas', 'player-sensei-vrm-container', null, { embed: true });
-        } else if (typeof manager.initThreeJS === 'function') {
-          await manager.initThreeJS('player-sensei-vrm-canvas', 'player-sensei-vrm-container', window.VRM_DEFAULT_LIGHTING || null);
-        } else {
-          throw new Error('VRMManager init method missing');
-        }
+      if (!manager.isInitialized?.()) {
+        if (typeof manager.initRenderer !== 'function') throw new Error('Unity VRM init method missing');
+        await manager.initRenderer(
+          'player-sensei-vrm-canvas',
+          'player-sensei-vrm-container',
+          window.VRM_DEFAULT_LIGHTING || null
+        );
       }
       var senseiProbe = await fetch(SENSEI_VRM_PATH, { cache: 'no-store' });
       if (!senseiProbe.ok) throw new Error('Sensei VRM model missing: ' + SENSEI_VRM_PATH);
-      var modules = await Promise.all([
-        import('three/addons/loaders/GLTFLoader.js'),
-        import('@pixiv/three-vrm')
-      ]);
-      var GLTFLoader = modules[0].GLTFLoader;
-      var vrmModule = modules[1];
-      var loader = new GLTFLoader();
-      loader.register(function (parser) { return new vrmModule.VRMLoaderPlugin(parser); });
-      var gltf = await new Promise(function (resolve, reject) {
-        loader.load(SENSEI_VRM_PATH, resolve, null, reject);
+      await manager.loadModel(SENSEI_VRM_PATH, {
+        embed: true,
+        restorePreferences: false,
+        idleAnimation: '/static/vrm/animation/wait03.vrma.gz'
       });
-      var vrm = gltf.userData && gltf.userData.vrm;
-      if (!vrm || !vrm.scene) throw new Error('Sensei VRM model invalid: ' + SENSEI_VRM_PATH);
-      if (manager.currentModel && manager.currentModel.vrm && manager.currentModel.vrm.scene) {
-        try {
-          manager.scene.remove(manager.currentModel.vrm.scene);
-          if (vrmModule.VRMUtils && typeof vrmModule.VRMUtils.deepDispose === 'function') {
-            vrmModule.VRMUtils.deepDispose(manager.currentModel.vrm.scene);
-          }
-        } catch (disposeErr) {
-          console.warn('[badminton_demo] dispose previous player VRM failed:', disposeErr);
-        }
-      }
-      manager.scene.add(vrm.scene);
-      manager.currentModel = { vrm: vrm, gltf: gltf, scene: vrm.scene, url: SENSEI_VRM_PATH };
-      vrm.scene.visible = true;
-      playerVrmRestPose = capturePlayerVrmRestPose(vrm);
-      if (!attachPlayerRacketToHand(vrm)) {
+      var racketAttached = await attachPlayerRacketToHand(manager);
+      if (!racketAttached) {
         delete playerSenseiContainer.dataset.racket3d;
         console.warn('[badminton_demo] player VRM right-hand racket attach failed; no CSS racket fallback is rendered');
       }
-      if (!attachPlayerHeldShuttleToHand(vrm)) {
+      var shuttleAttached = await attachPlayerHeldShuttleToHand(manager);
+      if (!shuttleAttached) {
         delete playerSenseiContainer.dataset.heldShuttle3d;
         console.warn('[badminton_demo] player VRM left-hand held shuttle attach failed; canvas serve hint remains available');
       }
-      fitVRMToContainer(manager, vrm, playerSenseiContainer);
-      if (manager.renderer && manager.renderer.domElement) {
-        manager.renderer.domElement.style.opacity = '1';
-        manager.renderer.domElement.style.display = 'block';
+      var anchorTracks = [];
+      if (racketAttached) {
+        anchorTracks.push({
+          name: PLAYER_RACKET_ANCHOR,
+          accessoryId: PLAYER_RACKET_ACCESSORY_ID,
+          anchor: 'sweetSpot'
+        });
+      }
+      if (shuttleAttached) {
+        anchorTracks.push({ name: PLAYER_LEFT_HAND_ANCHOR, bone: 'leftHand' });
+        anchorTracks.push({
+          name: PLAYER_SHUTTLE_ANCHOR,
+          accessoryId: PLAYER_SHUTTLE_ACCESSORY_ID,
+          anchor: 'origin'
+        });
+      }
+      try {
+        await manager.trackScreenAnchors(anchorTracks);
+      } catch (anchorError) {
+        console.warn('[badminton_demo] Unity screen anchor tracking failed:', anchorError);
+      }
+      fitVRMToContainer(manager, playerSenseiContainer);
+      if (manager.canvas) {
+        manager.canvas.style.opacity = '1';
+        manager.canvas.style.display = 'block';
       }
       if (typeof manager.startAnimateLoop === 'function' && !manager._animationFrameId) {
         manager.startAnimateLoop();
       } else if (typeof manager.startAnimation === 'function' && !manager._animationFrameId) {
         manager.startAnimation();
-      }
-      if (typeof manager.playVRMAAnimation === 'function') {
-        try {
-          await manager.playVRMAAnimation('/static/vrm/animation/wait03.vrma.gz', {
-            loop: true,
-            immediate: true,
-            isIdle: true
-          });
-        } catch (animErr) {
-          console.warn('[badminton_demo] player VRM idle animation failed:', animErr);
-        }
       }
       applyPlayerVrmEmotion('idle');
       playerSenseiReady = true;
@@ -9196,8 +8936,8 @@
       window.__badmintonPlayerHeldShuttleDebug = null;
       return;
     }
-    if (playerVrmHeldShuttle && playerVrmHeldShuttle.children && playerVrmHeldShuttle.children.length > 0) {
-      window.__badmintonPlayerHeldShuttleDebug = { source: 'player-vrm-held-shuttle-mesh' };
+    if (playerSenseiContainer && playerSenseiContainer.dataset.heldShuttle3d === 'ready') {
+      window.__badmintonPlayerHeldShuttleDebug = { source: 'player-unity-held-shuttle-accessory' };
       return;
     }
     if (!overlayRect || !playerSenseiHeldShuttleCtx || !playerSenseiReady || !playerSenseiContainer || playerSenseiContainer.dataset.heldShuttle3d !== 'ready') {
@@ -9882,10 +9622,14 @@
     stopBgm();
     try { badmintonGameAudio.destroy(); } catch (_) {}
     try {
-      if (window.badmintonVrmManager && typeof window.badmintonVrmManager.destroy === 'function') window.badmintonVrmManager.destroy();
+      if (window.badmintonVrmManager && typeof window.badmintonVrmManager.dispose === 'function') {
+        Promise.resolve(window.badmintonVrmManager.dispose()).catch(function () {});
+      }
     } catch (_) {}
     try {
-      if (window.badmintonPlayerVrmManager && typeof window.badmintonPlayerVrmManager.destroy === 'function') window.badmintonPlayerVrmManager.destroy();
+      if (window.badmintonPlayerVrmManager && typeof window.badmintonPlayerVrmManager.dispose === 'function') {
+        Promise.resolve(window.badmintonPlayerVrmManager.dispose()).catch(function () {});
+      }
     } catch (_) {}
     try {
       if (window.live2dManager && typeof window.live2dManager.destroy === 'function') window.live2dManager.destroy();

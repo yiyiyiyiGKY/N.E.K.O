@@ -1,5 +1,7 @@
 # VRM 引导移动设计计划
 
+> 2026-10-28 状态说明：本文最初基于已删除的 Three.js VRM 模块编写。交互规则仍有效，但实现入口已收敛到 `static/unity/unity-avatar-manager.js` 与 `unity/NekoAvatarRenderer/`；下文旧文件名仅是历史背景，不得作为恢复第二套 VRM renderer 的依据。
+
 ## 目标
 
 为 NEKO 增加桌宠式“目标选择→自动移动”功能，首要适配两类模型：
@@ -23,11 +25,11 @@
 
 ## 当前实现基础
 
-- `static/vrm/vrm-interaction.js` 已有 VRM 射线命中、拖拽平移、边界限制和每帧更新入口。
-- `static/vrm/vrm-manager.js` 已能访问当前 VRM，并提供位置设置接口。
-- `static/vrm/vrm-animation.js` 已能加载和混合 VRMA。
+- `static/unity/unity-avatar-manager.js` 负责浏览器输入、命中区域与引导移动命令。
+- `unity/NekoAvatarRenderer/Assets/NekoAvatar/Runtime/NekoAvatarController.cs` 持有实际 VRM、位置状态、逐帧移动和 Unity 动画混合。
+- 浏览器 manager 通过版本化协议提供位置、旋转、缩放和 VRMA 播放接口，不暴露 Unity 场景对象。
 - `static/vrm/motion/player.js` 已有动作播放所有权和动作生命周期管理。
-- 当前代码没有目标移动控制器、可行走场景地图或完整的走路动作状态机。
+- 当前已有目标移动控制器，但仍没有可行走场景地图或完整的起步、停止、转向动作状态机。
 
 ### 已执行部分（当前代码）
 

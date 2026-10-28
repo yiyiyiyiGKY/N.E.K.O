@@ -361,22 +361,31 @@ async function main() {
   class VRMManagerMock {
     constructor() {
       this.currentModel = null;
+      this.viewport = { width: 420, height: 360 };
+      this.canvas = null;
       this.animation = {
         startLipSync(value) { if (failSpeechStart) throw new Error('start failed'); calls.push(['vrm-speaking', value === analyser]); },
         stopLipSync() { calls.push(['vrm-stop-speaking']); },
       };
       this.expression = { setMood(mood) { calls.push(['vrm-emotion', mood]); } };
     }
-    async initThreeJS(_canvas, _container, lighting, options) {
+    async initRenderer(canvasId, _container, lighting, options) {
       assert(options.embed === true && options.resizeMode === 'fixed', 'VRM init borrowed desktop layout');
-      this.camera = createCamera();
+      this.canvas = { id: canvasId, style: {} };
+      this.initialized = true;
       this.lighting = lighting;
       calls.push(['vrm-init', lighting?.ambient]);
       return true;
     }
+    isInitialized() { return this.initialized === true; }
+    getSurfaceCanvas() { return this.canvas; }
+    resizeSurface(width, height, updateStyle) {
+      this.viewport = { width, height };
+      calls.push(['vrm-set-size', width, height, updateStyle]);
+    }
     async loadModel(model, options) {
       assert(options.embed === true, 'VRM restored desktop preferences');
-      this.currentModel = { vrm: { scene: createGeometry() } };
+      this.currentModel = { transform: {}, vrm: {} };
       const effectiveIdleAnimation = options?.idleAnimation
         || windowMock.lanlan_config?.vrmIdleAnimation
         || '/static/vrm/animation/wait03.vrma.gz';
@@ -384,6 +393,15 @@ async function main() {
         'vrm-model', model, options?.idleAnimation, options?.idleAnimations, this.lighting?.ambient,
         effectiveIdleAnimation,
       ]);
+    }
+    getModelScreenBounds() {
+      const height = this.viewport.height;
+      const width = height / 4;
+      const left = (this.viewport.width - width) / 2;
+      return { left, top: 0, right: left + width, bottom: height, width, height };
+    }
+    fitModel(viewport, fit, view) {
+      calls.push(['vrm-fit', viewport.width, viewport.height, fit.mode, view.scale, view.x, view.y]);
     }
     onWindowResize() { calls.push(['vrm-resize']); }
     pauseRendering() { calls.push(['vrm-pause']); }
@@ -670,6 +688,7 @@ async function main() {
     PIXI: { live2d: {} },
     Live2DManager: Live2DManagerMock,
     VRMManager: VRMManagerMock,
+    UnityVRMManager: VRMManagerMock,
     MMDManager: MMDManagerMock,
     PNGTuberManager: PNGTuberManagerMock,
     vrmModuleLoaded: true,
@@ -1318,8 +1337,18 @@ async function main() {
       await controller.resize({ width: 200, height: 300 },
         { mode: 'contain', align: 'bottom-center', padding: 6 });
       const layout = controller.getState().layout;
-      assert(layout.width <= 188.0001 && Math.abs(layout.y + layout.height - 294) < 0.001,
-        `${expectedType} provider did not apply public bounds fitting`);
+      if (expectedType === 'mmd') {
+        assert(layout.width <= 188.0001 && Math.abs(layout.y + layout.height - 294) < 0.001,
+          'mmd provider did not apply public bounds fitting');
+      } else {
+        assert(Number.isFinite(layout?.x) && Number.isFinite(layout?.y)
+          && layout.width > 0 && layout.height > 0
+          && calls.some(entry => entry[0] === 'vrm-set-size'
+            && entry[1] === 200 && entry[2] === 300 && entry[3] === false)
+          && calls.some(entry => entry[0] === 'vrm-fit'
+            && entry[1] === 200 && entry[2] === 300 && entry[3] === 'contain'),
+        'Unity VRM provider did not resize through its native surface bounds');
+      }
     }
     await controller.setView({ scale: 190, x: 2, y: 28 });
     await controller.setSpeaking(true);

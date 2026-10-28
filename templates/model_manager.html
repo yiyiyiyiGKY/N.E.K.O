@@ -653,17 +653,12 @@
     <script src="/static/avatar/avatar-ui-drag.js"></script>
     <script src="/static/live2d/live2d-init.js"></script>
 
-    <!-- Three.js 核心库和importmap（用于ES6模块导入）-->
-    <!-- 
-        重要：确保 @pixiv/three-vrm 和 @pixiv/three-vrm-animation 使用相同的 @pixiv/three-vrm-core 版本
-    -->
+    <!-- Three.js 核心库和 importmap（仅供 MMD 等仍使用 Three.js 的模型类型） -->
     <script type="importmap">
     {
         "imports": {
             "three": "/static/libs/three.module.js",
             "three/addons/": "/static/libs/three/addons/",
-            "@pixiv/three-vrm": "/static/libs/three-vrm.module.min.js",
-            "@pixiv/three-vrm-animation": "/static/libs/three-vrm-animation.module.js",
             "@moeru/three-mmd": "/static/libs/three-mmd.module.js",
             "@moeru/three-mmd-physics-ammo": "/static/libs/three-mmd-physics-ammo.module.js?v=23",
             "ammojs-typed": "/static/libs/ammojs-typed.module.js"
@@ -736,7 +731,8 @@
                     },
                     getRenderer: function() {
                         var mgr = getActiveManager();
-                        return mgr ? mgr.renderer : null;
+                        return mgr && !(window.UnityVRMManager && mgr instanceof window.UnityVRMManager)
+                            ? mgr.renderer : null;
                     },
                     getUnsupportedReason: function() {
                         return isLive2DActive()

@@ -197,9 +197,13 @@
         var lm = win.live2dManager;
         return lm && lm.pixi_app && lm.pixi_app.renderer ? lm.pixi_app.renderer.view : null;
       }
-      if (type === 'vrm' || type === 'mmd') {
-        var m = activeManager(type);
-        return m && m.renderer ? m.renderer.domElement : null;
+      if (type === 'vrm') {
+        var vm = activeManager(type);
+        return vm ? (typeof vm.getSurfaceCanvas === 'function' ? vm.getSurfaceCanvas() : vm.canvas || null) : null;
+      }
+      if (type === 'mmd') {
+        var mm = activeManager(type);
+        return mm && mm.renderer ? mm.renderer.domElement : null;
       }
       return pngtuberDrawable();
     }

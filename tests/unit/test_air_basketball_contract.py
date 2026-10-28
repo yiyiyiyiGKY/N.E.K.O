@@ -239,7 +239,9 @@ def test_air_basketball_mvp_interaction_contract():
     assert "/static/game/sdk/neko-minigame-avatar-host.js" in html
     assert "/static/game/sdk/neko-minigame-audio-host.js" in html
     assert "/static/game/sdk/neko-minigame-audio-host.js?v=" in html
-    assert 'three/addons/loaders/GLTFLoader.js": "/static/libs/three/addons/loaders/GLTFLoader.js?v=' in html
+    assert "three.module.js" not in html
+    assert "GLTFLoader" not in html
+    assert "three-ready" not in html
     assert "user-scalable=no" not in html
     assert html.count('<link rel="preload" as="image" href="/static/game/games/air_basketball/assets/') == 3
     assert "window.NekoMiniGame.connect" in sdk_bootstrap
@@ -428,10 +430,17 @@ def test_air_basketball_mvp_interaction_contract():
     # A held aim survives a resize; the resting ball is re-seated only on a real size change.
     assert "if (sizeChanged && !this.ball?.flying && !this.ball?.inTransit) {" in physics
     assert "this.aim = aim;" in physics
-    # A VRM loaded after cancellation is disposed before it is dropped.
-    assert "vrmModule.VRMUtils?.deepDispose?.(gltf.scene);" in avatar_host
-    # VRM 0.x models are turned to face the camera before they are added.
-    assert avatar_host.index("vrmModule.VRMUtils?.rotateVRM0?.(vrm);") < avatar_host.index("next.scene.add(vrm.scene);")
+    # Unity owns VRM import and orientation. The controller takes ownership
+    # before awaiting load so cancellation always quits the WebGL instance.
+    assert "next instanceof window.UnityVRMManager" in avatar_host
+    vrm_load = avatar_host.split("async function loadVRM(path)", 1)[1].split("return {", 1)[0]
+    assert vrm_load.index("manager = next;") < vrm_load.index(
+        "await next.loadModel(path, { embed: true, restorePreferences: false });"
+    )
+    assert "if (modelType === 'vrm') await current.dispose?.();" in avatar_host
+    assert "manager.fitModel?.(viewport, fit);" in avatar_host
+    assert "GLTFLoader" not in avatar_host
+    assert "VRMUtils" not in avatar_host
     # Our pagehide cleanup runs after the SDK's page-exit handler (registered by
     # configure()), so the SDK can beacon the route end before anything is disposed.
     assert ".finally(() => window.addEventListener('pagehide', disposeGameSdk, { once:true }));" in game
@@ -470,10 +479,11 @@ def test_air_basketball_mvp_interaction_contract():
     assert "function renderLocalizedState()" in game
     assert "byId('neko-status-text').textContent = opponentStatus(key);" in game
     assert game.count("byId('neko-status-text')") == 1
-    # Avatar expressions are cosmetic; VRM uses the shared perspective fit.
+    # Avatar expressions are cosmetic; Unity owns VRM fit without Three geometry.
     assert "avatarController?.setEmotion(name)).catch(() => undefined)" in avatar
     assert "fitThreeModel" not in avatar_host
-    assert "window.NekoMiniGameAvatarHost.fitPerspectiveModel(" in avatar_host
+    assert "manager.fitModel?.(viewport, fit);" in avatar_host
+    assert "fitPerspectiveModel" not in avatar_host
     assert "autoShoot(" not in physics
     assert "prepareIsolatedCrossTest" in game
     assert "position: fixed" in arcade_css

@@ -8,118 +8,16 @@
 (() => {
   'use strict';
 
-  function fitVrmManagerCamera(manager, containerId, label = 'VRM', viewport = null, fit = {}) {
-    const THREE = window.THREE;
-    const model = manager?.currentModel?.vrm?.scene;
-    if (!THREE || !manager?.camera || !model) return;
+  function fitUnityVrmManager(manager, containerId, viewport = null, fit = {}) {
+    if (!(window.UnityVRMManager && manager instanceof window.UnityVRMManager)) return null;
     const container = document.getElementById(containerId);
     const size = {
       width: Number(viewport?.width || container?.clientWidth || 200),
       height: Number(viewport?.height || container?.clientHeight || 300),
     };
-    manager.renderer?.setSize?.(size.width, size.height, false);
-    manager.effect?.setSize?.(size.width, size.height);
-    const layout = window.NekoMiniGameAvatarHost.fitPerspectiveModel(
-      THREE, model, manager.camera, size, fit,
-    );
-    // Mouse-follow uses this target. Preserve the SDK camera projection and
-    // model transform; updating orbit controls here would overwrite the fit.
-    manager._cameraTarget = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
-    manager.controls?.target?.copy?.(manager._cameraTarget);
-    return layout;
-  }
-
-  function isVrm0(gltf, vrm) {
-    const extensions = gltf?.parser?.json?.extensionsUsed || [];
-    if (extensions.includes('VRMC_vrm')) return false;
-    if (extensions.includes('VRM')) return true;
-    const version = vrm?.meta?.metaVersion || vrm?.meta?.vrmVersion;
-    return typeof version === 'string' && version.startsWith('0');
-  }
-
-  function vrmBoneNode(vrm, boneName) {
-    const humanoid = vrm?.humanoid;
-    if (!humanoid) return null;
-    try {
-      const raw = humanoid.getRawBoneNode?.(boneName);
-      if (raw) return raw;
-      const normalized = humanoid.getNormalizedBoneNode?.(boneName);
-      if (normalized) return normalized;
-    } catch (_) { /* malformed humanoid metadata */ }
-    return humanoid.humanBones?.[boneName]?.node || null;
-  }
-
-  function countReversedVrmBonePairs(vrm) {
-    const THREE = window.THREE;
-    if (!THREE || !vrm?.scene) return { reversed: 0, checked: 0 };
-    const pairs = [
-      ['leftEye', 'rightEye'],
-      ['leftUpperArm', 'rightUpperArm'],
-      ['leftLowerArm', 'rightLowerArm'],
-      ['leftHand', 'rightHand'],
-    ];
-    const leftPosition = new THREE.Vector3();
-    const rightPosition = new THREE.Vector3();
-    let reversed = 0;
-    let checked = 0;
-    vrm.scene.updateMatrixWorld(true);
-    for (const [leftName, rightName] of pairs) {
-      const left = vrmBoneNode(vrm, leftName);
-      const right = vrmBoneNode(vrm, rightName);
-      if (!left || !right) continue;
-      left.getWorldPosition(leftPosition);
-      right.getWorldPosition(rightPosition);
-      if (!Number.isFinite(leftPosition.x) || !Number.isFinite(rightPosition.x)) continue;
-      if (Math.abs(leftPosition.x - rightPosition.x) < 0.001) continue;
-      checked += 1;
-      if (leftPosition.x < rightPosition.x) reversed += 1;
-    }
-    return { reversed, checked };
-  }
-
-  function sampleVrmHeadFaceZ(vrm) {
-    const THREE = window.THREE;
-    if (!THREE || !vrm?.scene) return null;
-    const namePattern = /(head|face|eye|eyeline|eyelash|hitomi|sirome|头|脸|眼|眉|睫|瞳)/i;
-    const point = new THREE.Vector3();
-    let positive = 0;
-    let negative = 0;
-    vrm.scene.updateMatrixWorld(true);
-    vrm.scene.traverse((object) => {
-      if (!object?.isMesh || !object.geometry?.attributes?.position) return;
-      const materialNames = Array.isArray(object.material)
-        ? object.material.map((material) => material?.name || '').join(' ')
-        : (object.material?.name || '');
-      if (!namePattern.test(`${object.name || ''} ${materialNames}`)) return;
-      const positions = object.geometry.attributes.position;
-      const step = Math.max(1, Math.floor(positions.count / 1200));
-      for (let index = 0; index < positions.count; index += step) {
-        point.fromBufferAttribute(positions, index);
-        object.localToWorld(point);
-        if (point.z > 0.001) positive += 1;
-        else if (point.z < -0.001) negative += 1;
-      }
-    });
-    return positive + negative > 0 ? { positive, negative } : null;
-  }
-
-  function applyVrm0FixedCameraFacingFix(gltf, vrm, manager) {
-    let shouldNormalize = false;
-    if (isVrm0(gltf, vrm)) {
-      const bonePairs = countReversedVrmBonePairs(vrm);
-      const headFaceZ = sampleVrmHeadFaceZ(vrm);
-      shouldNormalize = bonePairs.reversed >= 2 || (
-        bonePairs.reversed === 1
-        && !!headFaceZ
-        && headFaceZ.negative > headFaceZ.positive * 1.25
-      );
-    }
-    if (manager) manager.__soccerFixedCameraNormalizeYaw = shouldNormalize;
-    if (shouldNormalize && vrm?.scene?.rotation) {
-      vrm.scene.rotation.y = Math.PI;
-      vrm.scene.updateMatrixWorld?.(true);
-    }
-    return shouldNormalize;
+    manager.resizeSurface?.(size.width, size.height, false);
+    manager.fitModel?.(size, fit);
+    return manager.getModelScreenBounds?.() || null;
   }
 
   async function loadVrmIntoManager(manager, path, options = {}) {
@@ -137,116 +35,28 @@
     if (!manager) throw new Error(`${label}: VRM manager missing`);
     if (!path) throw new Error(`${label}: VRM path required`);
     if (!canvasId || !containerId) throw new Error(`${label}: canvas/container required`);
-    if (!manager.scene || !manager.camera || !manager.renderer) {
-      await manager.core.init(canvasId, containerId, null, {
-        embed: true,
-        resizeMode: 'fixed',
-      });
-      // init can allocate renderer resources after the controller was disposed.
+    if (!(window.UnityVRMManager && manager instanceof window.UnityVRMManager)) {
+      throw new Error(`${label}: Unity VRM renderer required`);
+    }
+    if (!manager.isInitialized?.() || manager.getSurfaceCanvas?.()?.id !== canvasId) {
+      await manager.initRenderer(canvasId, containerId);
       assertLive(() => observeAsyncDisposal(manager.dispose?.(), label));
     }
-    const [{ GLTFLoader }, vrmModule] = await Promise.all([
-      import('three/addons/loaders/GLTFLoader.js'),
-      import('@pixiv/three-vrm'),
-    ]);
-    assertLive();
-    const loader = new GLTFLoader();
-    loader.register((parser) => new vrmModule.VRMLoaderPlugin(parser));
-    const gltf = await new Promise((resolve, reject) => loader.load(path, resolve, null, reject));
-    const vrm = gltf.userData.vrm;
-    // The loader has no AbortSignal contract. Release a late scene before any
-    // attachment or animation touches a disposed manager.
-    assertLive(() => vrmModule.VRMUtils.deepDispose(vrm?.scene || gltf.scene));
-    if (!vrm) {
-      vrmModule.VRMUtils.deepDispose(gltf.scene);
-      throw new Error(`${label}: loaded file is not a valid VRM`);
+    if (viewport) manager.resizeSurface?.(viewport.width, viewport.height, false);
+    const loaded = await manager.loadModel(path, { embed: true, restorePreferences: false });
+    assertLive(() => observeAsyncDisposal(manager.dispose?.(), label));
+    if (!loaded) throw new Error(`${label}: Unity VRM load was superseded`);
+    fitUnityVrmManager(manager, containerId, viewport, fit);
+    if (manager.canvas) {
+      manager.canvas.style.opacity = '1';
+      manager.canvas.style.display = 'block';
     }
-    const previous = manager.currentModel;
-    const candidate = { vrm, gltf, scene: vrm.scene, url: path };
-    // Preparing the idle can replace a mixer's root. Give the candidate its
-    // own animation owner so a failed/cancelled load cannot stop the old one.
-    const staged = {
-      currentModel: candidate, scene: new window.THREE.Scene(),
-      camera: manager.camera.clone(), animationMixer: null, interaction: null,
-    };
-    staged.animation = typeof window.VRMAnimation === 'function'
-      ? new window.VRMAnimation(staged) : null;
-    staged.playVRMAAnimation = (...args) => staged.animation
-      ? staged.animation.playVRMAAnimation(...args)
-      : (!manager.animation ? manager.playVRMAAnimation?.apply(staged, args) : false);
-    staged.scene.add(vrm.scene);
-    vrm.scene.visible = false;
-    const referenceHost = window.NekoMiniGameAvatarHost;
-    let candidateReleased = false;
-    const releaseCandidate = () => {
-      if (candidateReleased) return;
-      candidateReleased = true;
-      staged.animation?.dispose?.();
-      referenceHost.releasePerspectiveReference(vrm.scene, staged.camera);
-      staged.scene.remove(vrm.scene);
-      vrmModule.VRMUtils.deepDispose(vrm.scene);
-    };
-    signal?.addEventListener('abort', releaseCandidate, { once: true });
-    try {
-      applyVrm0FixedCameraFacingFix(gltf, vrm, staged);
-      await referenceHost.preparePerspectiveReference(window.THREE, staged, {
-        type: 'vrm', signal, isCurrent,
-      });
-      assertLive();
-      fitVrmManagerCamera(staged, containerId, label, viewport, fit);
-      // Validate renderer resizing and fit before retiring the old animation.
-      const cameraBefore = manager.camera.clone();
-      try {
-        staged.camera = manager.camera;
-        staged.renderer = manager.renderer;
-        staged.effect = manager.effect;
-        fitVrmManagerCamera(staged, containerId, label, viewport, fit);
-      } catch (error) {
-        manager.camera.copy(cameraBefore);
-        throw error;
-      }
-    } catch (error) {
-      releaseCandidate();
-      throw error;
-    } finally {
-      signal?.removeEventListener('abort', releaseCandidate);
-    }
-    // No awaits between successful preparation and installation. Disposal
-    // during preparation still owns the old model through the real manager.
-    if (staged.animation) {
-      manager.animation?.dispose?.();
-      manager.animation = staged.animation;
-      manager.animation.manager = manager;
-    }
-    manager.currentModel = candidate;
-    manager.__soccerFixedCameraNormalizeYaw = staged.__soccerFixedCameraNormalizeYaw;
-    manager.scene.add(vrm.scene);
-    manager._cameraTarget = staged._cameraTarget;
-    manager.controls?.target?.copy?.(manager._cameraTarget);
-    if (previous?.vrm?.scene) {
-      const oldScene = previous.vrm.scene;
-      referenceHost.releasePerspectiveReference(oldScene);
-      manager.scene.remove(oldScene);
-      try { vrmModule.VRMUtils?.deepDispose?.(oldScene); }
-      catch (error) { console.warn(`[${label}] deepDispose failed:`, error); }
-    }
-    vrm.scene.visible = true;
-
-    if (manager.renderer?.domElement) {
-      manager.renderer.domElement.style.opacity = '1';
-      manager.renderer.domElement.style.display = 'block';
-    }
-    if (typeof manager.startAnimateLoop === 'function' && !manager._animationFrameId) {
-      manager.startAnimateLoop();
-    }
-    manager._initMouseLookAtTracking?.();
     manager.interaction?.enableMouseTracking?.(true);
     manager._cursorFollow?.setEnabled?.(true);
     let filename = path.split('/').pop() || '';
     try { filename = decodeURIComponent(filename); }
-    catch (_) { /* Preserve legacy filenames containing a literal percent sign. */ }
-    const modelName = filename.replace(/\.vrm$/i, '');
-    try { await manager.expression?.loadMoodMap?.(modelName); }
+    catch (_) {}
+    try { await manager.expression?.loadMoodMap?.(filename.replace(/\.vrm$/i, '')); }
     catch (error) { console.warn(`[${label}] mood map load failed:`, error); }
     assertLive();
     return manager.currentModel;
@@ -333,14 +143,18 @@
       }
     }
 
+    function showAiCanvas(type) {
+      const live2dCanvas = document.getElementById('ai-l2d-canvas');
+      const vrmCanvas = document.getElementById('ai-vrm-canvas');
+      if (live2dCanvas?.style) live2dCanvas.style.display = type === 'live2d' ? 'block' : 'none';
+      if (vrmCanvas?.style) vrmCanvas.style.display = type === 'vrm' ? 'block' : 'none';
+    }
+
     function focusAiVrm(point) {
       const follow = window.aiVrmManager?._cursorFollow;
-      if (!follow) return false;
-      follow._rawMouseX = point.x;
-      follow._rawMouseY = point.y;
-      follow._hasPointerInput = true;
-      follow._lastPointerMoveAt = performance.now();
+      if (!follow || typeof follow._onPointerMove !== 'function') return false;
       if (follow.setEnabled && !follow.isEnabled?.()) follow.setEnabled(true);
+      follow._onPointerMove({ clientX: point.x, clientY: point.y });
       return true;
     }
 
@@ -627,8 +441,7 @@
           // They are no longer usable even if creating/loading the new host
           // fails. Publish readiness only after the replacement succeeds.
           if (isExtended) clearAiModel();
-          const legacyCanvas = document.getElementById('ai-l2d-canvas');
-          if (legacyCanvas?.style) legacyCanvas.style.display = isExtended ? 'none' : 'block';
+          showAiCanvas(isExtended ? 'none' : model.type);
           for (const id of ['soccer-mmd-container', 'soccer-pngtuber-container']) {
             const layer = document.getElementById(id);
             if (layer) { layer.hidden = true; if (layer.style) layer.style.display = 'none'; }
@@ -641,7 +454,7 @@
             pauseAiRenderer('live2d');
             try {
               await loadVrmIntoManager(manager, model.path, {
-                canvasId: 'ai-l2d-canvas',
+                canvasId: 'ai-vrm-canvas',
                 containerId: 'ai-l2d-container',
                 label: 'AI VRM',
                 viewport: state.viewport,
@@ -652,6 +465,7 @@
               });
             } catch (error) {
               assertLive();
+              showAiCanvas(previousType);
               if (previousType === 'live2d' && !state.paused) resumeAiRenderer('live2d');
               throw error;
             }
@@ -674,6 +488,7 @@
               await waitForLive2DModel(manager, model.path, loadPromise, startedWithSameModel, loadToken);
             } catch (error) {
               assertLive();
+              showAiCanvas(previousType);
               if (previousType === 'vrm' && !state.paused) resumeAiRenderer('vrm');
               throw error;
             }
@@ -697,13 +512,6 @@
             }
           } else {
             throw new Error('ai avatar: unsupported model type');
-          }
-          // Failed Live2D loads restore the old VRM. Keep its standing fit
-          // reference until replacement commits; disposal also releases it.
-          if (previousType === 'vrm' && model.type !== 'vrm') {
-            window.NekoMiniGameAvatarHost.releasePerspectiveReference(
-              window.aiVrmManager?.currentModel?.vrm?.scene, window.aiVrmManager?.camera,
-            );
           }
           state.model = model;
           if (state.paused) pauseAiRenderer(model.type);
@@ -772,10 +580,9 @@
             return true;
           }
           if (state.model?.type === 'vrm') {
-            state.layout = fitVrmManagerCamera(
+            state.layout = fitUnityVrmManager(
               slot === 'player' ? window.vrmManager : window.aiVrmManager,
               slot === 'player' ? 'player-vrm-container' : 'ai-l2d-container',
-              slot === 'player' ? 'Player' : 'AI VRM',
               nextViewport,
               fit,
             );
@@ -798,9 +605,6 @@
               try { manager.destroy?.(); }
               catch (error) { console.warn('[soccer-avatar-host] Live2D dispose failed:', error); }
             } else {
-              window.NekoMiniGameAvatarHost.releasePerspectiveReference(
-                manager.currentModel?.vrm?.scene, manager.camera,
-              );
               try { observeAsyncDisposal(manager.dispose?.(), slot); }
               catch (error) { console.warn(`[soccer-avatar-host] ${slot} VRM dispose failed:`, error); }
             }

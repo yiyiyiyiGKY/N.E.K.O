@@ -2,109 +2,80 @@
  * VRM Init - 全局导出和自动初始化
  */
 
-// --- VRM 模块加载逻辑 ---
-(async function initVRMModules() {
-    // 如果已经加载过模块，或者正由 model_manager/runtime-loaders.js 加载中，则不再重复加载
-    if (window.vrmModuleLoaded || window._vrmModulesLoading) return;
+// --- Unity VRM 模块加载逻辑 ---
+(function initVRMModules() {
+    if (window.vrmModuleLoaded || window._vrmModulesPromise) return;
 
-    // Propagate the page's cache-busting version to every dynamically loaded
-    // VRM module. A fixed submodule version leaves old VMC sampling code in
-    // browser cache even after vrm-init.js itself changes.
     const initScriptSrc = document.currentScript && document.currentScript.src;
     const VRM_VERSION = initScriptSrc
         ? (new URL(initScriptSrc, window.location.href).searchParams.get('v') || '1.0.1')
         : '1.0.1';
+    const loaderSrc = `/static/unity/unity-vrm-loader.js?v=${encodeURIComponent(VRM_VERSION)}`;
+    const LOADER_TIMEOUT_MS = 15000;
 
-    const loadModules = async () => {
-        console.log('[VRM] 开始加载依赖模块');
-        const lightweightEmbed = window.__NEKO_CARD_MAKER_EMBED__ === true;
-
-        // 可以并行加载的核心模块（无相互依赖）
-        const parallelModules = [
-            '/static/vrm/vrm-orientation.js',
-            '/static/vrm/vrm-core.js',
-            '/static/vrm/vrm-expression.js',
-            '/static/vrm/vrm-lipsync-formant.js',
-            '/static/vrm/vrm-animation.js',
-            ...(!lightweightEmbed ? [
-                '/static/avatar/avatar-touch-gestures.js',
-                '/static/vrm/vrm-interaction.js',
-                '/static/vrm/vrm-cursor-follow.js'
-            ] : []),
-            '/static/vrm/vrm-manager.js',
-            // Only install the lightweight API facade here. The full VMC
-            // sender is loaded after an explicit enable/control call so the
-            // disabled path has no polling, timers, or frame sampling.
-            ...(!lightweightEmbed ? ['/static/vrm/vrm-vmc-loader.js'] : [])
-        ];
-
-        // 必须顺序加载的 UI 模块（公共定位 → 公共 mixin → 统一配置 → buttons）
-        // avatar-popup-common, avatar-ui-popup, avatar-ui-popup-config, avatar-ui-buttons
-        // 已由 HTML 静态 <script> 加载，此处不再重复加载
-        const sequentialModules = lightweightEmbed ? [] : [
-            '/static/vrm/vrm-ui-buttons.js'
-        ];
-
-        const failedModules = [];
-        const appendScriptSafely = (script) => {
-            const attachScript = () => {
-                const parent = document.head || document.body || document.documentElement;
-                parent.appendChild(script);
+    function ensureCanonicalLoader() {
+        if (window.NekoUnityVRMLoader) return Promise.resolve(window.NekoUnityVRMLoader);
+        return new Promise((resolve, reject) => {
+            let script = document.querySelector('script[src^="/static/unity/unity-vrm-loader.js"]');
+            let settled = false;
+            let timer = null;
+            const cleanup = () => {
+                if (timer !== null) clearTimeout(timer);
+                script?.removeEventListener('load', onLoad);
+                script?.removeEventListener('error', onError);
             };
-            if (!document.head && !document.body) {
-                document.addEventListener('DOMContentLoaded', attachScript, { once: true });
-            } else {
-                attachScript();
+            const settle = (callback, value) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                callback(value);
+            };
+            const onLoad = () => window.NekoUnityVRMLoader
+                ? settle(resolve, window.NekoUnityVRMLoader)
+                : settle(reject, new Error('Unity VRM loader did not install its API'));
+            const onError = () => settle(reject, new Error('Failed to load the canonical Unity VRM loader'));
+            if (!script) {
+                script = document.createElement('script');
+                script.src = loaderSrc;
+                script.dataset.nekoUnityVrmBootstrap = 'true';
+                (document.head || document.body || document.documentElement).appendChild(script);
             }
-        };
-
-        const loadScript = (moduleSrc) => {
-            // 检查脚本是否已存在
-            if (document.querySelector(`script[src^="${moduleSrc}"]`)) {
-                return Promise.resolve();
-            }
-
-            return new Promise((resolve) => {
-                const script = document.createElement('script');
-                script.src = `${moduleSrc}?v=${VRM_VERSION}`;
-                script.onload = () => {
-                    console.log(`[VRM] 模块加载成功: ${moduleSrc}`);
-                    resolve();
-                };
-                script.onerror = () => {
-                    console.error(`[VRM] 模块加载失败: ${moduleSrc}`);
-                    failedModules.push(moduleSrc);
-                    resolve(); // 即使失败也继续
-                };
-                appendScriptSafely(script);
-            });
-        };
-
-        // 1. 并行加载核心模块
-        await Promise.all(parallelModules.map(loadScript));
-
-        // 2. 顺序加载 UI 模块（确保 popup 在 buttons 之前完成）
-        for (const moduleSrc of sequentialModules) {
-            await loadScript(moduleSrc);
-        }
-
-        if (failedModules.length === 0) {
-            window.vrmModuleLoaded = true;
-            window.dispatchEvent(new CustomEvent('vrm-modules-ready'));
-        } else {
-            window.vrmModuleLoaded = false;
-            window.dispatchEvent(new CustomEvent('vrm-modules-failed', {
-                detail: { failedModules }
-            }));
-        }
-    };
-
-    // 如果 THREE 还没好，就等事件；好了就直接加载
-    if (typeof window.THREE === 'undefined') {
-        window.addEventListener('three-ready', loadModules, { once: true });
-    } else {
-        loadModules();
+            script.addEventListener('load', onLoad, { once: true });
+            script.addEventListener('error', onError, { once: true });
+            timer = setTimeout(() => {
+                if (window.NekoUnityVRMLoader) settle(resolve, window.NekoUnityVRMLoader);
+                else settle(reject, new Error('Timed out loading the canonical Unity VRM loader'));
+            }, LOADER_TIMEOUT_MS);
+            setTimeout(() => {
+                if (window.NekoUnityVRMLoader) settle(resolve, window.NekoUnityVRMLoader);
+            }, 0);
+        });
     }
+
+    window._vrmModulesLoading = true;
+    window._vrmModulesPromise = (async () => {
+        console.log('[VRM] 开始加载 Unity 渲染依赖');
+        const loader = await ensureCanonicalLoader();
+        const lightweightEmbed = window.__NEKO_CARD_MAKER_EMBED__ === true;
+        await loader.ensure({
+            version: VRM_VERSION,
+            ui: !lightweightEmbed,
+            vmc: !lightweightEmbed
+        });
+        window.vrmModuleLoaded = true;
+        console.log('[VRM] Unity 渲染模块加载完成');
+        window.dispatchEvent(new CustomEvent('vrm-modules-ready'));
+    })().catch((error) => {
+        window.vrmModuleLoaded = false;
+        window._vrmModulesPromise = null;
+        console.error('[VRM] Unity 渲染模块加载失败:', error);
+        window.dispatchEvent(new CustomEvent('vrm-modules-failed', {
+            detail: { error, failedModules: [error && error.message || 'unknown'] }
+        }));
+        return false;
+    }).finally(() => {
+        window._vrmModulesLoading = false;
+    });
 })();
 
 // 全局路径配置对象 (带默认值作为保底)
@@ -117,7 +88,7 @@ window.VRM_PATHS = {
 window.isMobileWidth = window.isMobileWidth || (() => !window.__LANLAN_IS_ELECTRON_PET__ && window.innerWidth <= 768);
 
 const isModelManagerPage = () => window.location.pathname.includes('model_manager') || document.querySelector('#vrm-model-select') !== null;
-window.vrmManager = null;
+if (!Object.prototype.hasOwnProperty.call(window, 'vrmManager')) window.vrmManager = null;
 
 /**
  * 从后端同步路径配置
@@ -284,7 +255,7 @@ window._vrmConvertPath = function (modelPath, options = {}) {
 // 直接赋值确保 _vrmConvertPath 的权威性，不会被已存在的 convertVRMModelPath 覆盖
 window.convertVRMModelPath = window._vrmConvertPath;
 
-// 共享的路径处理工具函数（供 vrm-core.js 和 vrm-init.js 使用）
+// 共享的路径处理工具函数（供 Unity 适配层和本初始化流程使用）
 window._vrmPathUtils = window._vrmPathUtils || {
     getFilename: (path) => {
         if (!path || typeof path !== 'string') return '';
@@ -318,31 +289,8 @@ function applyVRMLighting(lighting, vrmManager) {
         return;
     }
 
-    // 映射：vrmManager 的光源属性名 → lighting 配置的键名
-    const lightMapping = {
-        ambientLight: 'ambient',
-        mainLight: 'main',
-        fillLight: 'fill',
-        rimLight: 'rim',
-        topLight: 'top',
-        bottomLight: 'bottom'
-    };
-
-    // 遍历映射，只有当 vrmManager 属性存在且 lighting[key] !== undefined 时才设置 intensity
-    for (const [vrmManagerProp, lightingKey] of Object.entries(lightMapping)) {
-        if (vrmManager[vrmManagerProp] && lighting[lightingKey] !== undefined) {
-            vrmManager[vrmManagerProp].intensity = lighting[lightingKey];
-        }
-    }
-
-    // 应用曝光设置
-    if (lighting.exposure !== undefined && vrmManager.renderer) {
-        vrmManager.renderer.toneMappingExposure = lighting.exposure;
-    }
-
-    // 应用色调映射
-    if (lighting.toneMapping !== undefined && vrmManager.renderer) {
-        vrmManager.renderer.toneMapping = lighting.toneMapping;
+    if (typeof vrmManager.applyLighting === 'function') {
+        vrmManager.applyLighting(lighting);
     }
 }
 
@@ -361,21 +309,11 @@ function applyVRMOutlineWidth(scale, vrmManager) {
         scale = parsedScale;
     }
 
-    if (!vrmManager?.currentModel?.vrm?.scene) return;
-    vrmManager.currentModel.vrm.scene.traverse((object) => {
-        if (!object.isMesh && !object.isSkinnedMesh) return;
-        const mats = Array.isArray(object.material) ? object.material : [object.material];
-        mats.forEach(mat => {
-            if (!mat || !(mat._isOutline || mat.isOutline)) return;
-            if (mat._originalOutlineWidthFactor === undefined) {
-                mat._originalOutlineWidthFactor = mat.outlineWidthFactor !== undefined ? mat.outlineWidthFactor : 0.002;
-            }
-            if (mat.outlineWidthFactor !== undefined) {
-                mat.outlineWidthFactor = mat._originalOutlineWidthFactor * scale;
-                mat.needsUpdate = true;
-            }
-        });
-    });
+    if (typeof vrmManager?.setOutlineWidthScale === 'function') {
+        vrmManager.setOutlineWidthScale(scale);
+    } else {
+        console.warn('[VRM Outline] Unity VRM manager does not expose setOutlineWidthScale');
+    }
 }
 
 function initializeVRMManager() {
@@ -408,10 +346,15 @@ function cleanupLive2DUIElements() {
 
 // 替换掉原有的轮询，改用标准的事件监听
 window.addEventListener('vrm-modules-ready', () => {
-    initializeVRMManager();
+    // Dedicated render hosts (card maker and mini games) create only the
+    // managers they actually mount.  Do not leave an unused WebGL host in the
+    // global slot on those pages.
+    if (!window._cardExportPage && window.__NEKO_VRM_SKIP_AUTO_INIT__ !== true) {
+        initializeVRMManager();
+    }
 
     // 如果不是管理页面或角色卡导出页，尝试自动加载模型
-    if (!isModelManagerPage() && !window._cardExportPage) {
+    if (!isModelManagerPage() && !window._cardExportPage && window.__NEKO_VRM_SKIP_AUTO_INIT__ !== true) {
         initVRMModel();
     }
 });
@@ -466,7 +409,7 @@ async function initVRMModel() {
                         window.lanlan_config.lighting = charData.lighting;
                         // 顺便把 VRM 路径也更新一下，防止主页存的是旧路径
                         if (charData.vrm) window.lanlan_config.vrm = charData.vrm;
-                        // 待机动作配置传播到全局，供 vrm-manager.js loadModel 使用
+                        // 待机动作配置传播到全局，供 Unity VRM 适配层 loadModel 使用
                         if (charData.idleAnimation) window.lanlan_config.vrmIdleAnimation = charData.idleAnimation;
                         // 完整动画列表用于主页面待机轮换
                         if (Array.isArray(charData.idleAnimations)) window.lanlan_config.vrmIdleAnimations = charData.idleAnimations;
@@ -609,16 +552,15 @@ async function initVRMModel() {
             }
         }
 
-        // 初始化 Three.js 场景，传入光照配置（如果存在）
+        // 初始化 Unity WebGL 画布，传入既有光照配置（如果存在）
         const lightingConfig = window.lanlan_config?.lighting || null;
-        await window.vrmManager.initThreeJS('vrm-canvas', 'vrm-container', lightingConfig);
+        await window.vrmManager.initRenderer('vrm-canvas', 'vrm-container', lightingConfig);
 
         // 使用统一的路径转换工具函数
         const modelUrl = window.convertVRMModelPath(targetModelPath);
 
 
-        // 朝向会自动检测并保存（在vrm-core.js的loadModel中处理）
-        // 如果模型背对屏幕，会自动翻转180度并保存，下次加载时直接应用
+        // UniVRM 在导入时统一 VRM 0.x / 1.0 坐标约定；适配层再应用已保存的旋转。
         await window.vrmManager.loadModel(modelUrl);
 
         // 启动主页面待机动作轮换（loadModel 已播放第一个，这里只调度后续切换）
@@ -845,10 +787,10 @@ window.checkAndLoadVRM = async function () {
         const modelUrl = /^\/(?:user_vrm|static\/vrm|workshop)\//.test(convertedPath)
             ? convertedPath.split('/').map(encodeURIComponent).join('/') : convertedPath;
 
-        // 7. 初始化Three.js场景，传入光照配置（如果存在）
-        if (!window.vrmManager._isInitialized || !window.vrmManager.scene || !window.vrmManager.camera || !window.vrmManager.renderer) {
+        // 7. 初始化 Unity WebGL 画布，传入光照配置（如果存在）
+        if (!window.vrmManager.isInitialized?.()) {
             const lightingConfig = catgirlConfig.lighting || null;
-            await window.vrmManager.initThreeJS('vrm-canvas', 'vrm-container', lightingConfig);
+            await window.vrmManager.initRenderer('vrm-canvas', 'vrm-container', lightingConfig);
         }
 
         // 8. 检查是否需要重新加载模型（使用规范化比较，避免路径前缀差异导致不必要的重载）
@@ -857,7 +799,7 @@ window.checkAndLoadVRM = async function () {
 
         const isLocalFileUrl = value => /^\/(?:user_vrm|static\/vrm|workshop)\//.test(value || '');
         if (isLocalFileUrl(currentModelUrl) && isLocalFileUrl(modelUrl)) {
-            // 使用共享的路径处理工具函数（避免与 vrm-core.js 重复）
+            // 使用共享的路径处理工具函数，避免各入口各自解释本地路径。
             const getFilename = window._vrmPathUtils?.getFilename;
             const normalizePath = window._vrmPathUtils?.normalizePath;
 

@@ -7,8 +7,6 @@ function assert(condition, message) {
 }
 
 async function main() {
-  const { pathToFileURL } = require('node:url');
-  const THREE = await import(pathToFileURL(path.resolve(__dirname, '../../static/libs/three.module.js')).href);
   const activeTimers = new Set();
   let loadCalls = 0;
   let destroyCalls = 0;
@@ -19,7 +17,6 @@ async function main() {
     },
   };
   const windowMock = {
-    THREE,
     AbortController,
     document: documentMock,
     innerWidth: 1280,
@@ -61,10 +58,7 @@ async function main() {
     '../../static/game/games/soccer/soccer-avatar-host.js',
   );
   vm.runInThisContext(fs.readFileSync(genericHostPath, 'utf8'), { filename: genericHostPath });
-  // Replace only module acquisition; execute the actual soccer loader/controller.
-  const soccerSource = fs.readFileSync(soccerHostPath, 'utf8')
-    .replace("import('three/addons/loaders/GLTFLoader.js')", "window.loadTestVrmModule('loader')")
-    .replace("import('@pixiv/three-vrm')", "window.loadTestVrmModule('vrm')");
+  const soccerSource = fs.readFileSync(soccerHostPath, 'utf8');
   vm.runInThisContext(soccerSource, { filename: soccerHostPath });
 
   const host = windowMock.createSoccerAvatarHost();
@@ -154,6 +148,7 @@ async function main() {
       class Live2DManager {
         constructor() { this._activeLoadToken = 0; this.currentModel = null; }
         async initPIXI() { this.pixi_app = {}; }
+        _invalidateParameterReloadTickets() {}
         _resetDerivedModelMetadata() {}
         async removeModel() { this.currentModel = null; }
         async _configureLoadedModel(_model, _path, _options, token) {
@@ -193,7 +188,10 @@ async function main() {
         fit: { mode: 'contain' }, resize: { mode: 'fixed' },
       }).then(value => { settled = true; return value; }, error => { settled = true; return error; });
       await flush();
-      assert(downloads.length === 1, `${action}/${stage}: primary download not started`);
+      if (downloads.length !== 1) {
+        const early = settled ? await mounting : null;
+        throw new Error(`${action}/${stage}: primary download not started: ${early?.stack || early || 'pending'}`);
+      }
       if (stage === 'fallback') {
         downloads[0].reject(new Error('primary failed'));
         await flush();
@@ -252,51 +250,54 @@ async function main() {
   windowMock.setTimeout = originalSetTimeout;
   windowMock.clearTimeout = originalClearTimeout;
   for (const slot of ['player', 'ai']) {
-    for (const stage of ['init', 'gltf', 'mood', 'idle', 'success']) {
+    for (const stage of ['init', 'load', 'mood', 'success']) {
       let release;
       let reached = false;
       const wait = () => {
         reached = true;
         return new Promise((resolve) => { release = resolve; });
       };
-      const calls = { added: 0, animated: 0, idle: 0, changed: 0, disposed: 0, released: 0 };
-      const vrm = { scene: new THREE.Mesh(new THREE.BoxGeometry(1, 4, 0.5)), meta: { metaVersion: '1' } };
+      const calls = { fit: 0, changed: 0, disposed: 0, released: 0 };
       let manager;
-      windowMock.VRMAnimation = class {
-        constructor(owner) { this.manager = owner; }
-        startLipSync(analyser) { calls.lipStarts = (calls.lipStarts || 0) + 1; calls.analyser = analyser; }
-        stopLipSync() { calls.lipStops = (calls.lipStops || 0) + 1; calls.analyser = null; }
-        async playVRMAAnimation() {
-          calls.idle += 1;
-          if (stage === 'idle') await wait();
-        }
-        dispose() { this.stopLipSync(); }
-      };
       class Manager {
         constructor() {
           manager = this;
-          this.core = { init: async () => {
-            if (stage === 'init') await wait();
-            this.scene = { add() { calls.added += 1; }, remove() {} };
-            this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 2000);
-            this.camera.position.z = 70;
-            this.renderer = { domElement: { style: {} } };
-          } };
-          this.animation = new windowMock.VRMAnimation(this);
+          this.animation = {
+            startLipSync(analyser) {
+              calls.lipStarts = (calls.lipStarts || 0) + 1;
+              calls.analyser = analyser;
+            },
+            stopLipSync() { calls.lipStops = (calls.lipStops || 0) + 1; calls.analyser = null; },
+          };
           this.expression = { loadMoodMap: async (modelName) => {
             calls.moodName = modelName;
             if (stage === 'mood') await wait();
           } };
+          this.interaction = { enableMouseTracking() {} };
+          this._cursorFollow = { setEnabled() {} };
         }
-        startAnimateLoop() { calls.animated += 1; this.paused = false; }
+        async initRenderer(canvasId) {
+          if (stage === 'init') await wait();
+          this.canvas = { id: canvasId, style: {} };
+          this.initialized = true;
+          return this;
+        }
+        isInitialized() { return this.initialized === true; }
+        getSurfaceCanvas() { return this.canvas; }
+        resizeSurface() {}
+        async loadModel(path) {
+          if (stage === 'load') await wait();
+          if (this.currentModel) calls.released += 1;
+          this.currentModel = { url: path, transform: {} };
+          return this.currentModel;
+        }
+        fitModel() { calls.fit += 1; }
+        getModelScreenBounds() { return { x: 50, y: 0, width: 100, height: 300 }; }
         pauseRendering() { this.paused = true; }
         resumeRendering() { this.paused = false; }
-        async playVRMAAnimation() {
-          calls.idle += 1;
-          if (stage === 'idle') await wait();
-        }
         dispose() {
           calls.disposed += 1;
+          this.animation.stopLipSync();
           if (this.currentModel) {
             calls.released += 1;
             this.currentModel = null;
@@ -304,18 +305,7 @@ async function main() {
         }
       }
       windowMock.VRMManager = Manager;
-      windowMock.loadTestVrmModule = async (name) => name === 'loader' ? {
-        GLTFLoader: class {
-          register() {}
-          load(_path, resolve) {
-            if (stage === 'gltf') wait().then(() => resolve({ userData: { vrm } }));
-            else resolve({ userData: { vrm } });
-          }
-        },
-      } : { VRMLoaderPlugin: class {}, VRMUtils: { deepDispose(scene) {
-        assert(scene === vrm.scene, 'late disposal released a different scene');
-        calls.released += 1;
-      } } };
+      windowMock.UnityVRMManager = Manager;
       const vrmHost = windowMock.createSoccerAvatarHost({ onAvatarChanged() { calls.changed += 1; } });
       const mount = vrmHost.mount({
         slot, model: { type: 'vrm', path: '/models/%E7%8C%AB%E5%A8%98%20%23%2520.VRM' },
@@ -328,7 +318,7 @@ async function main() {
         const controller = await mount;
         assert(!controller.code && controller.getState().ready, `${slot}: healthy VRM mount failed`);
         assert(calls.moodName === '猫娘 #%20', 'mood mapping must decode URL basename exactly once');
-        assert(calls.changed === 1 && calls.animated === 1, `${slot}: healthy VRM was not published`);
+        assert(calls.changed === 1 && calls.fit >= 1, `${slot}: healthy Unity VRM was not fitted/published`);
         const frame = { active: true, mouthFrame: { bins: Array(16).fill(100), rms: 0.2, sampleRate: 12000 } };
         await controller.setSpeechPlayback(frame);
         if (slot === 'player') {
@@ -368,19 +358,16 @@ async function main() {
       release();
       await flush();
       assert(calls.changed === 0, `${slot}/${stage}: disposed avatar was published`);
-      if (stage === 'init' || stage === 'gltf') {
-        assert(calls.added === 0 && calls.animated === 0 && calls.idle === 0,
-          `${slot}/${stage}: disposed manager restarted model rendering`);
+      if (stage === 'init' || stage === 'load') {
+        assert(calls.fit === 0, `${slot}/${stage}: disposed manager fitted a stale model`);
       }
-      if (stage === 'mood') assert(calls.idle === 1, `${slot}: idle restarted after disposal`);
       if (stage === 'init') assert(calls.disposed === 2, `${slot}: late init resources survived`);
-      else assert(calls.released === 1, `${slot}/${stage}: VRM scene was not released exactly once`);
+      else assert(calls.released === 1, `${slot}/${stage}: Unity VRM model was not released exactly once`);
       assert(!manager.currentModel, `${slot}/${stage}: disposed manager retained a model`);
       assert(windowMock[slot === 'player' ? 'vrmManager' : 'aiVrmManager'] === null,
         `${slot}/${stage}: disposed manager was restored globally`);
     }
   }
-  delete windowMock.VRMAnimation;
   const mouthFrames = new Map();
   let mouthValue = 0;
   const core = {
@@ -405,10 +392,14 @@ async function main() {
   assert(mouthFrames.size === 1, 'Live2D playback updates accumulated RAFs');
   live.pause(); await flush();
   assert(mouthValue === 0 && mouthFrames.size === 0, 'Live2D pause did not release mouth');
-  windowMock.VRMManager = class {
-    constructor() { this.core = { init: async () => { throw new Error('VRM init failed'); } }; }
+  class FailedUnityManager {
+    async initRenderer() { throw new Error('VRM init failed'); }
+    isInitialized() { return false; }
+    getSurfaceCanvas() { return null; }
     dispose() {}
-  };
+  }
+  windowMock.VRMManager = FailedUnityManager;
+  windowMock.UnityVRMManager = FailedUnityManager;
   for (const paused of [true, false]) {
     if (!paused) { live.resume(); await flush(); }
     const error = await live.setModel({ type: 'vrm', path: '/missing.vrm' }).then(
@@ -430,211 +421,78 @@ async function main() {
   liveHost.dispose();
   assert(mouthValue === 0 && mouthFrames.size === 0, 'Live2D disposal retained mouth');
   assert(activeTimers.size === 0, 'provider left readiness timers');
-  // Real Three.js projection through both soccer VRM slots: wide assets must
-  // fit width as well as height, and resize/manual mode must reach the helper.
-  for (const slot of ['player', 'ai']) for (const dims of [[4, 1, 0.5], [1, 4, 0.5]]) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...dims));
-    mesh.position.set(4, -3, 2);
-    const initialPosition = mesh.position.clone();
-    let disposed = 0;
-    windowMock.VRMManager = class {
-      constructor() {
-        this.core = { init: async () => {
-          this.scene = new THREE.Scene();
-          this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 2000);
-          this.camera.position.set(0, 0, 70);
-          this.renderer = { setSize() {}, domElement: { style: {} } };
-        } };
-      }
-      startAnimateLoop() {}
-      async playVRMAAnimation() {}
-      dispose() { disposed += 1; this.currentModel = null; }
-    };
-    windowMock.loadTestVrmModule = async name => name === 'loader' ? { GLTFLoader: class {
-      register() {}
-      load(_path, resolve) { resolve({ userData: { vrm: { scene: mesh, meta: { metaVersion: '1' } } } }); }
-    } } : { VRMLoaderPlugin: class {}, VRMUtils: { deepDispose() {} } };
-    const projectedHost = windowMock.createSoccerAvatarHost();
-    const controller = await projectedHost.mount({ slot, model: { type: 'vrm', path: '/fixture.vrm' },
-      viewport: { mode: 'fixed', width: 200, height: 300 }, resize: { mode: 'fixed' },
-      fit: { mode: 'contain', align: 'bottom-center', padding: 6 } });
-    const layout = controller.getState().layout;
-    assert(layout.width <= 188.00001 && layout.height <= 288.00001,
-      `${slot}: wide/tall model exceeds contain bounds`);
-    assert(Math.abs(layout.y + layout.height - 294) < 0.00001, `${slot}: lost bottom alignment`);
-    assert(mesh.position.equals(initialPosition), 'fitting must not translate model/physics coordinates');
-    await controller.resize({ width: 300, height: 160 }, { mode: 'height', padding: 6 });
-    assert(Math.abs(controller.getState().layout.height - 148) < 0.00001, `${slot}: height policy ignored`);
-    await controller.resize({ width: 200, height: 300 }, { autoScale: false });
-    const manual = controller.getState().layout;
-    await controller.resize({ width: 300, height: 160 }, { autoScale: false });
-    assert(Math.abs(controller.getState().layout.height - manual.height) < 0.00001,
-      `${slot}: manual model changed pixel size with viewport`);
-    projectedHost.dispose();
-    assert(disposed === 1, `${slot}: fitted renderer retained after exit`);
-    mesh.geometry.dispose(); mesh.material.dispose();
-  }
-  // Failed candidate preparation must preserve the live scene and camera.
+  // Both soccer slots must use the Unity manager's native load/fit contract.
   for (const slot of ['player', 'ai']) for (const paused of [false, true]) {
-    const oldScene = new THREE.Mesh(new THREE.BoxGeometry(1, 2, .5));
-    const empty = new THREE.Group();
-    const singular = oldScene.clone(); singular.scale.y = 0;
-    const nonfinite = oldScene.clone(); nonfinite.position.x = Infinity;
-    const disposedScenes = [];
-    const animations = [];
-    windowMock.VRMAnimation = class {
-      constructor(owner) { this.manager = owner; animations.push(this); }
-      async playVRMAAnimation() { return false; }
-      dispose() { this.disposed = true; }
-    };
     let manager;
-    windowMock.VRMManager = class {
+    let disposed = 0;
+    let focusPoint = null;
+    const fits = [];
+    class SoccerUnityManager {
       constructor() {
         manager = this;
-        this.core = { init: async () => {
-          this.scene = new THREE.Scene();
-          this.camera = new THREE.PerspectiveCamera(30, 1, .01, 100);
-          this.camera.position.z = 5;
-          this.renderer = { setSize() {}, domElement: { style: {} } };
-        } };
+        this.animation = { startLipSync() {}, stopLipSync() {} };
+        this.expression = { async loadMoodMap() {} };
+        this.interaction = { enableMouseTracking() {} };
+        this._cursorFollow = {
+          setEnabled() {},
+          isEnabled() { return true; },
+          _onPointerMove(event) { focusPoint = { x: event.clientX, y: event.clientY }; },
+        };
       }
-      startAnimateLoop() { this.paused = false; }
+      async initRenderer(canvasId) {
+        this.canvas = { id: canvasId, style: {} };
+        this.initialized = true;
+      }
+      isInitialized() { return this.initialized === true; }
+      getSurfaceCanvas() { return this.canvas; }
+      resizeSurface() {}
+      async loadModel(path) {
+        if (path === '/failed.vrm') throw new Error('Unity import failed');
+        this.currentModel = { url: path, transform: {} };
+        return this.currentModel;
+      }
+      fitModel(size, fit) {
+        fits.push({ size: { ...size }, fit: { ...fit } });
+        const padding = Number(fit?.padding || 0);
+        this.bounds = { x: padding, y: padding, width: size.width - padding * 2,
+          height: size.height - padding * 2 };
+      }
+      getModelScreenBounds() { return this.bounds; }
       pauseRendering() { this.paused = true; }
       resumeRendering() { this.paused = false; }
-      async playVRMAAnimation() { return false; }
-      dispose() { this.currentModel = null; }
-    };
-    const scenes = { '/old.vrm': oldScene, '/empty.vrm': empty,
-      '/singular.vrm': singular, '/nonfinite.vrm': nonfinite };
-    windowMock.loadTestVrmModule = async name => name === 'loader' ? { GLTFLoader: class {
-      register() {}
-      load(path, resolve) { resolve({ userData: { vrm: { scene: scenes[path], meta: { metaVersion: '1' } } } }); }
-    } } : { VRMLoaderPlugin: class {}, VRMUtils: { deepDispose(scene) { disposedScenes.push(scene); } } };
-    const replacementHost = windowMock.createSoccerAvatarHost();
-    const controller = await replacementHost.mount({ slot, model: { type: 'vrm', path: '/old.vrm' },
-      viewport: { mode: 'fixed', width: 200, height: 300 }, resize: { mode: 'fixed' } });
-    if (paused) { controller.pause(); await flush(); }
-    const oldModel = manager.currentModel;
-    const oldAnimation = manager.animation;
-    const oldCamera = manager.camera.clone();
-    for (const path of ['/empty.vrm', '/singular.vrm', '/nonfinite.vrm']) {
-      let failure;
-      try { await controller.setModel({ type: 'vrm', path }); } catch (error) { failure = error; }
-      assert(/bounds|singular|finite/.test(failure?.message), 'invalid geometry was accepted');
-      assert(manager.currentModel === oldModel && manager.scene.children.includes(oldScene),
-        `${slot}: failed candidate replaced the live model`);
-      assert(!disposedScenes.includes(oldScene) && oldScene.visible,
-        `${slot}: failed candidate destroyed the old scene`);
-      assert(disposedScenes.filter(scene => scene === scenes[path]).length === 1,
-        `${slot}: failed candidate was not released exactly once`);
-      assert(manager.camera.position.equals(oldCamera.position)
-        && manager.camera.quaternion.equals(oldCamera.quaternion), 'failed candidate changed camera');
-      assert(manager.paused === paused && controller.getState().ready,
-        'failed candidate changed pause/readiness');
-      assert(manager.animation === oldAnimation && !oldAnimation.disposed
-        && animations.at(-1).disposed, 'failed candidate damaged animation ownership');
+      dispose() { disposed += 1; this.currentModel = null; }
     }
-    replacementHost.dispose();
-    oldScene.geometry.dispose(); oldScene.material.dispose();
-  }
-  delete windowMock.VRMAnimation;
-  // Exercise the real soccer load order with skinned T-pose bounds cached by
-  // the engine before its standing animation lowers both arms.
-  for (const { slot, paused } of [{ slot: 'player', paused: false },
-    { slot: 'ai', paused: false }, { slot: 'ai', paused: true }]) {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(
-      [-.2,0,0,.2,0,0,-.2,2,0,.2,2,0,-1.3,1.6,0,1.3,1.6,0], 3));
-    geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(
-      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,2,0,0,0], 4));
-    geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(
-      Array.from({ length: 6 }, () => [1,0,0,0]).flat(), 4));
-    const skin = new THREE.SkinnedMesh(geometry, new THREE.MeshBasicMaterial());
-    const hips = new THREE.Bone(), head = new THREE.Bone();
-    const leftUpperArm = new THREE.Bone(), rightUpperArm = new THREE.Bone();
-    const leftHand = new THREE.Bone(), rightHand = new THREE.Bone();
-    head.position.y = 2;
-    leftUpperArm.position.set(-.2,1.6,0); rightUpperArm.position.set(.2,1.6,0);
-    leftHand.position.x = -1.1; rightHand.position.x = 1.1;
-    leftUpperArm.add(leftHand); rightUpperArm.add(rightHand);
-    hips.add(head,leftUpperArm,rightUpperArm); skin.add(hips);
-    skin.bind(new THREE.Skeleton([hips,leftUpperArm,rightUpperArm,head,leftHand,rightHand]));
-    new THREE.Box3().setFromObject(skin);
-    const bones = { hips, head, leftUpperArm, rightUpperArm, leftHand, rightHand };
-    let manager;
-    windowMock.VRMManager = class {
-      constructor() {
-        manager = this;
-        this.core = { init: async () => {
-          this.scene = new THREE.Scene();
-          this.camera = new THREE.PerspectiveCamera(30, 1, .01, 100);
-          this.camera.position.z = 5;
-          this.renderer = { setSize() {}, domElement: { style: {} } };
-        } };
-      }
-      startAnimateLoop() { this.paused = false; }
-      pauseRendering() { this.paused = true; }
-      resumeRendering() { this.paused = false; }
-      async playVRMAAnimation(_url, options) {
-        if (options.shouldApply && !options.shouldApply()) return false;
-        leftUpperArm.rotation.z = Math.PI / 2;
-        rightUpperArm.rotation.z = -Math.PI / 2;
-        return true;
-      }
-      dispose() { this.currentModel = null; }
-    };
-    windowMock.loadTestVrmModule = async name => name === 'loader' ? { GLTFLoader: class {
-      register() {}
-      load(_path, resolve) { resolve({ userData: { vrm: { scene: skin,
-        meta: { metaVersion: '1' }, humanoid: { getRawBoneNode: name => bones[name] } } } }); }
-    } } : { VRMLoaderPlugin: class {}, VRMUtils: { deepDispose() {} } };
-    const referenceHost = windowMock.createSoccerAvatarHost();
-    const controller = await referenceHost.mount({ slot, model: { type: 'vrm', path: '/standing.vrm' },
+    windowMock.VRMManager = SoccerUnityManager;
+    windowMock.UnityVRMManager = SoccerUnityManager;
+    windowMock[slot === 'player' ? 'vrmManager' : 'aiVrmManager'] = null;
+    const unityHost = windowMock.createSoccerAvatarHost();
+    const controller = await unityHost.mount({ slot, model: { type: 'vrm', path: '/old.vrm' },
       viewport: { mode: 'fixed', width: 200, height: 300 }, resize: { mode: 'fixed' },
       fit: { mode: 'contain', align: 'bottom-center', padding: 6 } });
-    const initial = controller.getState().layout;
-    assert(initial.reference.source === 'standing-reference', `${slot}: soccer fitted before reference readiness`);
-    assert(Math.abs(initial.height - 288) < 1e-6, `${slot}: T-pose width still shrinks standing body`);
-    leftUpperArm.rotation.z = rightUpperArm.rotation.z = 0;
-    await controller.resize({ width: 200, height: 300 });
-    assert(Math.abs(controller.getState().layout.height - initial.height) < 1e-6,
-      `${slot}: animated resize changed reference size`);
+    assert(fits.some(entry => entry.size.width === 200 && entry.fit.padding === 6),
+      `${slot}: initial Unity fit contract was not called`);
+    assert(controller.getState().layout === manager.bounds,
+      `${slot}: Unity bounds were not published as layout`);
     if (slot === 'ai') {
-      if (paused) { controller.pause(); await flush(); }
-      for (const stage of ['init', 'load']) {
-        const loadError = new Error(`Live2D ${stage} failed`);
-        windowMock.live2dManager = { currentModel: null,
-          async initPIXI() { if (stage === 'init') throw loadError; },
-          async loadModel() { throw loadError; }, destroy() {} };
-        const error = await controller.setModel({ type: 'live2d', path: '/missing.json' }).then(
-          () => null, failure => failure);
-        assert(error && controller.getState().ready && controller.getState().model.type === 'vrm',
-          `${stage}: failed Live2D did not restore VRM`);
-        await controller.resize({ width: 230, height: 320 });
-        await controller.resize({ width: 200, height: 300 });
-        const restored = controller.getState().layout;
-        assert(restored.reference.source === 'standing-reference'
-          && Math.abs(restored.height - initial.height) < 1e-6
-          && Math.abs(restored.y - initial.y) < 1e-6,
-        `${stage}: restored VRM lost its stable fitting reference`);
-        assert(manager.paused === paused, `${stage}: failed replacement changed VRM pause state`);
-        assert(activeTimers.size === 0, `${stage}: failed Live2D left readiness timers`);
-      }
-      windowMock.live2dManager = { currentModel: liveModel, async initPIXI() {},
-        async loadModel() { return liveModel; }, pauseRendering() {}, resumeRendering() {}, destroy() {} };
-      await controller.setModel({ type: 'live2d', path: '/model.json' });
-      const retired = windowMock.NekoMiniGameAvatarHost.fitPerspectiveModel(THREE, skin, manager.camera,
-        { width: 200, height: 300 }, { mode: 'contain', padding: 6 });
-      assert(retired.reference.source === 'current-pose-fallback' && retired.height < 150,
-        'successful Live2D replacement retained old standing reference');
+      const focused = await controller.focus({ x: 91, y: 73 });
+      assert(focused && focusPoint?.x === 91 && focusPoint?.y === 73,
+        `AI Unity focus did not reach the cursor-follow adapter: ${JSON.stringify({ focused, focusPoint,
+          sameManager: windowMock.aiVrmManager === manager, model: controller.getState().model })}`);
     }
-    referenceHost.dispose();
-    const rebuilt = windowMock.NekoMiniGameAvatarHost.fitPerspectiveModel(THREE, skin, manager.camera,
-      { width: 200, height: 300 }, { mode: 'contain', padding: 6 });
-    assert(rebuilt.reference.source === 'current-pose-fallback' && rebuilt.height < 150,
-      `${slot}: exit retained old standing reference`);
-    windowMock.NekoMiniGameAvatarHost.releasePerspectiveReference(skin, manager.camera);
-    geometry.dispose(); skin.material.dispose(); skin.skeleton.dispose();
+    if (paused) { controller.pause(); await flush(); }
+    await controller.resize({ width: 300, height: 160 }, { mode: 'height', padding: 8 });
+    assert(fits.at(-1).size.height === 160 && fits.at(-1).fit.mode === 'height',
+      `${slot}: resize did not reach Unity fitModel`);
+    const oldModel = manager.currentModel;
+    const failure = await controller.setModel({ type: 'vrm', path: '/failed.vrm' }).then(
+      () => null, error => error);
+    assert(failure?.message === 'Unity import failed' && manager.currentModel === oldModel,
+      `${slot}: failed Unity import replaced the live model`);
+    assert(controller.getState().ready && controller.getState().model.path === '/old.vrm'
+      && Boolean(manager.paused) === paused, `${slot}: failed Unity import changed readiness or pause: `
+        + `${JSON.stringify(controller.getState())}, managerPaused=${manager.paused}, expected=${paused}`);
+    unityHost.dispose();
+    assert(disposed === 1, `${slot}: Unity manager was not disposed exactly once`);
   }
   // A hidden, paused legacy renderer cannot remain ready after an extended
   // replacement fails. Exercise the actual soccer and generic host controllers.
@@ -645,7 +503,6 @@ async function main() {
       documentMock.getElementById = id => id === 'ai-l2d-canvas' ? canvas
         : id === 'ai-l2d-container' ? container : null;
       let manager, hostReleases = 0, managerReleases = 0, published = 0;
-      const meshes = [];
       if (previousType === 'live2d') {
         manager = windowMock.live2dManager = {
           currentModel: liveModel, async initPIXI() {},
@@ -655,30 +512,33 @@ async function main() {
           destroy() { managerReleases += 1; this.currentModel = null; },
         };
       } else {
-        windowMock.VRMManager = class {
+        class ExtendedUnityManager {
           constructor() {
             manager = this;
-            this.core = { init: async () => {
-              this.scene = new THREE.Scene();
-              this.camera = new THREE.PerspectiveCamera(30, 1, .01, 100);
-              this.camera.position.z = 5;
-              this.renderer = { setSize() {}, domElement: canvas };
-            } };
+            this.animation = { startLipSync() {}, stopLipSync() {} };
+            this.expression = { async loadMoodMap() {} };
+            this.interaction = { enableMouseTracking() {} };
+            this._cursorFollow = { setEnabled() {} };
           }
-          startAnimateLoop() { this.paused = false; }
+          async initRenderer(canvasId) {
+            this.canvas = { ...canvas, id: canvasId };
+            this.initialized = true;
+          }
+          isInitialized() { return this.initialized === true; }
+          getSurfaceCanvas() { return this.canvas; }
+          resizeSurface() {}
+          async loadModel(path) {
+            this.currentModel = { url: path, transform: {} };
+            return this.currentModel;
+          }
+          fitModel(size) { this.bounds = { x: 0, y: 0, width: size.width, height: size.height }; }
+          getModelScreenBounds() { return this.bounds; }
           pauseRendering() { this.paused = true; }
           resumeRendering() { this.paused = false; }
-          async playVRMAAnimation() {}
           dispose() { managerReleases += 1; this.currentModel = null; }
-        };
-        windowMock.loadTestVrmModule = async name => name === 'loader' ? { GLTFLoader: class {
-          register() {}
-          load(_path, resolve) {
-            const scene = new THREE.Mesh(new THREE.BoxGeometry(1, 2, .5), new THREE.MeshBasicMaterial());
-            meshes.push(scene);
-            resolve({ userData: { vrm: { scene, meta: { metaVersion: '1' } } } });
-          }
-        } } : { VRMLoaderPlugin: class {}, VRMUtils: { deepDispose() {} } };
+        }
+        windowMock.VRMManager = ExtendedUnityManager;
+        windowMock.UnityVRMManager = ExtendedUnityManager;
       }
       let rejectMount;
       const loadError = new Error('extended renderer failed');
@@ -722,7 +582,6 @@ async function main() {
       assert(managerReleases === 1 && switchingHost.activeCount === 0
         && switchingHost.pendingCount === 0, `${label}: legacy manager retained after exit`);
       assert(activeTimers.size === 0 && mouthFrames.size === 0, `${label}: timers/animation frames leaked`);
-      for (const mesh of meshes) { mesh.geometry.dispose(); mesh.material.dispose(); }
     }
   }
   process.stdout.write('soccer Avatar host cancellation and automatic speech tests passed\n');

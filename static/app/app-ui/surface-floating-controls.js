@@ -1599,8 +1599,8 @@
             if (window.live2dManager && typeof window.live2dManager.setLocked === 'function') {
                 window.live2dManager.setLocked(true, { updateFloatingButtons: false });
             }
-            if (window.vrmManager && window.vrmManager.core && typeof window.vrmManager.core.setLocked === 'function') {
-                window.vrmManager.core.setLocked(true);
+            if (window.vrmManager && typeof window.vrmManager.setLocked === 'function') {
+                window.vrmManager.setLocked(true);
             }
             if (window.mmdManager && window.mmdManager.core && typeof window.mmdManager.core.setLocked === 'function') {
                 window.mmdManager.core.setLocked(true);
@@ -2329,8 +2329,8 @@
             if (window.live2dManager && typeof window.live2dManager.setLocked === 'function') {
                 window.live2dManager.setLocked(false, { updateFloatingButtons: false });
             }
-            if (window.vrmManager && window.vrmManager.core && typeof window.vrmManager.core.setLocked === 'function') {
-                window.vrmManager.core.setLocked(false);
+            if (window.vrmManager && typeof window.vrmManager.setLocked === 'function') {
+                window.vrmManager.setLocked(false);
             }
             if (window.mmdManager && window.mmdManager.core && typeof window.mmdManager.core.setLocked === 'function') {
                 window.mmdManager.core.setLocked(false);

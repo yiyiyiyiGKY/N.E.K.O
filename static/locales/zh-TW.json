@@ -4070,22 +4070,11 @@
     "vrm": {
         "error": {
             "modulesNotAvailable": "VRM 模塊加載失敗，無法切換到 VRM 模式，請刷新頁面重試",
-            "coreNotLoaded": "VRMCore 尚未加載",
-            "sceneNotInitialized": "無法加載模型：場景未初始化。",
-            "threeNotLoaded": "Three.js庫未加載，請確保已引入three.js",
             "containerNotFound": "找不到容器元素: {{id}}",
             "canvasNotFound": "找不到canvas元素: {{id}}",
-            "threeNotLoadedForModel": "Three.js庫未加載，無法加載VRM模型",
             "modelLoadFailed": "無法加載 VRM 模型: {{url}} 和 {{fallback}} 都失敗",
             "invalidVRMFormat": "加載的模型不是有效的 VRM 格式。文件: {{file}}",
-            "sceneNotInitializedForAdd": "場景未初始化。請先調用 initThreeJS() 初始化場景。",
-            "animationClipError": "創建動畫 Clip 時出錯: {{error}}",
-            "animationClipNoBones": "動畫 Clip 創建失敗：沒有找到匹配的骨骼",
-            "cannotCreateAnimationAction": "無法創建動畫動作",
-            "invalidModelPath": "VRM 模型路徑無效: {{path}}",
-            "gltfLoaderImportFailed": "無法匯入 GLTFLoader: {{error}}",
-            "threeIncomplete": "Three.js 依賴不完整，缺少: {{missing}}",
-            "vrmLoaderImportFailed": "無法匯入 VRMLoaderPlugin: {{error}}"
+            "invalidModelPath": "VRM 模型路徑無效: {{path}}"
         },
         "lighting": {
             "title": "VRM打光設置",

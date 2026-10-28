@@ -2,9 +2,11 @@
 
 ## 运行时与格式
 
-VRM 渲染器使用 Three.js 与 `@pixiv/three-vrm`。模型是 `.vrm` 文件；动画通常是通过 `@pixiv/three-vrm-animation` 加载的 `.vrma` 文件。
+VRM 渲染器是由 `unity/NekoAvatarRenderer/` 构建的 Unity WebGL + UniVRM 运行时。模型使用 `.vrm`，动画使用 `.vrma`。Three.js 仍供 MMD 等非 VRM 功能使用，但不再负责 VRM 渲染。
 
-当前实现位于 `static/vrm/`：核心、管理器、初始化、动画、表情、交互、光标跟随、朝向与 UI 模块。只有 VRM 角色激活时，`vrm-init.js` 才会创建 `window.vrmManager` 并初始化 `#vrm-canvas`。
+`static/unity/unity-vrm-loader.js` 是浏览器端唯一入口，负责加载 `static/unity/unity-avatar-manager.js` 以及 `static/vrm/` 下仍需要的表情、UI 与 VMC 模块。管理器向 Unity 发送带版本的命令，不再暴露第二套 Three.js scene、camera 或 renderer。全局角色页面由 `vrm-init.js` 创建 `window.vrmManager`；独立预览和多角色游戏只创建实际挂载的实例。
+
+Unity 构建命令把 WebGL 产物发布到 `static/unity/avatar/`。运行时必须同时存在有效的 `build-manifest.json` 及其引用的 loader、data、framework 和 wasm 文件；只有 JavaScript 适配器不能启动 Unity。
 
 ## 模型与动画
 
@@ -30,7 +32,7 @@ VRM 渲染器使用 Three.js 与 `@pixiv/three-vrm`。模型是 `.vrm` 文件；
 }
 ```
 
-角色专用光照可以覆盖这些值。后端默认值、模板上下文与 `vrm-core.js` 中的防御性回退必须保持一致。
+角色专用光照可以覆盖这些值。后端默认值、模板上下文与 Unity 管理器/控制器中的默认值必须保持一致。
 
 ## 情绪映射
 
@@ -58,13 +60,13 @@ VRM 激活时，`window.LanLan1.setEmotion(name)` 委派给 `window.vrmManager.e
 await window.vrmVmcSender.enable('127.0.0.1', 39539, 60)
 ```
 
-VMC 根节点独立于 `vrm.scene`，因此桌宠布局变换不会被导出。切换或销毁模型时，旧表情会通过带确认的清零帧退出；禁用或释放数据源最终会发送 `/VMC/Ext/OK 0`。
+VMC 根节点独立于浏览器布局变换，因此桌宠摆位不会被导出。切换或销毁模型时，旧表情会通过带确认的清零帧退出；禁用或释放数据源最终会发送 `/VMC/Ext/OK 0`。
 
 接收端配置、控制接口、安全边界、关闭码与排障方法见 [VMC 动作输出](/zh-CN/api/rest/vmc)。
 
 ## 运行时保护
 
-当前渲染器会在长时间停顿后钳制帧 delta、缩小导入的 spring-bone 碰撞体半径，并通过光照配置缩放 MToon 描边宽度。这些是内部兼容保护，不是模型格式要求；不要为了复现它们而预先修改上传的 VRM 文件。
+动画混合、视线、弹簧骨、模型构图、光照与 MToon 描边缩放均在 Unity 内执行；浏览器只负责画布表面、输入转换和生命周期命令。这些是运行时职责，不是模型格式要求；不要为了复现它们而预先修改上传的 VRM 文件。
 
 ## API 摘要
 
@@ -81,4 +83,4 @@ VMC 根节点独立于 `vrm.scene`，因此桌宠布局变换不会被导出。�
 
 ## 宿主边界
 
-VRM 在 `index.html` 中渲染，也包括 Electron 桌宠窗口。独立聊天与字幕模板有意不创建第二个 VRM 场景；原生窗口通过共享跨窗口桥接与主页面协调。
+VRM 在 `index.html` 中渲染，也包括 Electron 桌宠窗口。独立聊天与字幕模板有意不创建第二个 Unity VRM 运行时；原生窗口通过共享跨窗口桥接与主页面协调。

@@ -1,6 +1,6 @@
 /**
  * MMD 核心模块 - 负责场景初始化、模型加载、渲染循环
- * 基于 @moeru/three-mmd 框架，参考 hime-display MmdManager 和 vrm-core.js 结构
+ * 基于 @moeru/three-mmd 框架，沿用 hime-display MmdManager 的模块边界。
  */
 
 // 空闲低频 tick 模式常量（对齐 live2d-core.js 的同名机制）：

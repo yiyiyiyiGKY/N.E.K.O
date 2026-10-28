@@ -10,7 +10,7 @@ N.E.K.O. 的主界面由 FastAPI 主服务器提供。仓库中有三套构建�
 | 聊天 UI | React 18、TypeScript | `frontend/react-neko-chat/` | `static/react/neko-chat/neko-chat-window.iife.js` 与 `.css` |
 | 插件管理器 | Vue 3、TypeScript | `frontend/plugin-manager/` | `frontend/plugin-manager/dist/`，由插件服务器提供 |
 
-角色渲染器属于主界面：Live2D 使用 Pixi/Cubism，VRM 和 MMD 使用 Three.js，PNGTuber 使用 `static/pngtuber-core.js`。Electron 桌宠是宿主模式，不是另一种角色格式。
+角色渲染器属于主界面：Live2D 使用 Pixi/Cubism，VRM 使用 Unity WebGL + UniVRM，MMD 使用 Three.js，PNGTuber 使用 `static/pngtuber-core.js`。Electron 桌宠只是宿主模式，不是另一种角色格式，也不是第二套 Unity 接入。
 
 ## 唯一的聊天实现
 

@@ -1,6 +1,6 @@
 /**
  * MMD 鼠标跟踪模块 - 头部/眼睛跟随鼠标
- * 参考 hime-display MouseFocusHelper + vrm-cursor-follow.js
+ * 基于 hime-display MouseFocusHelper 的鼠标跟随实现。
  *
  * MMD 模型的头部跟踪通过直接操作骨骼旋转实现（区别于 VRM 的 LookAt 系统）
  * 查找 "頭"(Head)/"首"(Neck) 骨骼，根据鼠标位置计算目标旋转

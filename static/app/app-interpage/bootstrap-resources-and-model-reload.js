@@ -943,6 +943,63 @@ I.mod = window.appInterpage;
             });
         }
 
+        function restoreLive2DAfterFailedSwitch() {
+            var failedVrmContainer = document.getElementById('vrm-container');
+            if (failedVrmContainer) {
+                failedVrmContainer.style.display = 'none';
+                failedVrmContainer.style.visibility = 'hidden';
+                failedVrmContainer.classList.add('hidden');
+            }
+            var failedVrmCanvas = document.getElementById('vrm-canvas');
+            if (failedVrmCanvas) {
+                failedVrmCanvas.style.visibility = 'hidden';
+                failedVrmCanvas.style.pointerEvents = 'none';
+            }
+            if (window.vrmManager && typeof window.vrmManager.pauseRendering === 'function') {
+                window.vrmManager.pauseRendering();
+            }
+            if (window.vrmManager && typeof window.vrmManager.clearSurface === 'function') {
+                window.vrmManager.clearSurface();
+            }
+
+            var failedMmdContainer = document.getElementById('mmd-container');
+            if (failedMmdContainer) {
+                failedMmdContainer.style.display = 'none';
+                failedMmdContainer.style.visibility = 'hidden';
+                failedMmdContainer.classList.add('hidden');
+            }
+            var failedMmdCanvas = document.getElementById('mmd-canvas');
+            if (failedMmdCanvas) {
+                failedMmdCanvas.style.visibility = 'hidden';
+                failedMmdCanvas.style.pointerEvents = 'none';
+            }
+            if (window.mmdManager && typeof window.mmdManager.pauseRendering === 'function') {
+                window.mmdManager.pauseRendering();
+            }
+
+            var restoredLive2DContainer = document.getElementById('live2d-container');
+            if (restoredLive2DContainer) {
+                restoredLive2DContainer.classList.remove('hidden');
+                restoredLive2DContainer.style.display = 'block';
+                restoredLive2DContainer.style.visibility = 'visible';
+                restoredLive2DContainer.style.setProperty('pointer-events', 'none', 'important');
+            }
+            var restoredLive2DCanvas = document.getElementById('live2d-canvas');
+            if (restoredLive2DCanvas) {
+                restoredLive2DCanvas.style.display = 'block';
+                restoredLive2DCanvas.style.visibility = 'visible';
+                restoredLive2DCanvas.style.pointerEvents = 'auto';
+            }
+            if (window.live2dManager && typeof window.live2dManager.resumeRendering === 'function') {
+                window.live2dManager.resumeRendering();
+            }
+            if (typeof window.showLive2d === 'function') {
+                window.showLive2d();
+            }
+            ensureLive2DRenderActive('model-reload-rollback-live2d');
+            scheduleLive2DRenderActivation('model-reload-rollback-live2d');
+        }
+
         try {
             // 1. Re-fetch page config, or use a caller-provided temporary runtime config.
             var nameForConfig = targetLanlanName || currentLanlanName;
@@ -1081,12 +1138,9 @@ I.mod = window.appInterpage;
 
                     // Load the new model
                     if (window.vrmManager) {
-                        // 【关键修复】确保容器和 canvas 存在，并恢复 Three.js 场景可见性。
-                        // 角色切换的清理逻辑会将 renderer.domElement 设为 display:none，
-                        // 而 loadModel 内部在 scene/camera/renderer 已存在时不会调用
-                        // ensureThreeReady（也就不会恢复 canvas 可见性），导致从 Live2D
-                        // 切换到 VRM 时模型加载成功但不可见。
-                        // initThreeJS 在已初始化时是幂等的，但会无条件恢复容器/canvas 可见性。
+                        // 确保 Unity 容器和 canvas 存在，并恢复渲染表面可见性。
+                        // 角色切换可能隐藏 VRM 容器；重新初始化 Unity 渲染表面，
+                        // 确保从 Live2D 切回 VRM 时 canvas 已创建并恢复可见。
                         {
                             var vrmContainerEl = document.getElementById('vrm-container');
                             if (vrmContainerEl && !vrmContainerEl.querySelector('canvas')) {
@@ -1095,7 +1149,7 @@ I.mod = window.appInterpage;
                                 vrmContainerEl.appendChild(newCanvas);
                             }
                         }
-                        await window.vrmManager.initThreeJS('vrm-canvas', 'vrm-container', nextLighting);
+                        await window.vrmManager.initRenderer('vrm-canvas', 'vrm-container', nextLighting);
 
                         // 停止旧的待机轮换
                         if (typeof window._stopVrmIdleRotation === 'function') window._stopVrmIdleRotation();
@@ -1192,8 +1246,8 @@ I.mod = window.appInterpage;
                     if (window.vrmManager && typeof window.vrmManager.pauseRendering === 'function') {
                         window.vrmManager.pauseRendering();
                     }
-                    if (window.vrmManager && window.vrmManager.renderer) {
-                        window.vrmManager.renderer.clear();
+                    if (window.vrmManager && typeof window.vrmManager.clearSurface === 'function') {
+                        window.vrmManager.clearSurface();
                     }
                     if (window.live2dManager && typeof window.live2dManager.pauseRendering === 'function') {
                         window.live2dManager.pauseRendering();
@@ -1349,8 +1403,8 @@ I.mod = window.appInterpage;
                     if (window.vrmManager && typeof window.vrmManager.pauseRendering === 'function') {
                         window.vrmManager.pauseRendering();
                     }
-                    if (window.vrmManager && window.vrmManager.renderer) {
-                        window.vrmManager.renderer.clear();
+                    if (window.vrmManager && typeof window.vrmManager.clearSurface === 'function') {
+                        window.vrmManager.clearSurface();
                     }
                     if (window.mmdManager && typeof window.mmdManager.pauseRendering === 'function') {
                         window.mmdManager.pauseRendering();
@@ -1398,8 +1452,8 @@ I.mod = window.appInterpage;
                         window.vrmManager.pauseRendering();
                     }
                     // 清空VRM画布残留像素，避免透明窗口穿透
-                    if (window.vrmManager && window.vrmManager.renderer) {
-                        window.vrmManager.renderer.clear();
+                    if (window.vrmManager && typeof window.vrmManager.clearSurface === 'function') {
+                        window.vrmManager.clearSurface();
                     }
                     if (window.mmdManager && typeof window.mmdManager.pauseRendering === 'function') {
                         window.mmdManager.pauseRendering();
@@ -1586,6 +1640,14 @@ I.mod = window.appInterpage;
                 window.lanlan_config.model_type = oldModelType;
                 window.lanlan_config.live3d_sub_type = oldLive3dSubType || '';
                 console.warn('[Model] 已回滚 config:', { model_type: oldModelType, live3d_sub_type: oldLive3dSubType });
+            }
+            if (typeChanged && oldModelType === 'live2d') {
+                try {
+                    restoreLive2DAfterFailedSwitch();
+                    console.warn('[Model] 已恢复切换前的 Live2D 模型');
+                } catch (restoreError) {
+                    console.warn('[Model] Live2D restore after failed switch failed:', restoreError);
+                }
             }
             if (typeChanged && oldModelType === 'pngtuber') {
                 try {

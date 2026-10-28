@@ -20,21 +20,17 @@
  *   4. 用"攻击快、释放慢"的不对称指数平滑让嘴快速张开、缓慢闭合，并在
  *      词内短暂停顿时保持嘴型，避免爆破音间隙造成的"突突"感。
  *
- * 与旧单通道实现的关系：本模块只负责"分析"，产出 { volume, weights }；
- * 表情写入与 mixer 防冲突仍由 VRMAnimation._updateLipSync 负责，保留了
- * 原有"每帧先清零其他口型再写入"的防 VRMA 轨道残留机制。
+ * 本模块只负责“分析”，产出 { volume, weights }；Unity VRM 桥接器与 MMD
+ * 运行时分别负责把权重写入各自的渲染器，避免分析器与渲染实现耦合。
  *
  * 宿主 analyser 归属：本模块只读 analyser 的格式，绝不写它的配置。见 attach()。
  */
 
 // 幂等自执行包装。
 //
-// 本文件同时出现在四条模块加载链里：vrm-init.js、mmd-init.js、
-// model_manager 的 runtime-loaders.js（VRM 与 MMD 两个并行 IIFE 各一份）、
-// character_card_manager 的 model-previews.js。其中 runtime-loaders.js 的两个
-// IIFE 并行执行且不做 src 去重，同一个经典脚本会被 append 两次；顶层
-// const/class 重复执行会抛 "Identifier 'VOWEL_FORMANTS' has already been
-// declared"，整条模块链随之断掉。
+// 本文件由 Unity VRM 的统一加载器和多个 MMD 页面入口共同使用。不同入口可能
+// 重复追加同一个经典脚本；顶层 const/class 重复执行会抛
+// "Identifier 'VOWEL_FORMANTS' has already been declared"，整条模块链随之断掉。
 //
 // 把实现关进 IIFE 并在开头幂等短路后，重复加载退化成无害空转；顺带把
 // CAP / ATTACK / RELEASE 这类通用名从全局作用域收回来。
@@ -58,7 +54,7 @@
     });
 
     // 元音键（与 mouthExpressions / blendshape 名一致）。
-    // 这是五元音键表的单一真相源：vrm-animation.js 与 mmd-expression.js 都从
+    // 这是五元音键表的单一真相源：Unity VRM 适配器与 mmd-expression.js 都从
     // window.VRM_LIPSYNC_VOWEL_KEYS 派生自己的键序，避免三处各写一份。
     const VOWEL_KEYS = Object.freeze(['aa', 'ee', 'ih', 'oh', 'ou']);
 
@@ -108,7 +104,7 @@
     // delta 在这里统一夹紧，调用点不必各自防御：VRM 与 MMD 两条渲染循环都把自己的
     // delta 直接传进来，非有限值会让指数平滑算出 NaN 并永久 latch 进 state
     // （NaN 参与任何运算仍是 NaN），此后每帧把 NaN 写进 blendshape。
-    // 上界与 VRMAnimation.MAX_DELTA_THRESHOLD 对齐，防止切回后台标签页时嘴型瞬跳。
+    // 夹紧上界，防止切回后台标签页时嘴型瞬跳。
     // delta === 0 是合法输入：本帧不推进平滑。
     const MAX_DELTA = 0.1;
     const DEFAULT_DELTA = 0.016;
@@ -350,7 +346,7 @@
         }
     }
 
-    // 经典脚本挂载（与 window.VRMAnimation 风格一致），供 vrm-animation.js 使用。
+    // 经典脚本挂载，供 Unity VRM 适配器与其他非模块调用方使用。
     if (typeof window !== 'undefined') {
         window.FormantLipSyncAnalyzer = FormantLipSyncAnalyzer;
         window.VRM_LIPSYNC_VOWEL_KEYS = VOWEL_KEYS;
