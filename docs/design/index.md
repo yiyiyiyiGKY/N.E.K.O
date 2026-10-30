@@ -27,8 +27,13 @@ These documents preserve design intent and implementation context. They are grou
 - [PNGTuber lightweight avatar](./pngtuber-lightweight-avatar-plan)
 - [Translation subtitle panel](./translation-subtitle-panel-design)
 - [TTS provider and voice-source unification](./tts-voice-source-unification)
+- [Unity VRM renderer migration handoff](./unity-vrm-migration-handoff) — Chinese-only implementation snapshot. The current runtime contract remains in the VRM frontend guide.
 - [Live2D idle motion selection and recovery](/live2d_motion_plan)
 - [PNGTubeRemix layered physics compatibility](/pngtuber-remix-physics-plan)
+
+## Migration direction and staged proposals
+
+- [N.E.K.O Rust and Unity migration roadmap](./rust-unity-migration-roadmap) — Chinese-only staged proposal. Unity-first sequencing is confirmed; detailed Rust ownership and Python worker design require approval after Unity acceptance.
 
 ## N.E.K.O 小剧场与剧本工坊
 
