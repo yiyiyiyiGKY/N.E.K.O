@@ -216,6 +216,12 @@ namespace Neko.Avatar.Editor
             ValidateOutputPath(outputPath);
             var stagingPath = CreateUniqueSiblingPath(outputPath, "staging");
             var originalActiveScene = SceneManager.GetActiveScene();
+            var replacesUntitledScene = string.IsNullOrEmpty(originalActiveScene.path);
+            if (replacesUntitledScene && originalActiveScene.isDirty)
+            {
+                throw new InvalidOperationException(
+                    "Save or discard the untitled scene before building the N.E.K.O Unity avatar");
+            }
             var generatedScene = default(Scene);
             string generatedScenePath = null;
             var createdGeneratedDirectory = false;
@@ -234,7 +240,12 @@ namespace Neko.Avatar.Editor
 
                 generatedScenePath = AssetDatabase.GenerateUniqueAssetPath(
                     GeneratedDirectory + "/" + GeneratedSceneName);
-                generatedScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                // Unity rejects an additive scene while its clean batch-mode
+                // startup scene is still untitled. Replacing that disposable
+                // scene is safe; saved editor scenes remain open additively.
+                generatedScene = EditorSceneManager.NewScene(
+                    NewSceneSetup.EmptyScene,
+                    replacesUntitledScene ? NewSceneMode.Single : NewSceneMode.Additive);
                 SceneManager.SetActiveScene(generatedScene);
                 var controllerObject = new GameObject(NekoAvatarProtocol.ControllerObjectName);
                 controllerObject.AddComponent<NekoAvatarController>();
@@ -276,7 +287,12 @@ namespace Neko.Avatar.Editor
             }
             finally
             {
-                if (originalActiveScene.IsValid() && originalActiveScene.isLoaded)
+                if (replacesUntitledScene && generatedScene.IsValid() && generatedScene.isLoaded)
+                {
+                    EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+                    generatedScene = default(Scene);
+                }
+                else if (originalActiveScene.IsValid() && originalActiveScene.isLoaded)
                 {
                     SceneManager.SetActiveScene(originalActiveScene);
                 }

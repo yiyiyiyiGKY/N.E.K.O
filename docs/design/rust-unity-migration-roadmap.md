@@ -1,6 +1,6 @@
 # N.E.K.O Rust 与 Unity 迁移总体路线
 
-> **分阶段架构方案**：截至 2026-10-30，已确认的是先完成 Unity VRM 3D 接管、暂停 Rust 重写、保留必要 Python 环境并维持逻辑功能。Rust Desktop Host、Rust Core 的具体所有权、迁移顺序和 Python worker 形态仍是延后方案，必须在 Unity 验收后重新审批，不因本文存在而自动进入开发。当前 Unity 实施状态见 [Unity VRM 渲染迁移交接](./unity-vrm-migration-handoff)。
+> **分阶段架构方案**：截至 2026-11-03，已确认的是先完成 Unity VRM 3D 接管、暂停 Rust 重写、保留必要 Python 环境并维持逻辑功能。Rust Desktop Host、Rust Core 的具体所有权、迁移顺序和 Python worker 形态仍是延后方案，必须在 Unity 验收后重新审批，不因本文存在而自动进入开发。当前 Unity 实施状态见 [Unity VRM 渲染迁移交接](./unity-vrm-migration-handoff)。
 
 ## 迁移目标
 
@@ -38,8 +38,8 @@ Main / Memory / Agent 三个主要服务、Agent 内嵌 Plugin listener、Web UI
                          │
               ┌──────────┴──────────┐
               ▼                     ▼
-   Unity VRM WebGL 源码路径    其他现有 Avatar 格式
-      运行验收待完成           Live2D / MMD / PNGTuber
+   Unity VRM WebGL 运行路径    其他现有 Avatar 格式
+      单屏主链已实测           Live2D / MMD / PNGTuber
 ```
 
 N.E.K.O-PC 不应复制聊天、记忆、角色或插件业务。N.E.K.O 页面也不应自行猜测原生窗口、屏幕和进程状态。跨仓改动必须明确协议生产者、消费者、owner、版本和失败结果。
@@ -65,14 +65,14 @@ Unity Renderer       Python Plugin Worker
 VRM 3D 与模型交互     旧插件 SDK、Python 依赖、必要生态适配
 ```
 
-当前已落地的是准备在既有 Web/Electron 页面中启动 Unity WebGL 的源码路径，但分支尚无正式 WebGL 构建，不能称为正在运行。未来若批准 Rust 宿主，首先应复用验收后的 Avatar 协议和 Unity 构建；是否改变为独立 renderer 进程属于另一项架构决策，不与 Rust 重写默认绑定。
+当前已在既有 Web/Electron 页面中落地 Unity WebGL 运行路径：正式 WebGL 构建、仓库内两个 VRM、透明 Electron Pet、核心交互、制卡/取帧和已迁移小游戏已有真实运行证据。阶段一仍未越过最终门槛，因为跨屏 DPI、GPU 资源压力和最终冻结发行包缺少物理或资产条件；不能因此提前启动 Rust。未来若批准 Rust 宿主，首先应复用已验收的 Avatar 协议和 Unity 构建；是否改变为独立 renderer 进程属于另一项架构决策，不与 Rust 重写默认绑定。
 
 ### 能力所有权
 
 | 能力 | 当前 owner | 候选目标 owner | 迁移约束 |
 | --- | --- | --- | --- |
 | 原生窗口、托盘、快捷键、多屏、输入穿透 | N.E.K.O-PC Electron 主进程 | Rust Desktop Host | 逐平台做行为 parity，不能只用 Web 测试证明 |
-| VRM 载入、渲染、VRMA、表情、口型、视线和 SpringBone | Unity WebGL 与 UniVRM 源码路径，运行验收待完成 | Unity Renderer | 不迁入 Rust，不恢复 Three-VRM |
+| VRM 载入、渲染、VRMA、表情、口型、视线和 SpringBone | Unity WebGL 与 UniVRM 运行路径，单屏主链已实测 | Unity Renderer | 不迁入 Rust，不恢复 Three-VRM；剩余验收见交接文档 |
 | Live2D、MMD、PNGTuber | 各自现有渲染器 | 保持现状，另案决策 | 不因 VRM Unity 化而删减格式能力 |
 | 聊天、设置和插件管理界面 | React 与现有 Web UI | React 与 Web UI | 不把文本密集型 UI 重做进 Unity |
 | 服务拉起、实例归属、端口、退出、日志和更新 | Electron 与 Python 启动链 | Rust Desktop Host | 作为 Rust 首批候选，先冻结现有生命周期合同 |

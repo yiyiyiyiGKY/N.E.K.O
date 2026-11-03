@@ -17,6 +17,28 @@ def test_live2d_init_respects_model_manager_pngtuber_mode():
     assert guard_block.index("modelManagerAvatarType === 'pngtuber'") < guard_block.index("(window.lanlan_config?.model_type || '').toLowerCase() === 'pngtuber'")
 
 
+def test_live2d_init_waits_for_authoritative_config_before_skipping_vrm_and_mmd():
+    source = LIVE2D_INIT_PATH.read_text(encoding="utf-8")
+    helper = source[
+        source.index("function _nekoConfiguredAvatarUsesAnotherRenderer()"):
+        source.index("function _nekoShouldSelfHealLive2D()")
+    ]
+    assert "modelType === 'vrm'" in helper
+    assert "modelType === 'mmd'" in helper
+    assert "live3dSubType === 'vrm'" in helper
+    assert "live3dSubType === 'mmd'" in helper
+
+    init_block = source[
+        source.index("async function _initLive2DModelInner()"):
+        source.index("// 获取模型路径", source.index("async function _initLive2DModelInner()"))
+    ]
+    config_wait = "await _nekoAwaitWithTimeout(window.pageConfigReady, NEKO_LIVE2D_AWAIT_TIMEOUT_MS);"
+    authoritative_guard = "if (_nekoConfiguredAvatarUsesAnotherRenderer())"
+    assert config_wait in init_block
+    assert authoritative_guard in init_block
+    assert init_block.index(config_wait) < init_block.index(authoritative_guard)
+
+
 def test_resident_expression_callback_reapplies_normalized_effective_parameters():
     source = LIVE2D_INIT_PATH.read_text(encoding="utf-8")
     callback_start = source.index("onResidentExpressionApplied: (model) =>")

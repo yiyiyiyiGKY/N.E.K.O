@@ -1773,6 +1773,19 @@
                     );
                 }
                 this._syncTransformNow();
+                if (preferences) {
+                    await this.waitForRenderedFrame();
+                    if (loadToken !== this._activeLoadToken || generation !== this._modelGeneration) return null;
+                    const movedIntoView = await this.interaction._snapModelIntoScreen({ animate: false });
+                    if (loadToken !== this._activeLoadToken || generation !== this._modelGeneration) return null;
+                    if (movedIntoView) {
+                        await this._snapshotAndSavePreferences({
+                            isCurrent: () => loadToken === this._activeLoadToken &&
+                                generation === this._modelGeneration
+                        });
+                        if (loadToken !== this._activeLoadToken || generation !== this._modelGeneration) return null;
+                    }
+                }
                 this._loadState = 'ready';
                 this._isModelReadyForInteraction = true;
                 const [profile] = await Promise.all([profilePromise, idlePlayback]);

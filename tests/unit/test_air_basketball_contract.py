@@ -52,6 +52,8 @@ def test_air_basketball_assets_use_their_own_cache_version():
     )
     own = {path.name for path in pages_router._AIR_BASKETBALL_ASSET_VERSION_PATHS}
     assert {"game.js", "physics.js", "arcade.css", "neko-hoop.png"} <= own
+    assert "window.__NEKO_AVATAR_LIGHTWEIGHT_EMBED__ = true;" in html
+    assert "window.__NEKO_CARD_MAKER_EMBED__ = true;" not in html
 
 
 @pytest.mark.unit

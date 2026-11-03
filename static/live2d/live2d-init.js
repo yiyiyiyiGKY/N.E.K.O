@@ -54,6 +54,13 @@ function _nekoAwaitWithTimeout(thenable, ms) {
     ]);
 }
 
+function _nekoConfiguredAvatarUsesAnotherRenderer() {
+    const modelType = String(window.lanlan_config?.model_type || '').toLowerCase();
+    const live3dSubType = String(window.lanlan_config?.live3d_sub_type || '').toLowerCase();
+    return modelType === 'pngtuber' || modelType === 'vrm' || modelType === 'mmd' ||
+        (modelType === 'live3d' && (live3dSubType === 'vrm' || live3dSubType === 'mmd'));
+}
+
 // 仅对"本应显示 Live2D"的会话自愈；pngtuber/vrm/mmd 的空 cubism4Model 是正常态。
 function _nekoShouldSelfHealLive2D() {
     try {
@@ -64,10 +71,7 @@ function _nekoShouldSelfHealLive2D() {
         if (window.location && String(window.location.pathname || '').includes('model_manager')) return false;
         // 小游戏 / 卡片导出页自己挂载模型，空 cubism4Model 是正常态（与 vrm-init / mmd-init 的跳过一致）。
         if (window._cardExportPage) return false;
-        const mt = (window.lanlan_config && window.lanlan_config.model_type || '').toLowerCase();
-        const sub = (window.lanlan_config && window.lanlan_config.live3d_sub_type || '').toLowerCase();
-        if (mt === 'pngtuber' || mt === 'vrm') return false;
-        if (mt === 'live3d' && sub === 'mmd') return false;
+        if (_nekoConfiguredAvatarUsesAnotherRenderer()) return false;
         if ((window.vrmManager && window.vrmManager.currentModel) || (window.mmdManager && window.mmdManager.currentModel)) return false;
         return true;
     } catch (_) {
@@ -495,6 +499,13 @@ async function _initLive2DModelInner() {
     // 有界等待：pageConfigReady 卡死时超时即继续，空路径分支随后会触发重取自愈。
     if (!_preInitModelPath && window.pageConfigReady && typeof window.pageConfigReady.then === 'function') {
         await _nekoAwaitWithTimeout(window.pageConfigReady, NEKO_LIVE2D_AWAIT_TIMEOUT_MS);
+    }
+
+    // currentModel is intentionally not used as the authoritative startup
+    // guard: Unity/MMD may still be loading when pageConfigReady resolves.
+    if (_nekoConfiguredAvatarUsesAnotherRenderer()) {
+        console.log('[Live2D Init] 配置指定其他模型渲染器，跳过 Live2D 初始化');
+        return;
     }
 
     // 获取模型路径

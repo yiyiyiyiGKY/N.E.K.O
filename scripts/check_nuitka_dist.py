@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import sys
 import tomllib
 from pathlib import Path
@@ -63,6 +64,10 @@ _REQUIRED_ASSETS: tuple[tuple[str, str | None], ...] = (
     # bundles only .py files and omits this directory; verify at least one locale JSON is present or character seeds fall back to the wrong language for non-default users.
     ("config/characters", "*.json"),
     ("static", None),
+    # The Unity WebGL player is the only production VRM renderer. A generic
+    # non-empty static/ check cannot detect a missing manifest or one missing
+    # hashed build file, both of which leave the packaged desktop pet blank.
+    ("static/unity/avatar", "build-manifest.json"),
     # Vendored MMD libraries must ship with their upstream license notices.
     ("static/libs", "three-mmd.module.js"),
     ("static/libs", "three-mmd-physics-ammo.module.js"),
@@ -127,6 +132,10 @@ _PLUGIN_TOML_REQUIRED_PARENT = "plugin/plugins"
 _MARKETPLACE_ONLY_PLUGIN_IDS = frozenset(
     {"neko_warthunder", "study_companion", "galgame_plugin"}
 )
+
+_UNITY_AVATAR_MANIFEST = "static/unity/avatar/build-manifest.json"
+_UNITY_AVATAR_URL_PREFIX = "/static/unity/avatar/"
+_UNITY_AVATAR_BUILD_URLS = ("loaderUrl", "dataUrl", "frameworkUrl", "codeUrl")
 
 
 def _plugin_manifest_id(manifest_path: Path) -> str | None:
@@ -199,6 +208,42 @@ def _check_plugin_tomls(dist_root: Path) -> list[str]:
             continue
         if not manifest_path.is_file():
             issues.append(f"plugin missing plugin.toml: {sub.relative_to(dist_root).as_posix()}")
+    return issues
+
+
+def _check_unity_avatar_build(dist_root: Path) -> list[str]:
+    """Validate that the packaged Unity manifest resolves to four real files."""
+
+    manifest_path = dist_root / _UNITY_AVATAR_MANIFEST
+    if not manifest_path.is_file():
+        return []  # The regular required-asset check reports this more clearly.
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return [f"invalid Unity avatar build manifest: {exc}"]
+
+    if not isinstance(manifest, dict) or manifest.get("version") != 1:
+        return ["invalid Unity avatar build manifest: version must be 1"]
+
+    issues: list[str] = []
+    avatar_root = (dist_root / "static/unity/avatar").resolve()
+    for key in _UNITY_AVATAR_BUILD_URLS:
+        url = manifest.get(key)
+        if not isinstance(url, str) or not url.startswith(_UNITY_AVATAR_URL_PREFIX):
+            issues.append(
+                f"invalid Unity avatar build manifest: {key} must start with "
+                f"{_UNITY_AVATAR_URL_PREFIX}"
+            )
+            continue
+        relative = url.removeprefix(_UNITY_AVATAR_URL_PREFIX)
+        target = (avatar_root / relative).resolve()
+        try:
+            target.relative_to(avatar_root)
+        except ValueError:
+            issues.append(f"invalid Unity avatar build manifest: {key} escapes avatar root")
+            continue
+        if not target.is_file() or target.stat().st_size == 0:
+            issues.append(f"missing or empty Unity avatar build file: {url}")
     return issues
 
 
@@ -277,6 +322,7 @@ def main(argv: list[str] | None = None) -> int:
         if problem:
             issues.append(problem)
 
+    issues.extend(_check_unity_avatar_build(dist_root))
     issues.extend(_check_plugin_tomls(dist_root))
     if args.plugin_stage is not None:
         issues.extend(_check_plugin_stage(dist_root, args.plugin_stage.resolve()))

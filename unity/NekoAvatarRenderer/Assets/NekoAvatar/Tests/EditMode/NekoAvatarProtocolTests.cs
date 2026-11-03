@@ -1326,6 +1326,31 @@ namespace Neko.Avatar.Tests
                 Is.Not.Null);
         }
 
+        [TestCase("badmintonRacket")]
+        [TestCase("badmintonShuttle")]
+        public void BadmintonAccessoriesContainRenderMeshesWithoutPhysicsColliders(string preset)
+        {
+            var factoryType = typeof(NekoAvatarController).Assembly.GetType("Neko.Avatar.NekoAvatarAccessoryFactory");
+            var create = factoryType.GetMethod("Create", BindingFlags.Public | BindingFlags.Static);
+            var resource = create.Invoke(null, new object[] { "test-accessory", preset });
+            var resourceType = resource.GetType();
+            var root = (GameObject)resourceType.GetField("Root").GetValue(resource);
+            try
+            {
+                Assert.That(root.GetComponentsInChildren<MeshFilter>(true), Is.Not.Empty);
+                Assert.That(root.GetComponentsInChildren<MeshRenderer>(true), Is.Not.Empty);
+                Assert.That(root.GetComponentsInChildren<Collider>(true), Is.Empty);
+            }
+            finally
+            {
+                var materials = (IEnumerable<Material>)resourceType.GetField("Materials").GetValue(resource);
+                var meshes = (IEnumerable<Mesh>)resourceType.GetField("Meshes").GetValue(resource);
+                foreach (var material in materials) UnityEngine.Object.DestroyImmediate(material);
+                foreach (var mesh in meshes) UnityEngine.Object.DestroyImmediate(mesh);
+                UnityEngine.Object.DestroyImmediate(root);
+            }
+        }
+
         [Test]
         public void PoseRootOffsetComposesWithModelTransformAndMovement()
         {
@@ -1490,6 +1515,34 @@ namespace Neko.Avatar.Tests
                 + "\"body\":{\"dx\":80,\"dy\":40,\"clamp\":false}}");
             var dragBody = envelopeType.GetField("body").GetValue(unclampedDrag);
             Assert.That((bool)dragBody.GetType().GetField("clamp").GetValue(dragBody), Is.False);
+        }
+
+        [Test]
+        public void ScreenDragFollowsCameraRightEvenWhenCameraFacesNegativeZ()
+        {
+            var cameraObject = new GameObject("screen-drag-camera");
+            try
+            {
+                var camera = cameraObject.AddComponent<Camera>();
+                camera.transform.position = new Vector3(0f, 0f, 10f);
+                camera.transform.LookAt(Vector3.zero, Vector3.up);
+                var method = typeof(NekoAvatarController).GetMethod(
+                    "ScreenDeltaToWorld",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(method, Is.Not.Null);
+
+                var right = (Vector3)method.Invoke(null, new object[] { camera, 40f, 0f, 0.01f });
+                var down = (Vector3)method.Invoke(null, new object[] { camera, 0f, 40f, 0.01f });
+
+                Assert.That(Vector3.Dot(right, camera.transform.right), Is.GreaterThan(0f));
+                Assert.That(Vector3.Dot(down, camera.transform.up), Is.LessThan(0f));
+                Assert.That(right.x, Is.LessThan(0f),
+                    "This camera's screen-right direction is negative world X; using world X mirrors dragging");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(cameraObject);
+            }
         }
 
         [Test]

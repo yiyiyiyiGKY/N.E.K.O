@@ -7,6 +7,16 @@ const vm = require('node:vm');
 const ROOT = path.resolve(__dirname, '..', '..');
 const template = fs.readFileSync(path.join(ROOT, 'templates', 'badminton_demo.html'), 'utf8');
 
+test('badminton uses the lightweight avatar bootstrap without desktop UI modules', () => {
+  const vrmInit = fs.readFileSync(path.join(ROOT, 'static', 'vrm', 'vrm-init.js'), 'utf8');
+  const mmdInit = fs.readFileSync(path.join(ROOT, 'static', 'mmd', 'mmd-init.js'), 'utf8');
+  assert.match(template, /window\.__NEKO_AVATAR_LIGHTWEIGHT_EMBED__\s*=\s*true/);
+  assert.match(template, /\/static\/vrm\/vrm-init\.js\?v=\{\{ static_asset_version \}\}/);
+  assert.match(template, /\/static\/mmd\/mmd-init\.js\?v=\{\{ static_asset_version \}\}/);
+  assert.match(vrmInit, /window\.__NEKO_AVATAR_LIGHTWEIGHT_EMBED__\s*===\s*true/);
+  assert.match(mmdInit, /window\.__NEKO_AVATAR_LIGHTWEIGHT_EMBED__\s*===\s*true/);
+});
+
 function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }

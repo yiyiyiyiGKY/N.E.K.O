@@ -31,6 +31,7 @@
     const PNGTUBER_IMAGE_LOAD_TIMEOUT_MS = 15000;
     const PNGTUBER_SOURCE_MAX_EDGE = 2048;
     const VISIBILITY_ANALYSIS_MAX_EDGE = 256;
+    const VRM_READY_TIMEOUT_MS = 120000;
 
     function clamp(value, min, max) {
         return Math.min(max, Math.max(min, value));
@@ -77,6 +78,59 @@
         if (global.vrmManager?.currentModel) return 'vrm';
         if (global.live2dManager?.getCurrentModel?.()) return 'live2d';
         return 'live2d';
+    }
+
+    function isVrmModelReady() {
+        const manager = global.vrmManager;
+        const model = manager?.getCurrentModel?.() || manager?.currentModel;
+        return !!(manager && model && manager._isModelReadyForInteraction !== false);
+    }
+
+    function waitForVrmModelReady(modelType, timeoutMs) {
+        if (normalizeModelType(modelType) !== 'vrm' || isVrmModelReady()) {
+            return Promise.resolve();
+        }
+        if (typeof global.addEventListener !== 'function') return Promise.resolve();
+
+        const waitMs = Math.max(0, finiteOr(Number(timeoutMs), VRM_READY_TIMEOUT_MS));
+        return new Promise((resolve, reject) => {
+            let timer = null;
+            let settled = false;
+            const cleanup = () => {
+                global.removeEventListener?.('vrm-model-loaded', onLoaded);
+                global.removeEventListener?.('vrm-model-load-failed', onFailed);
+                global.removeEventListener?.('unity-vrm-fatal', onFatal);
+                if (timer !== null) global.clearTimeout(timer);
+            };
+            const finish = (callback, value) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                callback(value);
+            };
+            const onLoaded = () => {
+                if (isVrmModelReady()) finish(resolve);
+            };
+            const onFailed = (event) => finish(
+                reject,
+                createError(event?.detail?.error || 'VRM 模型加载失败')
+            );
+            const onFatal = (event) => finish(
+                reject,
+                createError(event?.detail?.message || 'Unity VRM 运行时不可用')
+            );
+
+            global.addEventListener('vrm-model-loaded', onLoaded);
+            global.addEventListener('vrm-model-load-failed', onFailed);
+            global.addEventListener('unity-vrm-fatal', onFatal);
+            timer = global.setTimeout(() => {
+                finish(reject, createError('等待 VRM 模型就绪超时'));
+            }, waitMs);
+
+            // Close the event-registration race if the load completed between
+            // the first readiness check and listener installation.
+            if (isVrmModelReady()) finish(resolve);
+        });
     }
 
     function getPNGTuberDrawableSize(drawable) {
@@ -1867,6 +1921,7 @@
 
     async function capture(options = {}) {
         const finalOptions = { ...DEFAULTS, ...options };
+        await waitForVrmModelReady(finalOptions.modelType, finalOptions.readyTimeoutMs);
         const adapter = getAdapter(finalOptions.modelType);
         const context = adapter.getContext();
         await adapter.prepare(context);

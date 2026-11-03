@@ -54,6 +54,23 @@ PROBE_NY = 0.4
 REPEATS = 3
 
 
+def test_vrm_configuration_skips_live2d_touch_startup_before_the_vrm_model_exists():
+    """The authoritative character config must win over stale localStorage.
+
+    During a cold Unity boot currentModel is still null. Looking only at the
+    legacy localStorage flag starts five pointless Live2D retries and can race
+    the real VRM startup.
+    """
+    source = (Path(__file__).resolve().parents[2] / "static" / "touch-config.js").read_text(
+        encoding="utf-8"
+    )
+    assert "configuredModelType === 'vrm'" in source
+    assert "configuredModelType === 'live3d' && configuredLive3dSubType === 'vrm'" in source
+    assert "await window.pageConfigReady" in source
+    guard = source[source.index("if (!options.allowLive2DReload && (") :]
+    assert guard.index("isConfiguredVRM") < guard.index("模型不存在，等待 1 秒后重试")
+
+
 def _wait_main_page_ready(page: Page, timeout_ms: int = 60000):
     page.wait_for_function(
         """() => {

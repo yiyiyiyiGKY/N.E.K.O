@@ -178,6 +178,7 @@ build*
 !scripts/build-desktop-release.ps1
 # Unity WebGL is the shipped VRM renderer. Its four generated runtime files and
 # manifest must be packageable even though generic build outputs stay ignored.
+/static/unity/avatar/*
 !/static/unity/avatar/
 !/static/unity/avatar/build-manifest.json
 !/static/unity/avatar/Build/

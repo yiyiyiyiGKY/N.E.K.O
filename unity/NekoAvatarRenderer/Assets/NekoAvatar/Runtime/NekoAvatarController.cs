@@ -73,6 +73,23 @@ namespace Neko.Avatar
             public void Dispose() { }
         }
 
+        private static IMaterialDescriptorGenerator CreateAnimationMaterialDescriptorGenerator()
+        {
+            // VrmAnimationImporter only needs its default material for the
+            // skeleton helper that N.E.K.O immediately hides. Its built-in
+            // default is Standard, which may be stripped from WebGL and has a
+            // very large variant set. Reuse the already-retained UniUnlit
+            // shader instead of retaining all of Standard for a hidden mesh.
+            var shader = Shader.Find("UniGLTF/UniUnlit");
+            if (shader == null)
+            {
+                throw new InvalidOperationException("Required VRM animation fallback shader is unavailable: UniGLTF/UniUnlit");
+            }
+            var generator = new BuiltInGltfMaterialDescriptorGenerator();
+            generator.DefaultMaterialImporter.Shader = shader;
+            return generator;
+        }
+
         private sealed class SnapshotTPoseProvider : ITPoseProvider
         {
             private readonly Dictionary<HumanBodyBones, EuclideanTransform> _transforms =
@@ -624,6 +641,12 @@ namespace Neko.Avatar
             public Quaternion DeltaRotation;
         }
 
+        private sealed class RestTransformState
+        {
+            public Vector3 LocalPosition;
+            public Quaternion LocalRotation;
+        }
+
         private sealed class AnchorTrackState
         {
             public string Name;
@@ -728,6 +751,9 @@ namespace Neko.Avatar
         private float _surfaceHeight;
         private float _nativeFitPixelsPerUnit = 1f;
         private Vector3[] _fitReferenceCorners;
+        private readonly Dictionary<Vrm10Instance, Dictionary<Transform, RestTransformState>>
+            _capturedRestPoseByAvatar =
+                new Dictionary<Vrm10Instance, Dictionary<Transform, RestTransformState>>();
         private float _targetMouth;
         private float _mouth;
         private bool _weightedVisemesActive;
@@ -1137,6 +1163,7 @@ namespace Neko.Avatar
                 if (previous != null)
                 {
                     RemoveOutlineMaterialBaselines(previous);
+                    _capturedRestPoseByAvatar.Remove(previous);
                     Destroy(previous.gameObject);
                 }
                 committed = true;
@@ -1153,6 +1180,7 @@ namespace Neko.Avatar
                     if (loaded != null)
                     {
                         RemoveOutlineMaterialBaselines(loaded);
+                        _capturedRestPoseByAvatar.Remove(loaded);
                         Destroy(loaded.gameObject);
                     }
                 }
@@ -1166,6 +1194,7 @@ namespace Neko.Avatar
                     if (loaded != null)
                     {
                         RemoveOutlineMaterialBaselines(loaded);
+                        _capturedRestPoseByAvatar.Remove(loaded);
                         Destroy(loaded.gameObject);
                     }
                 }
@@ -1208,6 +1237,7 @@ namespace Neko.Avatar
             _avatar.transform.position = Vector3.zero;
             _avatar.transform.rotation = Quaternion.identity;
             _avatar.transform.localScale = Vector3.one;
+            CaptureRestPose(_avatar);
             FitCameraToAvatar();
             CaptureNativeFitBaseline();
             CaptureFitReferenceBounds();
@@ -1419,9 +1449,14 @@ namespace Neko.Avatar
             try
             {
                 using (var data = GlbLowLevelParser.Parse(string.Empty, bytes))
-                using (var importer = new VrmAnimationImporter(new VrmAnimationData(data)))
                 {
-                    loadedRoot = await importer.LoadAsync(CreateAwaitCaller());
+                    VrmAnimationImportNormalizer.Normalize(data);
+                    using (var importer = new VrmAnimationImporter(
+                        new VrmAnimationData(data),
+                        materialGenerator: CreateAnimationMaterialDescriptorGenerator()))
+                    {
+                        loadedRoot = await importer.LoadAsync(CreateAwaitCaller());
+                    }
                 }
                 if (loadedRoot == null) throw new InvalidOperationException("UniVRM returned no VRMA instance");
                 if (revision != _animationRevision || generation != _generation || token.IsCancellationRequested)
@@ -1554,7 +1589,7 @@ namespace Neko.Avatar
                     EmitError(envelope.id, envelope.generation, "bone_not_found", "Humanoid bone is unavailable: " + requested?.name);
                     return;
                 }
-                if (!_avatar.DefaultTransformStates.TryGetValue(node, out var rest))
+                if (!TryGetRestTransformState(node, out var rest))
                 {
                     EmitError(envelope.id, envelope.generation, "rest_pose_unavailable", "Rest pose is unavailable: " + requested.name);
                     return;
@@ -2202,9 +2237,20 @@ namespace Neko.Avatar
             ++_snapRevision;
             var height = Mathf.Max(1f, body.height > 0f ? body.height : _surfaceHeight);
             var worldPerPixel = _camera.orthographicSize * 2f / height;
-            _avatar.transform.position += new Vector3(body.dx * worldPerPixel, -body.dy * worldPerPixel, 0f);
+            _avatar.transform.position += ScreenDeltaToWorld(
+                _camera,
+                body.dx,
+                body.dy,
+                worldPerPixel);
             if (body.clamp) ClampAvatarToSurface(body.minVisiblePixels);
             StartCoroutine(EmitBoundsAfterStableFrame(_modelRevision, _generation));
+        }
+
+        private static Vector3 ScreenDeltaToWorld(Camera camera, float dx, float dy, float worldPerPixel)
+        {
+            if (camera == null) return Vector3.zero;
+            return camera.transform.right * (dx * worldPerPixel) -
+                camera.transform.up * (dy * worldPerPixel);
         }
 
         private void HandleModelOrbit(CommandEnvelope envelope)
@@ -3384,18 +3430,15 @@ namespace Neko.Avatar
             var bones = new List<BoneSnapshotBody>();
             var restPose = new List<BoneSnapshotBody>();
             var expressions = new List<ExpressionSnapshotBody>();
-            var animator = _avatar.GetComponent<Animator>();
-            if (animator == null || !animator.isHuman)
+            if (_avatar.Humanoid == null)
             {
-                EmitError(envelope.id, envelope.generation, "humanoid_unavailable", "The loaded VRM has no humanoid Animator");
+                EmitError(envelope.id, envelope.generation, "humanoid_unavailable", "The loaded VRM has no humanoid mapping");
                 return;
             }
-            var defaultStates = _avatar.DefaultTransformStates;
             for (var index = 0; index < (int)HumanBodyBones.LastBone; ++index)
             {
                 var bone = (HumanBodyBones)index;
-                var node = animator.GetBoneTransform(bone);
-                if (node == null) continue;
+                if (!_avatar.TryGetBoneTransform(bone, out var node)) continue;
                 var protocolName = NekoAvatarProtocol.ToVrmHumanBoneName(bone.ToString());
                 bones.Add(new BoneSnapshotBody
                 {
@@ -3403,7 +3446,7 @@ namespace Neko.Avatar
                     localPosition = new VectorBody(NekoAvatarProtocol.UnityToBrowserPosition(node.localPosition)),
                     localRotation = new QuaternionBody(NekoAvatarProtocol.UnityToBrowserRotation(node.localRotation))
                 });
-                if (defaultStates.TryGetValue(node, out var rest))
+                if (TryGetRestTransformState(node, out var rest))
                 {
                     restPose.Add(new BoneSnapshotBody
                     {
@@ -3440,6 +3483,64 @@ namespace Neko.Avatar
                 }
             };
             NekoAvatarBrowserBridge.Emit(JsonUtility.ToJson(payload));
+        }
+
+        private void CaptureRestPose(Vrm10Instance avatar)
+        {
+            if (avatar == null) return;
+            var captured = new Dictionary<Transform, RestTransformState>();
+            var humanoid = avatar.Humanoid;
+            if (humanoid != null)
+            {
+                for (var index = 0; index < (int)HumanBodyBones.LastBone; ++index)
+                {
+                    // UniHumanoid's mapping is populated by the importer before
+                    // the Animator's runtime Avatar is guaranteed to report
+                    // isHuman in WebGL. Capturing through Animator here can
+                    // therefore produce an empty map even though the same
+                    // Animator becomes usable before the first VMC request.
+                    var node = humanoid.GetBoneTransform((HumanBodyBones)index);
+                    if (node == null || captured.ContainsKey(node)) continue;
+                    if (avatar.DefaultTransformStates.TryGetValue(node, out var imported))
+                    {
+                        captured[node] = new RestTransformState
+                        {
+                            LocalPosition = imported.LocalPosition,
+                            LocalRotation = imported.LocalRotation
+                        };
+                    }
+                    else
+                    {
+                        // UniVRM's VRM 0.x conversion can expose an empty
+                        // DefaultTransformStates map. Capture the humanoid
+                        // transforms immediately after import, before any
+                        // animation, pose or look-at command can mutate them.
+                        captured[node] = new RestTransformState
+                        {
+                            LocalPosition = node.localPosition,
+                            LocalRotation = node.localRotation
+                        };
+                    }
+                }
+            }
+            _capturedRestPoseByAvatar[avatar] = captured;
+        }
+
+        private bool TryGetRestTransformState(Transform node, out RestTransformState state)
+        {
+            state = null;
+            if (_avatar == null || node == null) return false;
+            if (_avatar.DefaultTransformStates.TryGetValue(node, out var imported))
+            {
+                state = new RestTransformState
+                {
+                    LocalPosition = imported.LocalPosition,
+                    LocalRotation = imported.LocalRotation
+                };
+                return true;
+            }
+            return _capturedRestPoseByAvatar.TryGetValue(_avatar, out var captured) &&
+                captured.TryGetValue(node, out state);
         }
 
         private bool TryFindExpression(string requestedName, out ExpressionKey found)
@@ -3547,6 +3648,7 @@ namespace Neko.Avatar
             if (_avatar != null)
             {
                 RemoveOutlineMaterialBaselines(_avatar);
+                _capturedRestPoseByAvatar.Remove(_avatar);
                 Destroy(_avatar.gameObject);
             }
             _avatar = null;

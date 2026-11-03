@@ -250,14 +250,30 @@ async function InitializationTouchSet(characterJson, options = {}) {
     while(typeof window.t !== 'function'){
         await new Promise(resolve => setTimeout(resolve, 500));
     }
+    if (window.pageConfigReady && typeof window.pageConfigReady.then === 'function') {
+        try {
+            await window.pageConfigReady;
+        } catch (_) {
+            // The fallback API lookup below remains authoritative when the
+            // shared page-config bootstrap fails.
+        }
+    }
 
-    const modelType = localStorage.getItem('modelType') || 'live2d';
+    const modelType = String(localStorage.getItem('modelType') || 'live2d').toLowerCase();
+    const configuredModelType = String(window.lanlan_config?.model_type || '').toLowerCase();
+    const configuredLive3dSubType = String(window.lanlan_config?.live3d_sub_type || '').toLowerCase();
+    const isConfiguredVRM = configuredModelType === 'vrm'
+        || (configuredModelType === 'live3d' && configuredLive3dSubType === 'vrm');
+    const isConfiguredMMD = configuredModelType === 'mmd'
+        || (configuredModelType === 'live3d' && configuredLive3dSubType === 'mmd');
     const isVRMActive = window.vrmManager && window.vrmManager.currentModel;
     const isMMDActive = window.mmdManager && window.mmdManager.currentModel;
     // allowLive2DReload：调用方刚完成 Live2D 模型加载/热切换时使用。此场景下
     // localStorage.modelType 和 vrm/mmdManager.currentModel 可能还是切换前的
     // 旧值（热切换只暂停 VRM/MMD 渲染、不清 currentModel），守卫会误拦刷新。
-    if (!options.allowLive2DReload && (modelType !== 'live2d' || isVRMActive || isMMDActive)) {
+    if (!options.allowLive2DReload && (
+        modelType !== 'live2d' || isConfiguredVRM || isConfiguredMMD || isVRMActive || isMMDActive
+    )) {
         console.log('[TouchSet] 当前模型类型不是 Live2D，跳过触摸配置初始化');
         return false;
     }

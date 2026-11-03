@@ -1,0 +1,11 @@
+{
+    "version": 1,
+    "loaderUrl": "/static/unity/avatar/Build/7a2dbded24d57e056180125b1583e7c4.loader.js",
+    "dataUrl": "/static/unity/avatar/Build/6bf0a1629296dd0aff3ede49bcfdc300.data",
+    "frameworkUrl": "/static/unity/avatar/Build/7fa3d14f9a5ab4cd626e5285aa5a8071.framework.js",
+    "codeUrl": "/static/unity/avatar/Build/c5c4f19178cd8c4a71962d6565105665.wasm",
+    "streamingAssetsUrl": "/static/unity/avatar/StreamingAssets",
+    "companyName": "Project N.E.K.O.",
+    "productName": "NekoAvatarRenderer",
+    "productVersion": "1.0.0"
+}

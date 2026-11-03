@@ -4,7 +4,9 @@
   "references": [
     "Neko.Avatar.Unity",
     "Neko.Avatar.Unity.Editor",
+    "UniGLTF",
     "UniGLTF.Utils",
+    "UniHumanoid",
     "VRM10",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner"

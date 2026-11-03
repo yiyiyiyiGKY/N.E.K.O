@@ -49,7 +49,7 @@ const avatar = create(container);
 avatar.resize({ width: 200, height: 300 });
 await avatar.setModel({ path: '/static/vrm/avatar.vrm' });
 assert.deepEqual(calls.find(call => call[0] === 'model'),
-  ['model', '/static/vrm/avatar.vrm', true, false, false]);
+  ['model', '/static/vrm/avatar.vrm', true, false, true]);
 assert.deepEqual(calls.filter(call => call[0] === 'fit').at(-1), ['fit', 200, 300, 'contain', 'bottom-center']);
 assert.equal(avatar.getState().ready, true);
 assert.equal(avatar.focus({ x: 0, y: 0 }), true);

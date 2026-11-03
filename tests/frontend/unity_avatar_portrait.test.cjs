@@ -93,3 +93,65 @@ test('Unity VRM portrait uses manager screen geometry and never projects the fac
     assert.ok(result.cropRectCss.x >= 0 && result.cropRectCss.y >= 0);
     assert.equal(result.canvas.drawCalls.length, 1);
 });
+
+test('Unity VRM portrait waits for the startup model-ready event', async () => {
+    const sourceCanvas = new FakeCanvas(1600, 1200, {
+        left: 0, top: 0, width: 800, height: 600,
+    });
+    const listeners = new Map();
+
+    class UnityVRMManagerMock {
+        constructor() {
+            this.currentModel = null;
+            this._isModelReadyForInteraction = false;
+        }
+        getCurrentModel() { return this.currentModel; }
+        getSurfaceCanvas() { return sourceCanvas; }
+        getModelScreenBounds() {
+            return { left: 240, top: 80, right: 560, bottom: 560 };
+        }
+        getHeadDetectionGeometryInfo() { return null; }
+        async waitForRenderedFrame() {}
+    }
+
+    const manager = new UnityVRMManagerMock();
+    const document = {
+        getElementById() { return null; },
+        createElement() { return new FakeCanvas(); },
+    };
+    const window = {
+        document,
+        UnityVRMManager: UnityVRMManagerMock,
+        vrmManager: manager,
+        lanlan_config: { model_type: 'vrm' },
+        location: { href: 'http://127.0.0.1:48911/' },
+        setTimeout,
+        clearTimeout,
+        addEventListener(name, handler) {
+            const bucket = listeners.get(name) || new Set();
+            bucket.add(handler);
+            listeners.set(name, bucket);
+        },
+        removeEventListener(name, handler) { listeners.get(name)?.delete(handler); },
+        dispatchEvent(event) {
+            for (const handler of listeners.get(event.type) || []) handler(event);
+        },
+    };
+    const sandbox = { window, document, console, URL, Promise, Array, setTimeout, clearTimeout };
+    vm.runInNewContext(SOURCE, sandbox, { filename: 'avatar-portrait.js' });
+
+    let settled = false;
+    const pending = window.avatarPortrait.capture({
+        modelType: 'vrm', width: 256, height: 256, readyTimeoutMs: 1000,
+    }).finally(() => { settled = true; });
+    await Promise.resolve();
+    assert.equal(settled, false);
+
+    manager.currentModel = { transform: {}, vrm: {} };
+    manager._isModelReadyForInteraction = true;
+    window.dispatchEvent({ type: 'vrm-model-loaded', detail: { renderer: 'unity' } });
+
+    const result = await pending;
+    assert.equal(result.modelType, 'vrm');
+    assert.equal(settled, true);
+});

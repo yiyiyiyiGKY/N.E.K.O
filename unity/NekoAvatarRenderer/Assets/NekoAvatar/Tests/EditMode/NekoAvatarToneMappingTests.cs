@@ -114,20 +114,31 @@ namespace Neko.Avatar.Tests
         {
             var originalAmbient = RenderSettings.ambientLight;
             var originalAmbientMode = RenderSettings.ambientMode;
+            var existingMainCameras = GameObject.FindGameObjectsWithTag("MainCamera");
+            foreach (var existingMainCamera in existingMainCameras)
+            {
+                existingMainCamera.tag = "Untagged";
+            }
             var controllerObject = new GameObject("tone-mapping-controller-test");
             controllerObject.SetActive(false);
             var cameraObject = new GameObject("tone-mapping-camera-test");
             cameraObject.tag = "MainCamera";
-            cameraObject.AddComponent<Camera>();
+            var camera = cameraObject.AddComponent<Camera>();
             try
             {
                 var controller = controllerObject.AddComponent<NekoAvatarController>();
                 InvokePrivate(controller, "ConfigureScene");
 
+                var controllerCamera = (Camera)typeof(NekoAvatarController)
+                    .GetField("_camera", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetValue(controller);
+                Assert.That(controllerCamera, Is.SameAs(camera));
                 var effect = cameraObject.GetComponent<NekoAvatarToneMappingEffect>();
                 Assert.That(effect, Is.Not.Null);
                 Assert.That(effect.Mode, Is.EqualTo(7));
                 Assert.That(effect.Exposure, Is.EqualTo(1.1f));
+                Assert.That(effect.enabled, Is.True);
+                Assert.That(camera.allowHDR, Is.True);
 
                 var lightingType = typeof(NekoAvatarController).GetNestedType(
                     "LightingBody",
@@ -156,6 +167,10 @@ namespace Neko.Avatar.Tests
                 RenderSettings.ambientMode = originalAmbientMode;
                 Object.DestroyImmediate(controllerObject);
                 Object.DestroyImmediate(cameraObject);
+                foreach (var existingMainCamera in existingMainCameras)
+                {
+                    if (existingMainCamera != null) existingMainCamera.tag = "MainCamera";
+                }
             }
         }
 

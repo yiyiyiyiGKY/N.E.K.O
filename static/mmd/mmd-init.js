@@ -365,7 +365,8 @@
         window._mmdModulesLoading = true;
         window._mmdModulesFailed = null;
         console.log('[MMD] 开始加载依赖模块');
-        const lightweightEmbed = window.__NEKO_CARD_MAKER_EMBED__ === true;
+        const lightweightEmbed = window.__NEKO_AVATAR_LIGHTWEIGHT_EMBED__ === true
+            || window.__NEKO_CARD_MAKER_EMBED__ === true;
 
         // 核心模块（无相互依赖，可并行）
         // vrm-lipsync-formant.js 是共享分析器（挂 window.FormantLipSyncAnalyzer），

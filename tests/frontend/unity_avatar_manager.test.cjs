@@ -1221,6 +1221,57 @@ test('Unity manager requests the initial idle before a slow preference read sett
     await manager.dispose();
 });
 
+test('Unity manager snaps restored preferences back into an operable viewport and saves the repair', async () => {
+    const { sandbox, commands } = createSandbox();
+    const originalFetch = sandbox.fetch;
+    sandbox.fetch = async (input, options = {}) => {
+        const url = new URL(String(input), sandbox.window.location.href);
+        if (url.pathname === '/api/config/preferences' && options.method !== 'POST') {
+            return {
+                ok: true,
+                json: async () => ({
+                    models: [{
+                        model_path: '/static/vrm/sister1.0.vrm',
+                        position: { x: 9, y: 2, z: 0 },
+                        rotation: { x: 0, y: 0.5, z: 0 },
+                        scale: { x: 0.5, y: 0.5, z: 0.5 },
+                        viewport: { width: 1920, height: 1080 }
+                    }]
+                })
+            };
+        }
+        return originalFetch(input, options);
+    };
+    vm.runInNewContext(MANAGER_SOURCE, sandbox, { filename: 'unity-avatar-manager.js' });
+
+    const manager = new sandbox.window.VRMManager();
+    await manager.initRenderer('vrm-canvas', 'vrm-container');
+    let repairedSaveCalls = 0;
+    manager._snapshotAndSavePreferences = async ({ isCurrent } = {}) => {
+        assert.equal(typeof isCurrent, 'function');
+        assert.equal(isCurrent(), true);
+        repairedSaveCalls += 1;
+        return true;
+    };
+
+    const model = await manager.loadModel('/static/vrm/sister1.0.vrm', { autoPlay: false });
+    const commandNames = commands.map((command) => command.command);
+    const syncIndex = commandNames.indexOf('surface.sync');
+    const snapIndex = commandNames.indexOf('model.snap');
+    assert.ok(syncIndex >= 0);
+    assert.ok(snapIndex > syncIndex);
+    assert.deepEqual(
+        { ...commands[snapIndex].body },
+        { minVisiblePixels: 200, animate: false }
+    );
+    assert.equal(repairedSaveCalls, 1);
+    assert.deepEqual(
+        { x: model.transform.position.x, y: model.transform.position.y, z: model.transform.position.z },
+        { x: 0.25, y: -0.1, z: 0 }
+    );
+    await manager.dispose();
+});
+
 test('Unity lock, drag, and model replacement cancel guided movement and fence late owners', async () => {
     const { sandbox, commands, elements } = createSandbox();
     const playback = [];

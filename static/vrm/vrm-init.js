@@ -56,7 +56,8 @@
     window._vrmModulesPromise = (async () => {
         console.log('[VRM] 开始加载 Unity 渲染依赖');
         const loader = await ensureCanonicalLoader();
-        const lightweightEmbed = window.__NEKO_CARD_MAKER_EMBED__ === true;
+        const lightweightEmbed = window.__NEKO_AVATAR_LIGHTWEIGHT_EMBED__ === true
+            || window.__NEKO_CARD_MAKER_EMBED__ === true;
         await loader.ensure({
             version: VRM_VERSION,
             ui: !lightweightEmbed,

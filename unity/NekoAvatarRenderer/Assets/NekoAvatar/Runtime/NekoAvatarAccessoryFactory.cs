@@ -126,16 +126,11 @@ namespace Neko.Avatar
             Quaternion rotation,
             Material material)
         {
-            var item = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            item.name = name;
+            var item = CreateBuiltinMeshObject(name, "Cylinder.fbx", material);
             item.transform.SetParent(parent, false);
             item.transform.localPosition = position;
             item.transform.localRotation = rotation;
             item.transform.localScale = new Vector3(radius * 2f, height * 0.5f, radius * 2f);
-            var renderer = item.GetComponent<MeshRenderer>();
-            renderer.sharedMaterial = material;
-            var collider = item.GetComponent<Collider>();
-            if (collider != null) UnityEngine.Object.Destroy(collider);
         }
 
         private static void CreateCylinderBetween(
@@ -164,14 +159,20 @@ namespace Neko.Avatar
             Vector3 scale,
             Material material)
         {
-            var item = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            item.name = name;
+            var item = CreateBuiltinMeshObject(name, "Sphere.fbx", material);
             item.transform.SetParent(parent, false);
             item.transform.localPosition = position;
             item.transform.localScale = scale;
-            item.GetComponent<MeshRenderer>().sharedMaterial = material;
-            var collider = item.GetComponent<Collider>();
-            if (collider != null) UnityEngine.Object.Destroy(collider);
+        }
+
+        private static GameObject CreateBuiltinMeshObject(string name, string meshName, Material material)
+        {
+            var mesh = Resources.GetBuiltinResource<Mesh>(meshName);
+            if (mesh == null) throw new InvalidOperationException("Built-in mesh is unavailable: " + meshName);
+            var item = new GameObject(name);
+            item.AddComponent<MeshFilter>().sharedMesh = mesh;
+            item.AddComponent<MeshRenderer>().sharedMaterial = material;
+            return item;
         }
 
         private static void CreateTorus(

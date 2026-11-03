@@ -4,7 +4,7 @@
 
 ## 固定版本
 
-- Unity `2022.3.73f1`（Built-in Render Pipeline）
+- Unity `2022.3.62f3`（Built-in Render Pipeline）
 - UniVRM `v0.131.4`
 - WebGL（透明 framebuffer、未压缩构建文件，直接由 FastAPI 静态资源服务提供）
 
@@ -15,7 +15,7 @@ UniVRM 同时把 VRM 0.x 迁移到 VRM 1.0 runtime，因此同一个载入入口
 在已激活许可证、装有 WebGL Build Support 的 Unity Editor 上执行：
 
 ```bash
-/Applications/Unity/Hub/Editor/2022.3.73f1/Unity.app/Contents/MacOS/Unity \
+/Applications/Unity/Hub/Editor/2022.3.62f3/Unity.app/Contents/MacOS/Unity \
   -batchmode -quit \
   -projectPath "$PWD/unity/NekoAvatarRenderer" \
   -executeMethod Neko.Avatar.Editor.NekoAvatarWebGLBuild.Build
@@ -34,7 +34,7 @@ static/unity/avatar/
 
 可用 `NEKO_UNITY_WEBGL_OUTPUT` 指定绝对输出目录，`NEKO_UNITY_WEBGL_PUBLIC_BASE` 指定清单中的公开 URL 前缀。构建器会创建仅含 `NekoAvatarController` 的临时场景，构建完成后删除临时场景，不修改业务配置。
 
-构建先写入正式目录旁的唯一 staging 目录，确认 loader、data、framework、wasm 均存在且非空并生成 manifest 后，才替换正式目录；构建或发布失败会保留/恢复上一份完整产物。生成文件使用 Unity 内容哈希命名，manifest 每次启动重新校验，避免浏览器或 Unity data cache 复用旧 player。已有的非空输出目录必须包含 `build-manifest.json`，构建器不会覆盖无法识别的普通目录。临时场景以 additive 模式创建且使用唯一资产路径，构建完成后恢复原活动场景；构建期间临时调整的 Player、Graphics Tier 与 always-included shader 设置也会恢复。
+构建先写入正式目录旁的唯一 staging 目录，确认 loader、data、framework、wasm 均存在且非空并生成 manifest 后，才替换正式目录；构建或发布失败会保留/恢复上一份完整产物。生成文件使用 Unity 内容哈希命名，manifest 每次启动重新校验，避免浏览器或 Unity data cache 复用旧 player。已有的非空输出目录必须包含 `build-manifest.json`，构建器不会覆盖无法识别的普通目录。构建器为临时场景使用唯一资产路径：已有已保存场景时 additive 打开并在结束后恢复原活动场景；批处理启动的干净无标题场景会被临时替换并在结束后恢复默认场景；无标题场景含未保存修改时拒绝构建。构建期间临时调整的 Player、Graphics Tier 与 always-included shader 设置也会恢复。
 
 ## 页面通信
 
@@ -107,8 +107,8 @@ WebGL 启动配置固定 `devicePixelRatio:1` 并设置 `matchWebGLToCanvasSize:
 Editor tests：
 
 ```bash
-/Applications/Unity/Hub/Editor/2022.3.73f1/Unity.app/Contents/MacOS/Unity \
-  -batchmode -quit \
+/Applications/Unity/Hub/Editor/2022.3.62f3/Unity.app/Contents/MacOS/Unity \
+  -batchmode \
   -projectPath "$PWD/unity/NekoAvatarRenderer" \
   -runTests -testPlatform EditMode \
   -testResults "$PWD/.agent/unity-editmode-results.xml"

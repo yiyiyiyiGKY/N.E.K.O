@@ -46,7 +46,7 @@ export function create(container) {
       await manager.loadModel(config.path, {
         embed: true,
         restorePreferences: false,
-        autoPlay: false,
+        autoPlay: true,
       });
       if (disposed) return;
       applyViewport();
